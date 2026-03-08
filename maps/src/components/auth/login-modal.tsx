@@ -16,8 +16,8 @@ import api from '@/lib/api';
 
 export function LoginModal() {
   const { open, setOpen, setLoggedIn } = useLoginModal();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('alex@clickmaps.com.br');
+  const [password, setPassword] = useState('Alex1985@');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
