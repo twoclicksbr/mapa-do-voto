@@ -1,6 +1,7 @@
 # CLAUDE.md — ClickMaps
+<!-- Atualizado em: 08/03/2026 03:30 -->
 
-> Plataforma de mapas geoespaciais multi-tenant. Permite clicar em qualquer ponto do mapa e controlar detalhes desse ponto.
+> Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
 ---
 
@@ -13,7 +14,7 @@
 ## Regras do Chat (claude.ai)
 
 - Não usar caixas de perguntas (widgets de seleção). Sempre perguntar em texto direto.
-- Ao enviar prompts para o Claude Code, sempre envolver o prompt inteiro em um único bloco de código (``` ```) para que o usuário copie com um clique. Texto explicativo fica fora do bloco.
+- Ao enviar prompts para o Claude Code, sempre envolver o prompt inteiro em um único bloco de código para que o usuário copie com um clique. Texto explicativo fica fora do bloco.
 - Não se antecipar — aguardar direção explícita antes de sugerir ou implementar algo.
 
 ---
@@ -24,27 +25,29 @@
 
 ---
 
-## Visão do Produto
+## Decisão Arquitetural
 
-ClickMaps é uma plataforma de mapas geoespaciais multi-tenant dentro do ecossistema TwoClicks.
-
-### Funcionalidades planejadas
-
-- Pontos customizados no mapa (semáforos, buracos, entregas, etc.)
-- Rastreamento em tempo real via WebSocket
-- Cercas geográficas (geofences) com cercas aninhadas
-- Tempo dentro da cerca (timestamps entrada/saída)
-- Histórico de eventos por ponto (instalação, manutenção, etc.)
-- Mapa de calor (heatmap) com Leaflet.heat
-- Divisão por zonas/regiões (bairros, zonas eleitorais)
-- Importação de KML ou desenho manual via Leaflet.draw
-- Otimização de rotas (OSRM/GraphHopper)
-- Reporte de ocorrências por munícipes
-- Notícias automáticas do candidato via Google News RSS/NewsAPI
+ClickMaps é um produto **independente** da TwoClicks:
+- Clientes são políticos — perfil diferente do SaaS genérico
+- Backend simples — candidatos, partidos, dados TSE, autenticação
+- Um banco PostgreSQL direto, sem multi-tenant
+- Marca própria ("ClickMaps" é nome provisório — será renomeado no futuro)
 
 ---
 
-## Módulo Eleitoral (principal caso de uso para MVP)
+## Visão do Produto
+
+### Funcionalidades planejadas
+
+- Visualização geográfica de votos por município/seção (heatmap)
+- Split view — comparar candidato vs concorrente lado a lado
+- Autocomplete de busca de candidato para o lado direito do split
+- Atendimentos — cada atendimento do político vira um pin no mapa *(guardado)*
+- Módulo de Inteligência de Alianças — relatório que rankeia melhores alianças *(guardado)*
+
+---
+
+## Módulo Eleitoral
 
 ### Dados do TSE (gratuitos)
 
@@ -55,72 +58,70 @@ Fonte: https://dadosabertos.tse.jus.br
 - Eleitorado por local de votação
 - API JSON em tempo real no dia da eleição
 
-### Fluxo
+### Estratégia de importação TSE
 
-1. Usuário digita nome do candidato
-2. Sistema busca no TSE, baixa CSV da UF, filtra por candidato + concorrentes
-3. Salva no PostgreSQL, descarta CSV bruto
-4. Mapa exibe heatmap por candidato + camadas de concorrentes
+- Começar por SP 2024, expandir estado a estado via background jobs
+- CSV → Laravel processa → PostgreSQL → descarta CSV
+- Dados processados estimados: 20-40GB para histórico nacional
 
 ### Cliente piloto — Neto Bota (Caraguatatuba/SP)
 
 - Nome completo: José Mendes de Souza Neto Bota
-- Vereador 2008 ✅ | Vereador 2012 ✅ (mais votado Litoral Norte, 1.984 votos)
-- Deputado Estadual 2022 ❌ suplente (~28.648 votos)
-- Prefeito Caraguatatuba 2024 ❌ 2º lugar (20.313 votos / 28,19%)
-- Eleito 2024: Mateus Silva (PSD) 26.850 votos / 37,26%
+- Partido: PL | Cargo 2026: Deputado Estadual
+- Histórico: Vereador 2008 ✅ | Vereador 2012 ✅ | Dep. Estadual 2022 ❌ suplente | Prefeito 2024 ❌ 2º lugar
 
-### Estratégia de importação TSE
+---
 
-- Não baixar tudo de uma vez (volume total ~300-500GB)
-- Começar por SP 2024, expandir estado a estado via background jobs
-- CSV → Laravel processa → PostgreSQL → descarta CSV
-- Dados processados estimados: 20-40GB para histórico nacional
+## Escalas de Mapa por Cargo
+
+| Cargo | Escala | Área |
+|---|---|---|
+| Vereador / Prefeito | Municipal | Seções/bairros da cidade |
+| Dep. Estadual / Dep. Federal / Senador / Governador | Estadual | Municípios do estado |
+| Presidente | Nacional | Municípios do Brasil |
+
+O sistema detecta a escala automaticamente pelo cargo do candidato.
+
+---
+
+## Alianças por Cargo
+
+Cada cargo faz aliança com **todos dentro da sua área de disputa**:
+
+- **Vereador** → prefeito + todos do município
+- **Prefeito** → todos do município + dep. estaduais + dep. federais
+- **Dep. Estadual / Federal / Senador** → todos os municípios do estado
+- **Governador** → todos do estado, todos os níveis
+- **Presidente** → todos do Brasil, todos os níveis
 
 ---
 
 ## Modelo de Negócio
 
-### Precificação por eleição (não assinatura)
+### Precificação por eleição
 
-| Plano | Inclui | Preço |
-|---|---|---|
-| Básico | Mapa + histórico | R$ 1.497 |
-| Pro | + apuração tempo real | R$ 2.997 |
-| Premium | + relatórios + suporte | R$ 5.997 |
+| Cargo | Preço |
+|---|---|
+| Vereador | R$ 1.497 |
+| Prefeito | R$ 2.997 |
+| Dep. Estadual / Federal | R$ 4.997 |
+| Senador / Governador | R$ 9.997 |
+| Presidente | sob consulta |
 
-### Go-to-market
+### Go-to-market 2026
 
+- Eleições estaduais/federais — ticket maior
 - Canal: marqueteiros eleitorais com carteira de candidatos
-- Marqueteiro compra por R$ 2.997, revende por R$ 4.500-5.000
-- 2026 = eleições estaduais/federais (ticket maior)
-- Margem ~95% (dados TSE gratuitos, VPS já pago até 2027)
-
----
-
-## Arquitetura
-
-```
-clickmaps.com.br (React/Metronic — frontend)
-        ↓
-api.twoclicks.com.br (Laravel — backend TwoClicks)
-
-TwoClicks
-└── clickmaps (plataforma)
-    └── master (tenant)
-        └── banco: clickmaps_master
-```
-
-**VPS:** KVM 4, 4 cores, 16GB RAM, 200GB disco, pago até 2027-04-11
+- Margem ~95% (dados TSE gratuitos, VPS pago até 2027)
 
 ---
 
 ## Stack
 
-- **Frontend:** React 19 + Vite + TypeScript + Metronic v9.4.5 + Tailwind CSS 4
-- **Mapa:** Leaflet + react-leaflet + OpenStreetMap / CartoDB
-- **Backend:** TwoClicks (Laravel API existente)
-- **DB:** PostgreSQL
+- **Frontend:** React 19 + Vite + TypeScript + Metronic v9.4.5 (Layout 33) + Tailwind CSS 4
+- **Mapa:** Leaflet + react-leaflet + CartoDB Positron
+- **Backend:** Laravel (independente da TwoClicks)
+- **DB:** PostgreSQL (único banco)
 
 ---
 
@@ -133,19 +134,9 @@ C:\Herd\clickmaps\
 └── .git
 ```
 
-`maps\` baseado em: `metronic-tailwind-react-starter-kit/typescript/vite` (Layout 33)
-
 ---
 
 ## Frontend (maps\)
-
-### Variáveis de Ambiente (`maps/.env`)
-
-```env
-VITE_APP_NAME=clickmaps
-VITE_API_URL=https://api.tc.test
-VITE_PLATFORM_SLUG=clickmaps
-```
 
 ### Layout em uso
 
@@ -154,24 +145,20 @@ VITE_PLATFORM_SLUG=clickmaps
 ### Terminologia do projeto
 
 - **background-maps** = o `div` wrapper do `<ClickMapsMap />` em `src/pages/home/page.tsx`
-  ```tsx
-  <div className="rounded-lg overflow-hidden flex-1 min-h-0">
-    <ClickMapsMap />
-  </div>
-  ```
 
 ### Arquivos chave
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/home/page.tsx` | Página principal com mapa |
-| `src/components/map/clickmaps-map.tsx` | Componente do mapa Leaflet |
+| `src/pages/home/page.tsx` | Página principal com mapa + estado `isSplit` |
+| `src/components/map/clickmaps-map.tsx` | Mapa Leaflet + card candidato + botões flutuantes |
+| `src/components/map/candidate-search.tsx` | Autocomplete de busca de candidato (split direito) |
 | `src/components/auth/login-modal.tsx` | Modal de login automático |
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
 | `src/lib/leaflet-icon-fix.ts` | Fix ícone Leaflet no Vite |
+| `src/lib/party-colors.ts` | Cores oficiais dos 30 partidos |
 | `src/routing/app-routing-setup.tsx` | Rotas |
 | `src/components/layouts/layout-33/components/sidebar-header.tsx` | Logo ClickMaps |
-| `src/components/layouts/layout-33/components/sidebar-footer.tsx` | Footer da sidebar |
 
 ### Logo ClickMaps
 
@@ -179,11 +166,10 @@ VITE_PLATFORM_SLUG=clickmaps
 
 ### Modal de Login
 
-- Abre automaticamente ao carregar a página
-- Logo ClickMaps centralizado
-- Campos pré-preenchidos: `alex@clickmaps.com.br` / `Alex1985@`
-- Botão "Entrar" fecha o modal
-- Contexto global `LoginModalContext` — botões de logout reabrem o modal
+- Abre automaticamente ao carregar
+- Pré-preenchido: `alex@clickmaps.com.br` / `Alex1985@`
+- Ao entrar: fecha modal + dispara flyTo para São Paulo
+- `LoginModalContext` — botões de logout reabrem o modal
 
 ---
 
@@ -195,70 +181,105 @@ VITE_PLATFORM_SLUG=clickmaps
 ```
 https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 ```
-Attribution: `© OpenStreetMap contributors © CARTO`
-
-> Stadia Maps (AlidadeSmooth): funciona em localhost sem key. Em produção requer cadastro de domínio gratuito em https://client.stadiamaps.com — sem cartão de crédito.
-
-### Fix Leaflet/Vite
-
-`src/lib/leaflet-icon-fix.ts` — importado em `src/main.tsx`
 
 ### Comportamento ao login
 
 1. Carrega GeoJSON do município de São Paulo (IBGE 3550308)
    - URL: `https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-35-mun.json`
-2. Borda azul escura (#1D3557), weight: 2, fillOpacity: 0.05
-3. `map.invalidateSize()` antes do flyTo (garante centro correto do background-maps)
-4. `map.flyTo(center, 10, { duration: 2 })` — animação suave
-5. `map.once('moveend', () => map.fitBounds(bounds, { padding: [40, 40], animate: true }))` — encaixa o município
+2. Borda: `#1D3557`, weight: 2, fillOpacity: 0.05
+3. `map.invalidateSize()` antes do flyTo
+4. `map.flyTo(center, 10, { duration: 2 })` → animação suave
+5. `map.once('moveend', () => map.fitBounds(bounds, { padding: [40, 40], animate: true }))`
+
+### Limites do Brasil (`BRAZIL_BOUNDS`)
+
+```ts
+const BRAZIL_BOUNDS: L.LatLngBoundsExpression = [[-33.75, -73.99], [5.27, -28.85]]
+```
+
+- `maxBounds={BRAZIL_BOUNDS}` + `maxBoundsViscosity={1.0}` no `MapContainer` — impede arrastar fora do Brasil
+- `MinZoomController` — componente interno que calcula `minZoom` dinamicamente via `map.getBoundsZoom(BRAZIL_BOUNDS)` e recalcula no evento `resize` do mapa
+- Garante que em qualquer tamanho de tela o usuário nunca vê fora do Brasil
+
+### Clique no município
+
+- Camada GeoJSON tem `onEachFeature` com `layer.on('click', ...)`
+- Ao clicar: `map.flyToBounds(bounds, { padding: [40, 40], duration: 1 })`
+- Cursor pointer automático via `.leaflet-interactive` (Leaflet default)
 
 ### Botões flutuantes (canto inferior direito)
 
-```tsx
-<div className="absolute bottom-6 right-4 z-[1000] flex flex-col items-center gap-2">
+- **Crosshair** — re-executa fitBounds (focar na cidade) — card separado
+- **+/-** — zoom in/out no mesmo card com divisor interno
+- `zoomControl={false}` no MapContainer
+- Estilo: `bg-white border border-gray-200 rounded-xl shadow-sm w-10 h-10`
 
-  {/* Botão focar na cidade */}
-  <button onClick={focusCity} className="w-10 h-10 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50">
-    <Crosshair size={16} />
-  </button>
+### Attribution
 
-  {/* Grupo zoom */}
-  <div className="flex flex-col bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-    <button onClick={() => map.zoomIn()} className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50">
-      <Plus size={16} />
-    </button>
-    <div className="h-px bg-gray-200 mx-2" />
-    <button onClick={() => map.zoomOut()} className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50">
-      <Minus size={16} />
-    </button>
-  </div>
-
-</div>
+```css
+.leaflet-control-attribution {
+  font-size: 9px !important;
+  opacity: 0.6;
+}
 ```
-
-- `focusCity`: re-executa `fitBounds` do GeoJSON de São Paulo com `animate: true`
-- Zoom control padrão do Leaflet desativado: `<MapContainer zoomControl={false}>`
 
 ---
 
-## Decisões Técnicas
+## Split View
 
-- **Tile único (light)**: removido seletor de estilos — apenas CartoDB Positron
-- **`map.invalidateSize()` antes do fitBounds**: resolve problema de centralização quando sidebar está aberta
-- **`DynamicTileLayer` dentro do `MapContainer`**: necessário para o contexto do Leaflet funcionar
-- **`key={url}` no TileLayer**: força remount ao trocar tile
-- **GeoJSON filtrado**: baixa todo o arquivo do estado, filtra por código IBGE no frontend
-- **`zoomControl={false}`**: remove zoom padrão feio do Leaflet, substituído por botões estilizados
+Estado `isSplit` em `src/pages/home/page.tsx`. Botão `Columns2` na Toolbar.
+
+**Sincronização entre mapas:**
+- `mapRef1` + `mapRef2` via `useRef<L.Map | null>(null)`
+- Prop `syncRef` no `ClickMapsMap` — propaga `move`/`zoom` via `setView`
+- Flag `isSyncing` (useRef) evita loop infinito
+
+**Ao ativar:** `invalidateSize()` + `fitBounds()` nos dois mapas após 100ms
+
+**Ao fechar:** `invalidateSize()` + `fitBounds()` no mapa principal após 100ms
+
+**Lado direito:** exibe `CandidateSearch` (Autocomplete) → após seleção, substitui pelo card do candidato escolhido com botão **X** para voltar ao autocomplete (`setSelected(null)`)
+
+---
+
+## Card do Candidato
+
+Flutuante: `absolute top-4 left-4 z-[1000]`
+
+- **Sem login:** Skeleton animado (avatar + duas linhas)
+- **Logado:** avatar + nome + badge partido + cargo
+
+Dados atuais (hardcoded): Neto Bota | PL | Deputado Estadual
+
+---
+
+## Cores dos Partidos (`src/lib/party-colors.ts`)
+
+30 partidos com `{ bg, text, gradient? }`. Partidos com duas cores usam gradiente vertical:
+
+- **UNIÃO:** `linear-gradient(180deg, #003087 50%, #C8970A 50%)`
+- **MDB:** `linear-gradient(180deg, #007A33 50%, #FFD700 50%)`
+
+Badge com gradiente:
+```tsx
+style={{ background: gradient, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.8)', fontWeight: 'bold' }}
+```
+
+Função: `getPartyColors(party: string)` → fallback `bg-gray-100 text-gray-600`
+
+---
+
+## Módulos Futuros (guardados)
+
+### Atendimentos
+Cada atendimento do político = pin no mapa com endereço, data e tipo. Prova de trabalho na campanha.
+
+### Inteligência de Alianças
+Relatório premium cruzando histórico TSE com candidatos aliados potenciais, ranqueando por município.
 
 ---
 
 ## Deploy
 
-**VPS:** `root@168.231.64.36`
+**VPS:** `root@168.231.64.36` (pago até 2027-04-11)
 **Domínio:** `clickmaps.com.br`
-
-```
-/var/www/clickmaps/
-├── maps/     ← frontend
-└── site/     ← landing page (futuro)
-```

@@ -3,10 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 import * as L from 'leaflet';
 import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet';
 import { useLoginModal } from '@/components/auth/login-modal-context';
-import { Plus, Minus, Crosshair } from 'lucide-react';
+import { Plus, Minus, Crosshair, X } from 'lucide-react';
 import { getPartyColors } from '@/lib/party-colors';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CandidateSearch, type Candidate } from '@/components/map/candidate-search';
+
+const BRAZIL_BOUNDS: L.LatLngBoundsExpression = [
+  [-33.75, -73.99],
+  [5.27, -28.85],
+];
 
 const SP_IBGE = '3550308';
 const SP_GEOJSON_URL =
@@ -63,6 +68,19 @@ function MapResizer() {
     const handler = () => map.invalidateSize();
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
+  }, [map]);
+  return null;
+}
+
+function MinZoomController() {
+  const map = useMap();
+  useEffect(() => {
+    const updateMinZoom = () => {
+      map.setMinZoom(map.getBoundsZoom(BRAZIL_BOUNDS));
+    };
+    updateMinZoom();
+    map.on('resize', updateMinZoom);
+    return () => { map.off('resize', updateMinZoom); };
   }, [map]);
   return null;
 }
@@ -170,6 +188,12 @@ function SpBoundary({ boundsRef, onBoundsReady }: { boundsRef: React.RefObject<L
       key="sp-boundary"
       data={geoData}
       style={{ color: '#1D3557', weight: 2, fillOpacity: 0.05 }}
+      onEachFeature={(_feature, layer) => {
+        layer.on('click', () => {
+          const bounds = (layer as L.Polygon).getBounds();
+          map.flyToBounds(bounds, { padding: [40, 40], duration: 1 });
+        });
+      }}
     />
   );
 }
@@ -195,6 +219,12 @@ function CompareOverlay() {
               >
                 {selected.party}
               </span>
+              <button
+                onClick={() => setSelected(null)}
+                className="rounded-full bg-gray-100 hover:bg-gray-200 w-5 h-5 flex items-center justify-center text-gray-500 transition-colors shrink-0"
+              >
+                <X size={12} />
+              </button>
             </div>
             <span className="text-xs text-gray-500 truncate">{selected.role}</span>
           </div>
@@ -224,6 +254,8 @@ export function ClickMapsMap({ mapRef, syncRef, initialView, onBoundsReady, isCo
       center={center}
       zoom={zoom}
       zoomControl={false}
+      maxBounds={BRAZIL_BOUNDS}
+      maxBoundsViscosity={1.0}
       className="h-full w-full"
       style={{ zIndex: 0 }}
     >
@@ -233,6 +265,7 @@ export function ClickMapsMap({ mapRef, syncRef, initialView, onBoundsReady, isCo
       />
       {isCompare ? <CompareOverlay /> : <CandidateCard />}
       <MapResizer />
+      <MinZoomController />
       {mapRef && <MapCapture mapRef={mapRef} />}
       {syncRef && <MapSync syncRef={syncRef} />}
       <SpBoundary boundsRef={boundsRef} onBoundsReady={onBoundsReady} />
