@@ -1,5 +1,5 @@
 # CLAUDE.md — ClickMaps
-<!-- Atualizado em: 08/03/2026 03:30 -->
+<!-- Atualizado em: 08/03/2026 04:31 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -120,8 +120,9 @@ Cada cargo faz aliança com **todos dentro da sua área de disputa**:
 
 - **Frontend:** React 19 + Vite + TypeScript + Metronic v9.4.5 (Layout 33) + Tailwind CSS 4
 - **Mapa:** Leaflet + react-leaflet + CartoDB Positron
-- **Backend:** Laravel (independente da TwoClicks)
-- **DB:** PostgreSQL (único banco)
+- **Backend:** Laravel 12 + Sanctum v4.3.1 (independente da TwoClicks)
+- **DB:** PostgreSQL 17 (único banco)
+- **Auth:** Sanctum token-based (Bearer)
 
 ---
 
@@ -129,6 +130,7 @@ Cada cargo faz aliança com **todos dentro da sua área de disputa**:
 
 ```
 C:\Herd\clickmaps\
+├── api\     → Laravel 12 (backend REST API)
 ├── maps\    → Vite + React + Metronic (app do mapa)
 ├── site\    → Next.js (landing page — não iniciada ainda)
 └── .git
@@ -167,9 +169,71 @@ C:\Herd\clickmaps\
 ### Modal de Login
 
 - Abre automaticamente ao carregar
-- Pré-preenchido: `alex@clickmaps.com.br` / `Alex1985@`
-- Ao entrar: fecha modal + dispara flyTo para São Paulo
-- `LoginModalContext` — botões de logout reabrem o modal
+- Campos vazios (sem preenchimento automático: `autoComplete="off"`)
+- Ao entrar: POST `/auth/login` → salva token no `localStorage` → fecha modal + dispara flyTo para São Paulo
+- Ao sair: POST `/auth/logout` → remove token → reabre modal
+- `LoginModalContext` expõe: `open`, `setOpen`, `loggedIn`, `setLoggedIn`, `user`, `logout`
+
+---
+
+## Backend (api\)
+
+### Ambiente local
+
+- **URL:** `http://clickmaps-api.test` (via Herd symlink)
+- **Laravel:** 12.53.0 | **PHP:** 8.4 | **PostgreSQL:** 17.7
+- **Banco:** `cm_politico` | **Usuário:** `clickmaps_politico`
+
+### Autenticação (Sanctum)
+
+| Método | Endpoint | Auth | Descrição |
+|--------|----------|------|-----------|
+| POST | `/api/auth/login` | pública | Retorna token + user + people |
+| POST | `/api/auth/logout` | Bearer | Revoga token atual |
+| GET | `/api/auth/me` | Bearer | Retorna usuário autenticado + people |
+
+### Tabelas
+
+| Tabela | Descrição |
+|--------|-----------|
+| `people` | Pessoa física (uuid, name, avatar_url, active, softDeletes) |
+| `users` | Acesso (people_id FK, email, password, remember_token) |
+| `parties` | 30 partidos brasileiros (uuid, name, abbreviation) |
+| `candidates` | Candidatos (party_id FK, role, year, state, city_ibge_code, status) |
+| `user_candidates` | Vínculo user ↔ candidate (order, active) |
+| `personal_access_tokens` | Tokens Sanctum |
+| `cache` / `jobs` | Infraestrutura Laravel |
+
+### Models e relacionamentos
+
+- `People` — uuid auto-gerado, SoftDeletes
+- `User` → `belongsTo(People)`, `HasApiTokens`
+- `Party` — uuid auto-gerado, SoftDeletes
+- `Candidate` → `belongsTo(Party)`, uuid auto-gerado, SoftDeletes
+- `UserCandidate` → `belongsTo(User)`, `belongsTo(Candidate)`, SoftDeletes
+
+### Seeders
+
+- `DatabaseSeeder` — cria people + user (Alex / alex@clickmaps.com.br)
+- `PartySeeder` — 30 partidos brasileiros
+- `CandidateSeeder` — Neto Bota (PL / Prefeito / Caraguatatuba SP / 2024 / não eleito)
+- `UserCandidateSeeder` — vincula Alex → Neto Bota (order=1)
+
+### Arquivos chave
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `api/routes/api.php` | Rotas REST |
+| `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
+| `api/app/Models/` | People, User, Party, Candidate, UserCandidate |
+| `api/database/migrations/` | 8 migrations |
+| `api/database/seeders/` | 4 seeders |
+| `api/config/cors.php` | CORS — `allowed_origins: ['*']` |
+
+### Frontend → Backend
+
+- `maps/.env` → `VITE_API_URL=http://clickmaps-api.test/api`
+- `maps/src/lib/api.ts` → axios com interceptor Bearer token (localStorage)
 
 ---
 
@@ -249,7 +313,8 @@ Flutuante: `absolute top-4 left-4 z-[1000]`
 - **Sem login:** Skeleton animado (avatar + duas linhas)
 - **Logado:** avatar + nome + badge partido + cargo
 
-Dados atuais (hardcoded): Neto Bota | PL | Deputado Estadual
+Dados atuais (hardcoded no frontend): Neto Bota | PL | Deputado Estadual
+> Candidato real no banco: Neto Bota | PL | Prefeito 2024 | Caraguatatuba SP | não eleito
 
 ---
 
