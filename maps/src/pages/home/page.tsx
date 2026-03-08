@@ -15,7 +15,7 @@ export function HomePage() {
 
   const mapRef1 = useRef<L.Map | null>(null);
   const mapRef2 = useRef<L.Map | null>(null);
-  const cityBoundsRef = useRef<L.LatLngBounds | null>(null);
+  const [cityBounds, setCityBounds] = useState<L.LatLngBounds | null>(null);
 
   const handleSplitToggle = () => {
     setIsSplit((prev) => {
@@ -24,14 +24,14 @@ export function HomePage() {
         if (next) {
           mapRef1.current?.invalidateSize();
           mapRef2.current?.invalidateSize();
-          if (cityBoundsRef.current) {
-            mapRef1.current?.fitBounds(cityBoundsRef.current, { padding: [40, 40], animate: false });
-            mapRef2.current?.fitBounds(cityBoundsRef.current, { padding: [40, 40], animate: false });
+          if (cityBounds) {
+            mapRef1.current?.fitBounds(cityBounds, { padding: [40, 40], animate: false });
+            mapRef2.current?.fitBounds(cityBounds, { padding: [40, 40], animate: false });
           }
         } else {
           mapRef1.current?.invalidateSize();
-          if (cityBoundsRef.current) {
-            mapRef1.current?.fitBounds(cityBoundsRef.current, { padding: [40, 40], animate: true });
+          if (cityBounds) {
+            mapRef1.current?.fitBounds(cityBounds, { padding: [40, 40], animate: true });
           }
         }
       }, 100);
@@ -91,7 +91,8 @@ export function HomePage() {
           <ClickMapsMap
             mapRef={mapRef1}
             syncRef={isSplit ? mapRef2 : undefined}
-            onBoundsReady={(bounds) => { cityBoundsRef.current = bounds; }}
+            onCityBoundsReady={setCityBounds}
+            cityBounds={cityBounds}
           />
         </div>
         {isSplit && (
@@ -101,6 +102,7 @@ export function HomePage() {
               mapRef={mapRef2}
               syncRef={mapRef1}
               initialView={getMap2InitialView()}
+              cityBounds={cityBounds}
               isCompare={true}
             />
           </div>

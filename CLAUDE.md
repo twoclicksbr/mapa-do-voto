@@ -1,5 +1,5 @@
 # CLAUDE.md — ClickMaps
-<!-- Atualizado em: 08/03/2026 04:31 -->
+<!-- Atualizado em: 08/03/2026 06:08 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -303,6 +303,26 @@ Estado `isSplit` em `src/pages/home/page.tsx`. Botão `Columns2` na Toolbar.
 **Ao fechar:** `invalidateSize()` + `fitBounds()` no mapa principal após 100ms
 
 **Lado direito:** exibe `CandidateSearch` (Autocomplete) → após seleção, substitui pelo card do candidato escolhido com botão **X** para voltar ao autocomplete (`setSelected(null)`)
+
+**Botões flutuantes (crosshair + zoom):** aparecem apenas no mapa esquerdo (`isCompare=false`). O mapa de comparação não exibe controles próprios.
+
+### fitToCity — clique no polígono e botão crosshair
+
+Função centralizada em `MapCore` que move ambos os mapas para o município:
+
+```ts
+const fitToCity = useCallback(() => {
+  if (!cityBounds) return
+  isSyncingRef.current = true
+  map.flyToBounds(cityBounds, { padding: [40, 40], duration: 1 })
+  syncRef?.current?.flyToBounds(cityBounds, { padding: [40, 40], duration: 1 })
+  setTimeout(() => { isSyncingRef.current = false }, 1500) // > duration, evita race condition
+}, [cityBounds, map, isSyncingRef, syncRef])
+```
+
+- `cityBounds` → estado em `home/page.tsx` (`useState<L.LatLngBounds | null>`), definido quando o GeoJSON carrega no mapa 1, passado como prop para ambos os mapas
+- Clique no polígono usa `fitToCityRef.current()` (ref da função) para evitar stale closure no `onEachFeature` com deps `[]`
+- `setTimeout(1500)` em vez de `moveend` evita race condition entre os dois mapas no split mode
 
 ---
 

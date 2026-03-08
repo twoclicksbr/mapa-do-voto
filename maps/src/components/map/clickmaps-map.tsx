@@ -1,5 +1,5 @@
 import '@/lib/leaflet-icon-fix';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as L from 'leaflet';
 import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet';
 import { useLoginModal } from '@/components/auth/login-modal-context';
@@ -85,71 +85,56 @@ function MinZoomController() {
   return null;
 }
 
-function MapSync({ syncRef }: { syncRef?: React.MutableRefObject<L.Map | null> }) {
+function MapSync({
+  syncRef,
+  isSyncingRef,
+}: {
+  syncRef?: React.RefObject<L.Map | null>;
+  isSyncingRef: React.RefObject<boolean>;
+}) {
   const map = useMap();
-  const isSyncing = useRef(false);
 
   useEffect(() => {
     if (!syncRef) return;
 
     const handler = () => {
-      if (isSyncing.current || !syncRef.current) return;
-      isSyncing.current = true;
+      if (isSyncingRef.current || !syncRef.current) return;
+      isSyncingRef.current = true;
       syncRef.current.setView(map.getCenter(), map.getZoom(), { animate: false });
-      isSyncing.current = false;
+      isSyncingRef.current = false;
     };
 
     map.on('move', handler);
     return () => { map.off('move', handler); };
-  }, [map, syncRef]);
+  }, [map, syncRef, isSyncingRef]);
 
   return null;
 }
 
-function MapCapture({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+function MapCapture({ mapRef }: { mapRef: React.RefObject<L.Map | null> }) {
   const map = useMap();
   useEffect(() => { mapRef.current = map; }, [map, mapRef]);
   return null;
 }
 
-function MapControls({ boundsRef }: { boundsRef: React.RefObject<L.LatLngBounds | null> }) {
-  const map = useMap();
-
-  const focusCity = () => {
-    if (boundsRef.current) {
-      map.fitBounds(boundsRef.current, { padding: [40, 40], animate: true, duration: 1 });
-    }
-  };
-
-  return (
-    <div className="absolute bottom-6 right-4 z-[1000] flex flex-col items-center gap-2">
-      <button
-        onClick={focusCity}
-        className="w-10 h-10 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
-      >
-        <Crosshair size={16} />
-      </button>
-
-      <div className="flex flex-col bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <button
-          onClick={() => map.zoomIn()}
-          className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
-        >
-          <Plus size={16} />
-        </button>
-        <div className="h-px bg-gray-200 mx-2" />
-        <button
-          onClick={() => map.zoomOut()}
-          className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
-        >
-          <Minus size={16} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SpBoundary({ boundsRef, onBoundsReady }: { boundsRef: React.RefObject<L.LatLngBounds | null>; onBoundsReady?: (bounds: L.LatLngBounds) => void }) {
+/**
+ * MapCore — vive dentro do MapContainer.
+ * boundsRef e map (via useMap) são totalmente internos — sem prop-passing para handlers.
+ * Gerencia: GeoJSON de São Paulo, clique na cidade, crosshair e zoom.
+ */
+function MapCore({
+  onCityBoundsReady,
+  cityBounds,
+  isSyncingRef,
+  syncRef,
+  isCompare,
+}: {
+  onCityBoundsReady?: (bounds: L.LatLngBounds) => void;
+  cityBounds?: L.LatLngBounds | null;
+  isSyncingRef: React.RefObject<boolean>;
+  syncRef?: React.RefObject<L.Map | null>;
+  isCompare?: boolean;
+}) {
   const map = useMap();
   const { loggedIn } = useLoginModal();
   const [geoData, setGeoData] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -162,39 +147,83 @@ function SpBoundary({ boundsRef, onBoundsReady }: { boundsRef: React.RefObject<L
         const feature = data.features.find(
           (f) => f.properties?.id === SP_IBGE,
         );
-        if (feature) {
-          const collection: GeoJSON.FeatureCollection = {
-            type: 'FeatureCollection',
-            features: [feature],
-          };
-          setGeoData(collection);
-          map.invalidateSize();
-          const bounds = L.geoJSON(collection).getBounds();
-          boundsRef.current = bounds;
-          onBoundsReady?.(bounds);
-          const center = bounds.getCenter();
-          map.flyTo([center.lat, center.lng], 10, { duration: 2 });
-          map.once('moveend', () => {
-            map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 1 });
-          });
-        }
+        if (!feature) return;
+        const collection: GeoJSON.FeatureCollection = {
+          type: 'FeatureCollection',
+          features: [feature],
+        };
+        setGeoData(collection);
+        map.invalidateSize();
+        const bounds = L.geoJSON(collection).getBounds();
+        onCityBoundsReady?.(bounds);
+        const center = bounds.getCenter();
+        map.flyTo([center.lat, center.lng], 10, { duration: 2 });
+        map.once('moveend', () => {
+          map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 1 });
+        });
       });
-  }, [loggedIn, geoData, map, boundsRef, onBoundsReady]);
+  }, [loggedIn, geoData, map, onCityBoundsReady]);
 
-  if (!loggedIn || !geoData) return null;
+  const fitToCity = useCallback(() => {
+    if (!cityBounds) return;
+    isSyncingRef.current = true;
+    map.flyToBounds(cityBounds, { padding: [40, 40], duration: 1 });
+    syncRef?.current?.flyToBounds(cityBounds, { padding: [40, 40], duration: 1 });
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 1500);
+  }, [cityBounds, map, isSyncingRef, syncRef]);
+
+  const fitToCityRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    fitToCityRef.current = fitToCity;
+  }, [fitToCity]);
+
+  const onEachFeature = useCallback(
+    (_feature: GeoJSON.Feature, layer: L.Layer) => {
+      layer.on('click', () => fitToCityRef.current());
+    },
+    [],
+  );
 
   return (
-    <GeoJSON
-      key="sp-boundary"
-      data={geoData}
-      style={{ color: '#1D3557', weight: 2, fillOpacity: 0.05 }}
-      onEachFeature={(_feature, layer) => {
-        layer.on('click', () => {
-          const bounds = (layer as L.Polygon).getBounds();
-          map.flyToBounds(bounds, { padding: [40, 40], duration: 1 });
-        });
-      }}
-    />
+    <>
+      {loggedIn && geoData && (
+        <GeoJSON
+          key="sp-boundary"
+          data={geoData}
+          style={{ color: '#1D3557', weight: 2, fillOpacity: 0.05 }}
+          onEachFeature={onEachFeature}
+        />
+      )}
+
+      {!isCompare && (
+        <div className="absolute bottom-6 right-4 z-[1000] flex flex-col items-center gap-2">
+          <button
+            onClick={fitToCity}
+            className="w-10 h-10 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            <Crosshair size={16} />
+          </button>
+
+          <div className="flex flex-col bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <button
+              onClick={() => map.zoomIn()}
+              className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              <Plus size={16} />
+            </button>
+            <div className="h-px bg-gray-200 mx-2" />
+            <button
+              onClick={() => map.zoomOut()}
+              className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              <Minus size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -237,17 +266,18 @@ function CompareOverlay() {
 }
 
 interface ClickMapsMapProps {
-  mapRef?: React.MutableRefObject<L.Map | null>;
-  syncRef?: React.MutableRefObject<L.Map | null>;
+  mapRef?: React.RefObject<L.Map | null>;
+  syncRef?: React.RefObject<L.Map | null>;
   initialView?: { center: L.LatLngTuple; zoom: number };
-  onBoundsReady?: (bounds: L.LatLngBounds) => void;
+  onCityBoundsReady?: (bounds: L.LatLngBounds) => void;
+  cityBounds?: L.LatLngBounds | null;
   isCompare?: boolean;
 }
 
-export function ClickMapsMap({ mapRef, syncRef, initialView, onBoundsReady, isCompare }: ClickMapsMapProps) {
-  const boundsRef = useRef<L.LatLngBounds | null>(null);
+export function ClickMapsMap({ mapRef, syncRef, initialView, onCityBoundsReady, cityBounds, isCompare }: ClickMapsMapProps) {
   const center: L.LatLngTuple = initialView?.center ?? [-15.7801, -47.9292];
   const zoom = initialView?.zoom ?? 4;
+  const isSyncingRef = useRef(false);
 
   return (
     <MapContainer
@@ -267,9 +297,8 @@ export function ClickMapsMap({ mapRef, syncRef, initialView, onBoundsReady, isCo
       <MapResizer />
       <MinZoomController />
       {mapRef && <MapCapture mapRef={mapRef} />}
-      {syncRef && <MapSync syncRef={syncRef} />}
-      <SpBoundary boundsRef={boundsRef} onBoundsReady={onBoundsReady} />
-      <MapControls boundsRef={boundsRef} />
+      {syncRef && <MapSync syncRef={syncRef} isSyncingRef={isSyncingRef} />}
+      <MapCore onCityBoundsReady={onCityBoundsReady} cityBounds={cityBounds} isSyncingRef={isSyncingRef} syncRef={syncRef} isCompare={isCompare} />
     </MapContainer>
   );
 }
