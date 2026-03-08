@@ -1,0 +1,36 @@
+export const PARTY_COLORS: Record<string, { bg: string; text: string; gradient?: string }> = {
+  PT:      { bg: 'bg-red-100',    text: 'text-red-700' },
+  PL:      { bg: 'bg-blue-100',   text: 'text-blue-700' },
+  MDB:     { bg: '', text: 'text-white', gradient: 'linear-gradient(180deg, #007A33 50%, #FFD700 50%)' },
+  PSDB:    { bg: 'bg-blue-100',   text: 'text-blue-600' },
+  PP:      { bg: 'bg-blue-100',   text: 'text-blue-800' },
+  PSD:     { bg: 'bg-sky-100',    text: 'text-sky-700' },
+  UNIÃO:   { bg: '', text: 'text-white', gradient: 'linear-gradient(180deg, #003087 50%, #C8970A 50%)' },
+  REPUBLICANOS: { bg: 'bg-orange-100', text: 'text-orange-700' },
+  PDT:     { bg: 'bg-red-100',    text: 'text-red-600' },
+  PSOL:    { bg: 'bg-yellow-100', text: 'text-yellow-800' },
+  PSB:     { bg: 'bg-orange-100', text: 'text-orange-600' },
+  AVANTE:  { bg: 'bg-orange-100', text: 'text-orange-700' },
+  SOLIDARIEDADE: { bg: 'bg-orange-100', text: 'text-orange-600' },
+  PROS:    { bg: 'bg-green-100',  text: 'text-green-600' },
+  PTB:     { bg: 'bg-green-100',  text: 'text-green-800' },
+  PRD:     { bg: 'bg-blue-100',   text: 'text-blue-900' },
+  PODE:    { bg: 'bg-green-100',  text: 'text-green-700' },
+  PV:      { bg: 'bg-green-100',  text: 'text-green-900' },
+  PCdoB:   { bg: 'bg-red-100',    text: 'text-red-800' },
+  PMN:     { bg: 'bg-purple-100', text: 'text-purple-700' },
+  DC:      { bg: 'bg-blue-100',   text: 'text-blue-700' },
+  AGIR:    { bg: 'bg-teal-100',   text: 'text-teal-700' },
+  PMB:     { bg: 'bg-pink-100',   text: 'text-pink-700' },
+  UP:      { bg: 'bg-red-100',    text: 'text-red-900' },
+  NOVO:    { bg: 'bg-orange-100', text: 'text-orange-800' },
+  REDE:    { bg: 'bg-teal-100',   text: 'text-teal-600' },
+  CIDADANIA: { bg: 'bg-purple-100', text: 'text-purple-600' },
+  PATRIOTA: { bg: 'bg-green-100', text: 'text-green-700' },
+  PTC:     { bg: 'bg-blue-100',   text: 'text-blue-600' },
+  PRTB:    { bg: 'bg-yellow-100', text: 'text-yellow-900' },
+};
+
+export function getPartyColors(party: string) {
+  return PARTY_COLORS[party.toUpperCase()] ?? { bg: 'bg-gray-100', text: 'text-gray-600' };
+}
