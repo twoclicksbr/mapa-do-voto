@@ -1,5 +1,5 @@
 # CLAUDE.md — ClickMaps
-<!-- Atualizado em: 08/03/2026 06:08 -->
+<!-- Atualizado em: 08/03/2026 09:00 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -64,11 +64,29 @@ Fonte: https://dadosabertos.tse.jus.br
 - CSV → Laravel processa → PostgreSQL → descarta CSV
 - Dados processados estimados: 20-40GB para histórico nacional
 
+### Dados TSE Importados
+
+#### SP 2024 — votacao_secao_2024_SP.csv
+- Tabela: `tse_votacao_secao` (PostgreSQL)
+- Total de linhas: 9.611.090
+- Tempo de importação: ~35 min
+- Comando: `php artisan tse:import-votacao {file} {--uf=SP} {--ano=2024}`
+- Arquivo: `api/app/Console/Commands/TseImportVotacao.php`
+- Encoding: Latin-1 → UTF-8 via mb_convert_encoding
+- Chunk: 3.000 linhas por INSERT bulk
+
 ### Cliente piloto — Neto Bota (Caraguatatuba/SP)
 
 - Nome completo: José Mendes de Souza Neto Bota
 - Partido: PL | Cargo 2026: Deputado Estadual
 - Histórico: Vereador 2008 ✅ | Vereador 2012 ✅ | Dep. Estadual 2022 ❌ suplente | Prefeito 2024 ❌ 2º lugar
+
+#### Dados confirmados no banco (tse_votacao_secao)
+- sq_candidato: `250002019567`
+- cd_municipio: `63118` (código TSE de Caraguatatuba)
+- city_ibge_code: `3510104`
+- Eleição: Prefeito 2024, turno 1
+- Total votos: 20.313 em 373 seções
 
 ---
 
