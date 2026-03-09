@@ -10,7 +10,7 @@ class TseImportVotacao extends Command
 {
     protected $signature = 'tse:import-votacao {file} {--uf=SP} {--ano=2024}';
 
-    protected $description = 'Importa CSV de votação por seção do TSE para a tabela tse_votacao_secao';
+    protected $description = 'Importa CSV de votação por seção do TSE — popula cities, candidates e tse_votacao_secao';
 
     private const CHUNK_SIZE = 3000;
     private const NULL_VALUES = ['#NULO', '#NULO#', ''];
@@ -42,9 +42,15 @@ class TseImportVotacao extends Command
         $headerRaw = array_map(fn($v) => mb_convert_encoding(trim($v), 'UTF-8', 'ISO-8859-1'), $headerRaw);
         $colMap = array_flip($headerRaw);
 
-        $chunk       = [];
-        $totalLines  = 0;
-        $startTime   = microtime(true);
+        $hasParties = isset($colMap['NM_PARTIDO']) && isset($colMap['SG_PARTIDO']);
+
+        $votacaoChunk    = [];
+        $citiesBuffer    = [];   // tse_code => row
+        $candidatesBuffer = [];  // sq_candidato => row
+        $partiesBuffer   = [];   // abbreviation => row
+
+        $totalLines = 0;
+        $startTime  = microtime(true);
 
         while (($row = fgetcsv($handle, 0, ';', '"')) !== false) {
             $row = array_map(
@@ -52,56 +58,188 @@ class TseImportVotacao extends Command
                 $row
             );
 
-            $chunk[] = $this->mapRow($row, $colMap, $uf, $ano);
+            $col = fn(string $name) => $row[$colMap[$name]] ?? null;
 
-            if (count($chunk) >= self::CHUNK_SIZE) {
-                $this->bulkInsert($pdo, $chunk);
-                $totalLines += count($chunk);
-                $chunk = [];
+            // --- PARTIES ---
+            if ($hasParties) {
+                $sgPartido = $this->str($col('SG_PARTIDO'));
+                $nmPartido = $this->str($col('NM_PARTIDO'));
+                if ($sgPartido && ! isset($partiesBuffer[$sgPartido])) {
+                    $partiesBuffer[$sgPartido] = [
+                        'abbreviation' => $sgPartido,
+                        'name'         => $nmPartido ?? $sgPartido,
+                    ];
+                }
+            }
+
+            // --- CITIES ---
+            $cdMunicipio = $this->num($col('CD_MUNICIPIO'));
+            $nmMunicipio = $this->str($col('NM_MUNICIPIO'));
+            $sgUf        = $this->str($col('SG_UF')) ?? $uf;
+
+            if ($cdMunicipio && ! isset($citiesBuffer[$cdMunicipio])) {
+                $citiesBuffer[$cdMunicipio] = [
+                    'tse_code' => $cdMunicipio,
+                    'name'     => $nmMunicipio,
+                    'sg_uf'    => $sgUf,
+                ];
+            }
+
+            // --- CANDIDATES ---
+            $sqCandidato = $this->num($col('SQ_CANDIDATO'));
+            $nmVotavel   = $this->str($col('NM_VOTAVEL'));
+            $cdCargo     = $this->num($col('CD_CARGO'));
+            $dsCargo     = $this->str($col('DS_CARGO')) ?? '';
+
+            if ($sqCandidato && ! isset($candidatesBuffer[$sqCandidato])) {
+                $candidatesBuffer[$sqCandidato] = [
+                    'sq_candidato' => $sqCandidato,
+                    'name'         => $nmVotavel ?? '',
+                    'cd_municipio' => $cdMunicipio,
+                    'state'        => $sgUf,
+                    'year'         => $ano,
+                    'role'         => $dsCargo,
+                ];
+            }
+
+            // --- TSE_VOTACAO_SECAO ---
+            $votacaoChunk[] = [
+                'ano_eleicao'  => $this->num($col('ANO_ELEICAO')) ?? $ano,
+                'nr_turno'     => $this->num($col('NR_TURNO')),
+                'sg_uf'        => $sgUf,
+                'cd_municipio' => $cdMunicipio,
+                'nr_zona'      => $this->num($col('NR_ZONA')),
+                'nr_secao'     => $this->num($col('NR_SECAO')),
+                'cd_cargo'     => $cdCargo,
+                'sq_candidato' => $sqCandidato,
+                'qt_votos'     => $this->num($col('QT_VOTOS')),
+            ];
+
+            if (count($votacaoChunk) >= self::CHUNK_SIZE) {
+                $this->flushParties($pdo, $partiesBuffer);
+                $this->flushCities($pdo, $citiesBuffer);
+                $this->flushCandidates($pdo, $candidatesBuffer);
+                $this->bulkInsertVotacao($pdo, $votacaoChunk);
+
+                $totalLines += count($votacaoChunk);
+                $votacaoChunk     = [];
+                $citiesBuffer     = [];
+                $candidatesBuffer = [];
+                $partiesBuffer    = [];
 
                 if ($totalLines % 100_000 === 0) {
                     $elapsed = round(microtime(true) - $startTime, 1);
-                    $this->info("{$totalLines} linhas inseridas ({$elapsed}s)...");
+                    $this->info("{$totalLines} linhas processadas ({$elapsed}s)...");
                 }
             }
         }
 
         fclose($handle);
 
-        if (! empty($chunk)) {
-            $this->bulkInsert($pdo, $chunk);
-            $totalLines += count($chunk);
+        if (! empty($votacaoChunk)) {
+            $this->flushParties($pdo, $partiesBuffer);
+            $this->flushCities($pdo, $citiesBuffer);
+            $this->flushCandidates($pdo, $candidatesBuffer);
+            $this->bulkInsertVotacao($pdo, $votacaoChunk);
+            $totalLines += count($votacaoChunk);
         }
 
         $elapsed = round(microtime(true) - $startTime, 1);
-        $this->info("Concluído: {$totalLines} linhas inseridas em {$elapsed}s.");
+        $this->info("Concluído: {$totalLines} linhas em {$elapsed}s.");
 
         return self::SUCCESS;
     }
 
-    private function mapRow(array $row, array $colMap, string $uf, int $ano): array
-    {
-        $col = fn(string $name) => $row[$colMap[$name]] ?? null;
+    // -------------------------------------------------------------------------
+    // Flush helpers
+    // -------------------------------------------------------------------------
 
-        return [
-            'ano_eleicao'      => $this->str($col('ANO_ELEICAO')) ?? $ano,
-            'nr_turno'         => $this->num($col('NR_TURNO')),
-            'cd_eleicao'       => $this->num($col('CD_ELEICAO')),
-            'sg_uf'            => $this->str($col('SG_UF')) ?? $uf,
-            'cd_municipio'     => $this->num($col('CD_MUNICIPIO')),
-            'nm_municipio'     => $this->str($col('NM_MUNICIPIO')),
-            'nr_zona'          => $this->num($col('NR_ZONA')),
-            'nr_secao'         => $this->num($col('NR_SECAO')),
-            'cd_cargo'         => $this->num($col('CD_CARGO')),
-            'ds_cargo'         => $this->str($col('DS_CARGO')),
-            'sq_candidato'     => $this->num($col('SQ_CANDIDATO')),
-            'nr_votavel'       => $this->str($col('NR_VOTAVEL')),
-            'nm_votavel'       => $this->str($col('NM_VOTAVEL')),
-            'qt_votos'         => $this->num($col('QT_VOTOS')),
-            'nr_local_votacao' => $this->num($col('NR_LOCAL_VOTACAO')),
-            'nm_local_votacao' => $this->str($col('NM_LOCAL_VOTACAO')),
-        ];
+    private function flushParties(PDO $pdo, array $buffer): void
+    {
+        if (empty($buffer)) {
+            return;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($buffer), '(?, ?)'));
+        $sql = "INSERT INTO parties (abbreviation, name) VALUES {$placeholders}
+                ON CONFLICT DO NOTHING";
+
+        $values = [];
+        foreach ($buffer as $row) {
+            $values[] = $row['abbreviation'];
+            $values[] = $row['name'];
+        }
+
+        $pdo->prepare($sql)->execute($values);
     }
+
+    private function flushCities(PDO $pdo, array $buffer): void
+    {
+        if (empty($buffer)) {
+            return;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($buffer), '(?, ?, ?)'));
+        $sql = "INSERT INTO cities (tse_code, name, sg_uf) VALUES {$placeholders}
+                ON CONFLICT (tse_code) DO NOTHING";
+
+        $values = [];
+        foreach ($buffer as $row) {
+            $values[] = $row['tse_code'];
+            $values[] = $row['name'];
+            $values[] = $row['sg_uf'];
+        }
+
+        $pdo->prepare($sql)->execute($values);
+    }
+
+    private function flushCandidates(PDO $pdo, array $buffer): void
+    {
+        if (empty($buffer)) {
+            return;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($buffer), '(gen_random_uuid(), ?, ?, ?, ?, ?, ?)'));
+        $sql = "INSERT INTO candidates (uuid, sq_candidato, name, cd_municipio, state, year, role)
+                VALUES {$placeholders}
+                ON CONFLICT (sq_candidato) DO NOTHING";
+
+        $values = [];
+        foreach ($buffer as $row) {
+            $values[] = $row['sq_candidato'];
+            $values[] = $row['name'];
+            $values[] = $row['cd_municipio'];
+            $values[] = $row['state'];
+            $values[] = $row['year'];
+            $values[] = $row['role'];
+        }
+
+        $pdo->prepare($sql)->execute($values);
+    }
+
+    private function bulkInsertVotacao(PDO $pdo, array $rows): void
+    {
+        $columns = implode(', ', array_keys($rows[0]));
+        $colCount = count($rows[0]);
+
+        $placeholderRow = '(' . implode(', ', array_fill(0, $colCount, '?')) . ')';
+        $placeholders   = implode(', ', array_fill(0, count($rows), $placeholderRow));
+
+        $sql    = "INSERT INTO tse_votacao_secao ({$columns}) VALUES {$placeholders}";
+        $values = [];
+
+        foreach ($rows as $row) {
+            foreach ($row as $value) {
+                $values[] = $value;
+            }
+        }
+
+        $pdo->prepare($sql)->execute($values);
+    }
+
+    // -------------------------------------------------------------------------
+    // Type helpers
+    // -------------------------------------------------------------------------
 
     private function str(?string $value): ?string
     {
@@ -124,24 +262,4 @@ class TseImportVotacao extends Command
         return (int) $value;
     }
 
-    private function bulkInsert(PDO $pdo, array $rows): void
-    {
-        $columns = implode(', ', array_keys($rows[0]));
-        $colCount = count($rows[0]);
-
-        $placeholderRow = '(' . implode(', ', array_fill(0, $colCount, '?')) . ')';
-        $placeholders   = implode(', ', array_fill(0, count($rows), $placeholderRow));
-
-        $sql    = "INSERT INTO tse_votacao_secao ({$columns}) VALUES {$placeholders}";
-        $values = [];
-
-        foreach ($rows as $row) {
-            foreach ($row as $value) {
-                $values[] = $value;
-            }
-        }
-
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($values);
-    }
 }

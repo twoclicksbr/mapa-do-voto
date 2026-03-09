@@ -13,6 +13,7 @@ class CandidateSeeder extends Seeder
         $pl = Party::where('abbreviation', 'PL')->first();
 
         Candidate::create([
+            'sq_candidato'   => 250002019567,
             'party_id'       => $pl->id,
             'name'           => 'José Mendes de Souza Neto Bota',
             'ballot_name'    => 'Neto Bota',
@@ -21,6 +22,7 @@ class CandidateSeeder extends Seeder
             'year'           => 2024,
             'state'          => 'SP',
             'city_ibge_code' => '3510104',
+            'cd_municipio'   => 63118,
             'avatar_url'     => null,
             'status'         => 'não eleito',
             'active'         => true,

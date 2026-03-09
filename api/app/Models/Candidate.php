@@ -11,9 +11,9 @@ class Candidate extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'uuid', 'party_id', 'name', 'ballot_name', 'role',
-        'number', 'year', 'state', 'city_ibge_code',
-        'avatar_url', 'status', 'active',
+        'uuid', 'sq_candidato', 'party_id', 'name', 'ballot_name', 'role',
+        'number', 'nr_candidato', 'year', 'state', 'city_ibge_code',
+        'cd_municipio', 'avatar_url', 'status', 'active',
     ];
 
     protected static function booted(): void

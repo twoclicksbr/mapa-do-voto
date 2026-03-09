@@ -1,5 +1,6 @@
 import { toAbsoluteUrl } from '@/lib/helpers';
 import { Moon, Sun, Laptop, LogOut, Plus } from 'lucide-react';
+import { useLoginModal } from '@/components/auth/login-modal-context';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +51,7 @@ const accounts: Account[] = [
 
 export function UserPanel() {
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const { logout } = useLoginModal();
 
   return (
 		<DropdownMenu>
@@ -89,11 +91,9 @@ export function UserPanel() {
 						<Plus />
 						<span className="ps-1.5">Add Account</span>
 					</DropdownMenuItem>
-					<DropdownMenuItem className="ps-3.5" asChild>
-						<Link to="/logout">
-							<LogOut />
-							<span className="ps-1.5">Logout</span>
-						</Link>
+					<DropdownMenuItem className="ps-3.5" onClick={logout}>
+						<LogOut />
+						<span className="ps-1.5">Logout</span>
 					</DropdownMenuItem>
 				</DropdownMenuGroup>  
 				<DropdownMenuSeparator />

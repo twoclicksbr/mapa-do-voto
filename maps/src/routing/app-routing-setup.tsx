@@ -1,5 +1,6 @@
 import { Route, Routes, Navigate } from 'react-router';
 import { HomePage } from '@/pages/home';
+import { LogoutPage } from '@/pages/logout/page';
 import { Layout1 } from '@/components/layouts/layout-1';
 import { Layout1Page } from '@/pages/layout-1/page';
 import { Layout2 } from '@/components/layouts/layout-2';
@@ -201,6 +202,7 @@ export function AppRoutingSetup() {
       <Route element={<Layout39 />}>
         <Route path="/layout-39" element={<Layout39Page />} />
       </Route>
+      <Route path="/logout" element={<LogoutPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

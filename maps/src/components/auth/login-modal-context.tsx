@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import api from '@/lib/api';
 
 interface UserData {
@@ -24,11 +24,32 @@ interface LoginModalContextValue {
 const LoginModalContext = createContext<LoginModalContextValue | null>(null);
 
 export function LoginModalProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState<UserData | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    if (isLoggingOut) return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setOpen(true);
+      return;
+    }
+    api.get('/auth/me')
+      .then((res) => {
+        setLoggedIn(true);
+        setUser(res.data.user);
+        setOpen(false);
+      })
+      .catch(() => {
+        localStorage.removeItem('token');
+        setOpen(true);
+      });
+  }, [isLoggingOut]);
 
   const logout = async () => {
+    setIsLoggingOut(true);
     try {
       await api.post('/auth/logout');
     } catch {
@@ -38,6 +59,7 @@ export function LoginModalProvider({ children }: { children: React.ReactNode }) 
     setUser(null);
     setLoggedIn(false);
     setOpen(true);
+    setIsLoggingOut(false);
   };
 
   return (

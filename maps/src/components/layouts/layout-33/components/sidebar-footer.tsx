@@ -4,7 +4,7 @@ import { LogOut, Mails, NotepadText, Settings } from "lucide-react";
 import { useLoginModal } from "@/components/auth/login-modal-context";
 
 export function SidebarFooter() {
-  const { setOpen } = useLoginModal();
+  const { logout } = useLoginModal();
 
   return (
     <div className="flex items-center justify-between shrink-0 px-5 py-2.5 border-t border-border">
@@ -24,7 +24,7 @@ export function SidebarFooter() {
         </Button>
       </div>
 
-      <Button variant="ghost" mode="icon" className="text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>
+      <Button variant="ghost" mode="icon" className="text-muted-foreground hover:text-foreground" onClick={logout}>
         <LogOut className="opacity-100 size-4.5!"/>
       </Button>
     </div>

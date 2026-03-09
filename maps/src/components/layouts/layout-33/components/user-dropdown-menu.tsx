@@ -8,7 +8,7 @@ import { useLoginModal } from "@/components/auth/login-modal-context";
 
 export function UserDropdownMenu() {
   const { theme, setTheme } = useTheme();
-  const { setOpen } = useLoginModal();
+  const { logout } = useLoginModal();
 
   const toggleTheme = () => {
     setTheme(theme === "light" ? "dark" : "light");
@@ -116,7 +116,7 @@ export function UserDropdownMenu() {
 				<DropdownMenuSeparator />
 
 				{/* Action Items */}
-				<DropdownMenuItem onClick={() => setOpen(true)}>
+				<DropdownMenuItem onClick={logout}>
 					<LogOut/>
 					<span>Sign out</span>
 				</DropdownMenuItem>
