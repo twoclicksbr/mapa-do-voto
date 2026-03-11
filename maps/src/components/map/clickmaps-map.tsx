@@ -7,6 +7,7 @@ import { Plus, Minus, Crosshair, X } from 'lucide-react';
 import { getPartyColors } from '@/lib/party-colors';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CandidateSearch, type Candidate } from '@/components/map/candidate-search';
+import api from '@/lib/api';
 
 const BRAZIL_BOUNDS: L.LatLngBoundsExpression = [
   [-33.75, -73.99],
@@ -19,17 +20,40 @@ const SP_GEOJSON_URL =
 
 function CandidateCard() {
   const { loggedIn } = useLoginModal();
-  const party = 'PL';
-  const partyColors = getPartyColors(party);
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!loggedIn) { setCandidate(null); return; }
+    setLoading(true);
+    api.get('/candidates')
+      .then((res) => {
+        const raw = res.data[0];
+        if (!raw) return;
+        setCandidate({
+          id: String(raw.id),
+          name: raw.name,
+          ballot_name: raw.ballot_name,
+          party: raw.party.abbreviation,
+          role: raw.role,
+          year: null,
+          state: null,
+          avatar: raw.avatar_url ?? undefined,
+        });
+      })
+      .finally(() => setLoading(false));
+  }, [loggedIn]);
+
+  const partyColors = getPartyColors(candidate?.party ?? '');
 
   return (
     <div className="absolute top-4 left-4 z-[1000]">
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 flex items-center gap-3 min-w-[200px]">
-        {loggedIn ? (
+        {loggedIn && candidate && !loading ? (
           <>
             <div className="relative shrink-0">
               <img
-                src="https://randomuser.me/api/portraits/men/32.jpg"
+                src={candidate.avatar || 'https://randomuser.me/api/portraits/men/32.jpg'}
                 alt="Candidato"
                 className="w-10 h-10 rounded-full object-cover"
               />
@@ -37,15 +61,17 @@ function CandidateCard() {
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-sm text-gray-900 truncate">Neto Bota</span>
+                <span className="font-semibold text-sm text-gray-900 truncate">
+                  {candidate.ballot_name ?? candidate.name}
+                </span>
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${partyColors.gradient ? '' : `${partyColors.bg} ${partyColors.text}`}`}
                   style={partyColors.gradient ? { background: partyColors.gradient, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.8), 0 0 6px rgba(0,0,0,0.5)', fontWeight: 'bold' } : undefined}
                 >
-                  {party}
+                  {candidate.party}
                 </span>
               </div>
-              <span className="text-xs text-gray-500 truncate">Deputado Estadual</span>
+              <span className="text-xs text-gray-500 truncate">{candidate.role}</span>
             </div>
           </>
         ) : (

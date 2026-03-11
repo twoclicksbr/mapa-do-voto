@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::dropIfExists('candidates');
+        \Illuminate\Support\Facades\DB::statement('DROP TABLE IF EXISTS candidates CASCADE');
 
         Schema::create('candidates', function (Blueprint $table) {
             $table->id();
