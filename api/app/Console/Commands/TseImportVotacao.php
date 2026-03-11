@@ -86,15 +86,16 @@ class TseImportVotacao extends Command
             }
 
             // --- CANDIDATES ---
-            $sqCandidato = $this->num($col('SQ_CANDIDATO'));
-            $nmVotavel   = $this->str($col('NM_VOTAVEL'));
-            $cdCargo     = $this->num($col('CD_CARGO'));
-            $dsCargo     = $this->str($col('DS_CARGO')) ?? '';
+            $sqCandidato  = $this->num($col('SQ_CANDIDATO'));
+            $nmVotavel    = $this->str($col('NM_VOTAVEL'));
+            $cdCargo      = $this->num($col('CD_CARGO'));
+            $dsCargo      = $this->str($col('DS_CARGO')) ?? '';
 
             if ($sqCandidato && ! isset($candidatesBuffer[$sqCandidato])) {
                 $candidatesBuffer[$sqCandidato] = [
                     'sq_candidato' => $sqCandidato,
                     'name'         => $nmVotavel ?? '',
+                    'ballot_name'  => $nmVotavel,
                     'cd_municipio' => $cdMunicipio,
                     'state'        => $sgUf,
                     'year'         => $ano,
@@ -199,15 +200,16 @@ class TseImportVotacao extends Command
             return;
         }
 
-        $placeholders = implode(', ', array_fill(0, count($buffer), '(gen_random_uuid(), ?, ?, ?, ?, ?, ?)'));
-        $sql = "INSERT INTO candidates (uuid, sq_candidato, name, cd_municipio, state, year, role)
+        $placeholders = implode(', ', array_fill(0, count($buffer), '(gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?)'));
+        $sql = "INSERT INTO candidates (uuid, sq_candidato, name, ballot_name, cd_municipio, state, year, role)
                 VALUES {$placeholders}
-                ON CONFLICT (sq_candidato) DO NOTHING";
+                ON CONFLICT (sq_candidato) DO UPDATE SET ballot_name = EXCLUDED.ballot_name";
 
         $values = [];
         foreach ($buffer as $row) {
             $values[] = $row['sq_candidato'];
             $values[] = $row['name'];
+            $values[] = $row['ballot_name'];
             $values[] = $row['cd_municipio'];
             $values[] = $row['state'];
             $values[] = $row['year'];

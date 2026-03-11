@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -22,5 +23,15 @@ class People extends Model
         static::creating(function (People $people) {
             $people->uuid ??= Str::uuid()->toString();
         });
+    }
+
+    public function permissions(): HasMany
+    {
+        return $this->hasMany(PeoplePermission::class);
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        return $this->permissions()->where('permission', $permission)->exists();
     }
 }

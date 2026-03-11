@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Map;
 
 use App\Http\Controllers\Controller;
+use App\Models\People;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +63,12 @@ class MapStatsController extends Controller
         $validos = (int) $totalValidos->total;
         $pct     = $validos > 0 ? round($votos / $validos * 100, 2) : 0;
 
+        // 5. Permissões do people logado
+        $people = People::find($user->people_id);
+        $permissions = $people
+            ? $people->permissions()->pluck('permission')->all()
+            : [];
+
         return response()->json([
             'candidate' => [
                 'id'           => $candidate->id,
@@ -78,6 +85,7 @@ class MapStatsController extends Controller
                 'total_validos' => $validos,
                 'percentual'    => $pct,
             ],
+            'permissions' => $permissions,
         ]);
     }
 }

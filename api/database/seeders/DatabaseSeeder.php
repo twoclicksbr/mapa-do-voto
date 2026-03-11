@@ -24,9 +24,10 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call([
-            PartySeeder::class,
-            CandidateSeeder::class,
-            UserCandidateSeeder::class,
+            // PartySeeder::class,
+            // CandidateSeeder::class,
+            // UserCandidateSeeder::class,
+            // PeoplePermissionSeeder::class,
         ]);
     }
 }

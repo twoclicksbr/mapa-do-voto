@@ -1,5 +1,5 @@
 # CLAUDE.md — ClickMaps
-<!-- Atualizado em: 08/03/2026 09:00 -->
+<!-- Atualizado em: 11/03/2026 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -67,13 +67,23 @@ Fonte: https://dadosabertos.tse.jus.br
 ### Dados TSE Importados
 
 #### SP 2024 — votacao_secao_2024_SP.csv
-- Tabela: `tse_votacao_secao` (PostgreSQL)
+- Tabelas populadas: `tse_votacao_secao`, `cities`, `candidates` (via ON CONFLICT DO NOTHING)
 - Total de linhas: 9.611.090
 - Tempo de importação: ~35 min
 - Comando: `php artisan tse:import-votacao {file} {--uf=SP} {--ano=2024}`
 - Arquivo: `api/app/Console/Commands/TseImportVotacao.php`
 - Encoding: Latin-1 → UTF-8 via mb_convert_encoding
 - Chunk: 3.000 linhas por INSERT bulk
+- Campo `role` dos candidates populado via coluna `DS_CARGO` do CSV
+- Índice principal: `(sg_uf, ano_eleicao, sq_candidato)`
+
+#### Console Commands TSE
+
+| Comando | Arquivo | Descrição |
+|---------|---------|-----------|
+| `tse:import-votacao` | `TseImportVotacao.php` | Importa CSV de votação por seção |
+| `tse:import-fotos` | `TseImportFotos.php` | Importa fotos dos candidatos TSE |
+| `tse:import-raw` | `TseImportRaw.php` | Importa dados brutos TSE |
 
 ### Cliente piloto — Neto Bota (Caraguatatuba/SP)
 
@@ -148,9 +158,11 @@ Cada cargo faz aliança com **todos dentro da sua área de disputa**:
 
 ```
 C:\Herd\clickmaps\
-├── api\     → Laravel 12 (backend REST API)
-├── maps\    → Vite + React + Metronic (app do mapa)
-├── site\    → Next.js (landing page — não iniciada ainda)
+├── api\           → Laravel 12 (backend REST API)
+├── maps\          → Vite + React + Metronic (app do mapa)
+├── site\          → Next.js (landing page — não iniciada ainda)
+├── tse\           → Scripts/dados de importação TSE
+├── run_import.bat → Script de importação TSE (Windows)
 └── .git
 ```
 
@@ -202,13 +214,17 @@ C:\Herd\clickmaps\
 - **Laravel:** 12.53.0 | **PHP:** 8.4 | **PostgreSQL:** 17.7
 - **Banco:** `cm_politico` | **Usuário:** `clickmaps_politico`
 
-### Autenticação (Sanctum)
+### Rotas da API
 
 | Método | Endpoint | Auth | Descrição |
 |--------|----------|------|-----------|
 | POST | `/api/auth/login` | pública | Retorna token + user + people |
 | POST | `/api/auth/logout` | Bearer | Revoga token atual |
 | GET | `/api/auth/me` | Bearer | Retorna usuário autenticado + people |
+| GET | `/api/map/stats` | Bearer | Candidato order=1 do usuário + stats de votos (turno máximo, total_votos, total_validos, percentual) |
+| GET | `/api/candidates` | Bearer | Lista candidatos do usuário |
+| GET | `/api/candidates/search` | pública | Autocomplete de candidatos (?q=) |
+| GET | `/api/ping` | pública | Health check |
 
 ### Tabelas
 
@@ -217,18 +233,25 @@ C:\Herd\clickmaps\
 | `people` | Pessoa física (uuid, name, avatar_url, active, softDeletes) |
 | `users` | Acesso (people_id FK, email, password, remember_token) |
 | `parties` | 30 partidos brasileiros (uuid, name, abbreviation) |
-| `candidates` | Candidatos (party_id FK, role, year, state, city_ibge_code, status) |
+| `candidates` | Candidatos (party_id FK, sq_candidato, cd_municipio, role, year, state, city_ibge_code, status) |
+| `cities` | Cidades (ibge_code int unique nullable, tse_code int unique, name, sg_uf char2, timestamps) |
 | `user_candidates` | Vínculo user ↔ candidate (order, active) |
 | `personal_access_tokens` | Tokens Sanctum |
 | `cache` / `jobs` | Infraestrutura Laravel |
+| `people_permissions` | Permissões por pessoa (people_id FK) |
+| `tse_votacao_secao_raw` | Dados brutos TSE antes do processamento |
+| `positions` | Cargos eleitorais |
+| `tse_votacao_secao` | Resultados por seção eleitoral (9.6M linhas SP 2024) |
 
 ### Models e relacionamentos
 
-- `People` — uuid auto-gerado, SoftDeletes
+- `People` — uuid auto-gerado, SoftDeletes, hasMany(PeoplePermission)
 - `User` → `belongsTo(People)`, `HasApiTokens`
 - `Party` — uuid auto-gerado, SoftDeletes
-- `Candidate` → `belongsTo(Party)`, uuid auto-gerado, SoftDeletes
+- `Candidate` → `belongsTo(Party)`, `belongsTo(Position)`, uuid auto-gerado, SoftDeletes
 - `UserCandidate` → `belongsTo(User)`, `belongsTo(Candidate)`, SoftDeletes
+- `Position` — uuid auto-gerado, SoftDeletes
+- `PeoplePermission` → `belongsTo(People)`, SoftDeletes
 
 ### Seeders
 
@@ -236,6 +259,7 @@ C:\Herd\clickmaps\
 - `PartySeeder` — 30 partidos brasileiros
 - `CandidateSeeder` — Neto Bota (PL / Prefeito / Caraguatatuba SP / 2024 / não eleito)
 - `UserCandidateSeeder` — vincula Alex → Neto Bota (order=1)
+- `PeoplePermissionSeeder` — permissões padrão
 
 ### Arquivos chave
 
@@ -243,9 +267,12 @@ C:\Herd\clickmaps\
 |---------|-----------|
 | `api/routes/api.php` | Rotas REST |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
+| `api/app/Http/Controllers/Map/MapStatsController.php` | GET /api/map/stats — stats de votos do candidato logado |
+| `api/app/Http/Controllers/CandidateController.php` | Lista e busca de candidatos |
+| `api/app/Http/Controllers/Map/CandidateSearchController.php` | Autocomplete de candidatos |
 | `api/app/Models/` | People, User, Party, Candidate, UserCandidate |
-| `api/database/migrations/` | 8 migrations |
-| `api/database/seeders/` | 4 seeders |
+| `api/database/migrations/` | 13 migrations |
+| `api/database/seeders/` | 5 seeders |
 | `api/config/cors.php` | CORS — `allowed_origins: ['*']` |
 
 ### Frontend → Backend
@@ -353,6 +380,7 @@ Flutuante: `absolute top-4 left-4 z-[1000]`
 
 Dados atuais (hardcoded no frontend): Neto Bota | PL | Deputado Estadual
 > Candidato real no banco: Neto Bota | PL | Prefeito 2024 | Caraguatatuba SP | não eleito
+> ⚠️ Pendência técnica: integrar card com dados reais da API (GET /map/stats ou /candidates)
 
 ---
 

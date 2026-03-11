@@ -7,7 +7,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Tabela pai — particionada por ano_eleicao (LIST), depois sg_uf (LIST)
+        DB::unprepared('DROP TABLE IF EXISTS tse_votacao_secao');
+
+        // Tabela pai — particionada por ano_eleicao
         DB::unprepared('
             CREATE TABLE tse_votacao_secao (
                 ano_eleicao  smallint,
@@ -90,5 +92,21 @@ return new class extends Migration
     public function down(): void
     {
         DB::unprepared('DROP TABLE IF EXISTS tse_votacao_secao');
+
+        // Recria a tabela original simples
+        DB::unprepared('
+            CREATE TABLE tse_votacao_secao (
+                id           bigserial PRIMARY KEY,
+                ano_eleicao  smallint,
+                nr_turno     smallint,
+                sg_uf        char(2),
+                cd_municipio integer,
+                nr_zona      smallint,
+                nr_secao     smallint,
+                cd_cargo     smallint,
+                sq_candidato bigint,
+                qt_votos     integer
+            )
+        ');
     }
 };
