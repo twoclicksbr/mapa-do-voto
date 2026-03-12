@@ -4,6 +4,7 @@ import { SidebarHeader } from "@/components/layouts/layout-33/components/sidebar
 import { SidebarFooter } from "@/components/layouts/layout-33/components/sidebar-footer";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { CandidateSearch, type Candidate } from "@/components/map/candidate-search";
+import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -34,6 +35,7 @@ interface StatsResponse {
 interface CityOption {
   id: number;
   name: string;
+  ibge_code: string;
 }
 
 const STATUS_MAP: Record<string, { label: string; color: 'green' | 'yellow' | 'red' }> = {
@@ -87,6 +89,7 @@ function CitySearch({ stateId, onSelect, onClear, selected }: {
   };
 
   const handleSelect = (city: CityOption) => {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
     setQuery('');
     setResults([]);
     setOpen(false);
@@ -94,6 +97,7 @@ function CitySearch({ stateId, onSelect, onClear, selected }: {
   };
 
   const handleClear = () => {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
     setQuery('');
     setResults([]);
     setOpen(false);
@@ -115,7 +119,7 @@ function CitySearch({ stateId, onSelect, onClear, selected }: {
       {selected ? (
         <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white flex items-center justify-between gap-2">
           <span className="text-sm font-medium truncate">{selected.name}</span>
-          <button onClick={handleClear} className="flex-shrink-0 text-gray-400 hover:text-gray-600">
+          <button onMouseDown={(e) => { e.preventDefault(); handleClear(); }} className="flex-shrink-0 text-gray-400 hover:text-gray-600">
             <XIcon className="size-3.5" />
           </button>
         </div>
@@ -135,7 +139,7 @@ function CitySearch({ stateId, onSelect, onClear, selected }: {
               {results.map((city) => (
                 <button
                   key={city.id}
-                  onClick={() => handleSelect(city)}
+                  onMouseDown={(e) => { e.preventDefault(); handleSelect(city); }}
                   className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
                 >
                   {city.name}
@@ -151,6 +155,7 @@ function CitySearch({ stateId, onSelect, onClear, selected }: {
 
 export function ClickMapsSidebarContent() {
   const { isMobile } = useLayout();
+  const { setActiveCandidate, showCities, setShowCities, mapClickedCity, setMapClickedCity, setFocusCityOnMap } = useActiveCandidate();
   const [statsData, setStatsData] = useState<StatsResponse | null>(null);
   const [activeRound, setActiveRound] = useState<number | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -178,21 +183,47 @@ export function ClickMapsSidebarContent() {
 
   const handleCandidateSelect = (candidate: Candidate) => {
     setSelectedCandidate(candidate);
+    setActiveCandidate(candidate);
     setSelectedCity(null);
     setStatsData(null);
     setActiveRound(null);
+    setShowCities(false);
     fetchStats(candidate.id);
+  };
+
+  const handleCandidateClear = () => {
+    setSelectedCandidate(null);
+    setActiveCandidate(null);
+    setSelectedCity(null);
+    setStatsData(null);
+    setActiveRound(null);
+    setShowCities(false);
   };
 
   const handleCitySelect = (city: CityOption) => {
     setSelectedCity(city);
     if (selectedCandidate) fetchStats(selectedCandidate.id, city.id);
+    setFocusCityOnMap({ name: city.name });
   };
 
   const handleCityClear = () => {
     setSelectedCity(null);
     if (selectedCandidate) fetchStats(selectedCandidate.id);
   };
+
+  useEffect(() => {
+    if (!mapClickedCity || !selectedCandidate?.state_id) return;
+    api.get<CityOption[]>('/cities/search', { params: { q: mapClickedCity.name, state_id: selectedCandidate.state_id } })
+      .then((res) => {
+        const city = res.data[0];
+        if (city) {
+          setSelectedCity(city);
+          fetchStats(selectedCandidate.id, city.id);
+        }
+      })
+      .finally(() => setMapClickedCity(null));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapClickedCity]);
 
   const currentStat = statsData && activeRound !== null
     ? statsData.stats[String(activeRound)] ?? null
@@ -206,18 +237,31 @@ export function ClickMapsSidebarContent() {
       <ScrollArea className="shrink-0 h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-8.5rem)]">
         <div className="px-4 py-3 flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-500">Candidato:</label>
-          <CandidateSearch variant="sidebar" onSelect={handleCandidateSelect} />
+          <CandidateSearch variant="sidebar" onSelect={handleCandidateSelect} onClear={handleCandidateClear} />
         </div>
 
         {showCityFilter && (
           <div className="px-4 flex flex-col gap-1 mt-1">
-            <label className="text-xs font-medium text-gray-500">Cidade:</label>
-            <CitySearch
-              stateId={selectedCandidate.state_id!}
-              selected={selectedCity}
-              onSelect={handleCitySelect}
-              onClear={handleCityClear}
-            />
+            <label className="flex items-center gap-2 text-sm cursor-pointer mb-1">
+              <Checkbox
+                id="show-cities"
+                size="sm"
+                checked={showCities}
+                onCheckedChange={(v) => setShowCities(Boolean(v))}
+              />
+              Exibir Cidades
+            </label>
+            {showCities && (
+              <>
+                <label className="text-xs font-medium text-gray-500">Cidade:</label>
+                <CitySearch
+                  stateId={selectedCandidate.state_id!}
+                  selected={selectedCity}
+                  onSelect={handleCitySelect}
+                  onClear={handleCityClear}
+                />
+              </>
+            )}
           </div>
         )}
 

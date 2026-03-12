@@ -18,9 +18,10 @@ class CityController extends Controller
         $stateId = (int) $request->input('state_id');
 
         $cities = DB::table('cities')
-            ->select('id', 'name')
+            ->select('id', 'name', 'ibge_code')
             ->where('state_id', $stateId)
             ->whereRaw("unaccent(name) ILIKE unaccent(?)", ["%{$q}%"])
+            ->whereRaw("tse_code SIMILAR TO '[0-9]+'")
             ->orderBy('name')
             ->limit(10)
             ->get();

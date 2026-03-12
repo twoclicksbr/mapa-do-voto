@@ -11,7 +11,12 @@ class CandidateController extends Controller
 {
     public function index(Request $request)
     {
-        $peopleCandidacies = PeopleCandidacy::with('candidacy.candidate', 'candidacy.party')
+        $peopleCandidacies = PeopleCandidacy::with([
+            'candidacy.candidate',
+            'candidacy.party',
+            'candidacy.state',
+            'candidacy.city',
+        ])
             ->where('people_id', $request->user()->people_id)
             ->where('active', true)
             ->orderBy('order')
@@ -21,14 +26,18 @@ class CandidateController extends Controller
             $candidacy = $pc->candidacy;
             $candidate = $candidacy->candidate;
             return [
-                'id'          => $candidacy->id,
-                'name'        => $candidate->name,
-                'ballot_name' => $candidacy->ballot_name,
-                'role'        => $candidacy->role,
-                'year'        => $candidacy->year,
-                'status'      => $candidacy->status,
-                'avatar_url'  => $candidate->photo_url,
-                'party'       => [
+                'id'             => $candidacy->id,
+                'name'           => $candidate->name,
+                'ballot_name'    => $candidacy->ballot_name,
+                'role'           => $candidacy->role,
+                'year'           => $candidacy->year,
+                'status'         => $candidacy->status,
+                'avatar_url'     => $candidate->photo_url,
+                'state_uf'       => $candidacy->state?->uf,
+                'city_id'        => $candidacy->city_id,
+                'city_name'      => $candidacy->city?->name,
+                'city_ibge_code' => $candidacy->city?->ibge_code,
+                'party'          => [
                     'id'           => $candidacy->party->id,
                     'name'         => $candidacy->party->name,
                     'abbreviation' => $candidacy->party->abbreviation,
@@ -64,16 +73,19 @@ class CandidateController extends Controller
                 'candidacies.role',
                 'candidacies.year',
                 'candidacies.state_id',
+                'candidacies.city_id',
                 'candidates.name as candidate_name',
                 'candidates.photo_url as photo_url',
                 'parties.abbreviation as party_abbreviation',
                 'cities.name as city_name',
+                'cities.ibge_code as city_ibge_code',
                 'states.uf as state_uf',
             ])
             ->join('candidates', 'candidates.id', '=', 'candidacies.candidate_id')
             ->join('parties',    'parties.id',    '=', 'candidacies.party_id')
             ->leftJoin('cities',  'cities.id',    '=', 'candidacies.city_id')
-            ->leftJoin('states',  'states.id',    '=', 'candidacies.state_id');
+            ->leftJoin('states',  'states.id',    '=', 'candidacies.state_id')
+            ->whereNotIn(DB::raw('UPPER(candidacies.role)'), ['VICE-PREFEITO', 'VICE-PREFEITA', 'VICE-GOVERNADOR', 'VICE-GOVERNADORA']);
 
         foreach ($tokens as $token) {
             $query->where(function ($w) use ($token) {
@@ -96,18 +108,20 @@ class CandidateController extends Controller
         }
 
         $results = $query->limit(10)->get()->map(fn ($row) => [
-            'id'           => $row->id,
-            'sq_candidato' => $row->sq_candidato,
-            'name'         => $row->candidate_name,
-            'ballot_name'   => $row->ballot_name,
-            'ballot_number' => $row->ballot_number,
-            'party'         => $row->party_abbreviation,
-            'role'         => $row->role,
-            'year'         => $row->year,
-            'state_id'     => $row->state_id,
-            'state_uf'     => $row->state_uf,
-            'city'         => $row->city_name,
-            'photo_url'    => $row->photo_url,
+            'id'             => $row->id,
+            'sq_candidato'   => $row->sq_candidato,
+            'name'           => $row->candidate_name,
+            'ballot_name'    => $row->ballot_name,
+            'ballot_number'  => $row->ballot_number,
+            'party'          => $row->party_abbreviation,
+            'role'           => $row->role,
+            'year'           => $row->year,
+            'state_id'       => $row->state_id,
+            'state_uf'       => $row->state_uf,
+            'city_id'        => $row->city_id,
+            'city'           => $row->city_name,
+            'city_ibge_code' => $row->city_ibge_code,
+            'photo_url'      => $row->photo_url,
         ]);
 
         return response()->json($results);

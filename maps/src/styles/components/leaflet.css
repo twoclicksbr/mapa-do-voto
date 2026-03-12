@@ -4,6 +4,11 @@
     opacity: 0.6;
   }
 
+  /* Remove browser focus outline on SVG polygon elements */
+  .leaflet-interactive:focus {
+    outline: none;
+  }
+
   /* Base Leaflet container styles */
   .leaflet-container {
     /* Leaflet pane and control styles */

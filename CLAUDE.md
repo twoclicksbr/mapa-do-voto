@@ -80,6 +80,7 @@ Comandos de importação:
 - `php artisan tse:import-voting-locations {--uf=} {--ano=}` — popula voting_locations
 - `php artisan tse:import-sections {--uf=} {--ano=}` — popula sections
 - `php artisan tse:import-votes {--uf=} {--ano=}` — popula votes (PDO cursor, chunk 2000)
+- `php artisan tse:import-state-geometry {uf}` — baixa GeoJSON do estado via giuliano-macedo/geodata-br-states e salva no campo geometry da tabela states
 - `php artisan db:backup` — backup via pg_dump → storage/app/backups/
 
 ### Cliente piloto — Neto Bota (Caraguatatuba/SP)
@@ -178,8 +179,9 @@ C:\Herd\clickmaps\
 |---------|-----------|
 | `src/pages/home/page.tsx` | Página principal com mapa + estado `isSplit` |
 | `src/components/map/clickmaps-map.tsx` | Mapa Leaflet + card candidato + botões flutuantes |
-| `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo |
+| `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — input uppercase, vice-prefeito/vice-governador excluídos |
 | `src/components/map/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, city search, STATUS_MAP |
+| `src/components/map/active-candidate-context.tsx` | Contexto global: activeCandidate, setActiveCandidate, showCities, setShowCities, mapClickedCity, focusCityOnMap |
 | `src/components/auth/login-modal.tsx` | Modal de login automático |
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
 | `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
@@ -195,7 +197,7 @@ C:\Herd\clickmaps\
 
 - Abre automaticamente ao carregar
 - Campos vazios (sem preenchimento automático: `autoComplete="off"`)
-- Ao entrar: POST `/auth/login` → salva token no `localStorage` → fecha modal + dispara flyTo para São Paulo
+- Ao entrar: POST `/auth/login` → salva token no `localStorage` → fecha modal
 - Ao sair: POST `/auth/logout` → remove token → reabre modal
 - `LoginModalContext` expõe: `open`, `setOpen`, `loggedIn`, `setLoggedIn`, `user`, `logout`
 
@@ -219,14 +221,15 @@ C:\Herd\clickmaps\
 | GET | `/api/candidates/search?q=` | Bearer | Busca candidatos com unaccent; admin vê todos, user vê apenas seus vinculados |
 | GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE |
 | GET | `/api/cities/search?q=&state_id=` | Bearer | Busca cidades com unaccent, filtro state_id, limit 10 |
+| GET | `/api/states/{uf}/geometry` | pública | Retorna geometry GeoJSON do estado (campo geometry da tabela states) |
 
 ### Tabelas
 
 | Tabela | Descrição |
 |--------|-----------|
 | `countries` | País (id, name) |
-| `states` | 27 estados (id, country_id, name, uf) |
-| `cities` | Municípios (id, state_id, name, ibge_code, tse_code, geometry) |
+| `states` | 27 estados (id, country_id, name, uf, geometry) — geometry preenchida via `tse:import-state-geometry {uf}` |
+| `cities` | Municípios (id, state_id, name, ibge_code, tse_code, geometry) — ⚠️ `ibge_code` NULL em todas as cities, match por nome até ser populado |
 | `zones` | Zonas eleitorais (id, city_id, zone_number, geometry) |
 | `voting_locations` | Locais de votação (id, zone_id, tse_number, name, address, lat, lng) |
 | `sections` | Seções (id, voting_location_id, section_number) |
@@ -268,6 +271,7 @@ C:\Herd\clickmaps\
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
 | `api/app/Http/Controllers/CandidateController.php` | search + stats |
 | `api/app/Http/Controllers/CityController.php` | search |
+| `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy |
 | `api/database/migrations/` | migrations 2026_03_12_* |
 | `api/database/seeders/` | DatabaseSeeder, PartySeeder, CandidacySeeder, PeopleCandidacySeeder |
@@ -291,12 +295,34 @@ https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 
 ### Comportamento ao login
 
-1. Carrega GeoJSON do município de São Paulo (IBGE 3550308)
-   - URL: `https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-35-mun.json`
-2. Borda: `#1D3557`, weight: 2, fillOpacity: 0.05
-3. `map.invalidateSize()` antes do flyTo
-4. `map.flyTo(center, 10, { duration: 2 })` → animação suave
-5. `map.once('moveend', () => map.fitBounds(bounds, { padding: [40, 40], animate: true }))`
+- Ao logar: mapa exibe contorno do Brasil inteiro (sem divisão de estados)
+- URL: `https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson` → filtro `ADMIN === 'Brazil'`
+- Ao selecionar candidato: remove contorno do Brasil e desenha polígono do cargo
+
+### Polígonos por Cargo
+
+Lógica em `clickmaps-map.tsx` via `MUNICIPAL_ROLES` e `STATE_ROLES`:
+
+**Cargos municipais** (PREFEITO, PREFEITA, VEREADOR, VEREADORA, etc):
+- Busca GeoJSON via tbrugz: `https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-{ibge_estado}-mun.json`
+- Match por nome da cidade (ibge_code ainda NULL no banco)
+- Estilo: color #1D3557, weight 2, fillOpacity 0.05
+
+**Cargos estaduais** (DEPUTADO ESTADUAL, DEPUTADO FEDERAL, SENADOR, GOVERNADOR, etc):
+- Busca via `GET /api/states/{uf}/geometry`
+- Checkbox "Exibir Cidades" aparece na sidebar → carrega municípios do estado com tooltip + clique
+- Ao marcar "Exibir Cidades": remove polígono do estado, exibe municípios individualmente
+- Ao clicar num município: destaque (fillOpacity 0.15) + flyToBounds + atualiza stats na sidebar
+- Ao selecionar cidade na sidebar: foca no município via match por nome
+
+**UF → código IBGE estado** (mapeamento em `UF_TO_IBGE` no clickmaps-map.tsx):
+- SP=35, RJ=33, MG=31, etc.
+
+### Layers do mapa (clickmaps-map.tsx)
+- `brazilLayerRef` — contorno do Brasil (sem candidato)
+- `polygonLayerRef` — polígono do estado ou município do candidato
+- `citiesLayerRef` — municípios do estado (quando "Exibir Cidades" marcado)
+- Todos com `cancelled` flag para evitar race condition em fetches
 
 ### Limites do Brasil (`BRAZIL_BOUNDS`)
 
@@ -328,6 +354,7 @@ const BRAZIL_BOUNDS: L.LatLngBoundsExpression = [[-33.75, -73.99], [5.27, -28.85
   font-size: 9px !important;
   opacity: 0.6;
 }
+.leaflet-interactive:focus { outline: none } /* remove borda retangular ao clicar em polígono */
 ```
 
 ---
@@ -371,14 +398,8 @@ const fitToCity = useCallback(() => {
 
 ## Card do Candidato
 
-Flutuante: `absolute top-4 left-4 z-[1000]`
-
-- **Sem login:** Skeleton animado (avatar + duas linhas)
-- **Logado:** avatar + nome + badge partido + cargo
-
-Dados atuais (hardcoded no frontend): Neto Bota | PL | Deputado Estadual
-> Candidato real no banco: Neto Bota | PL | Prefeito 2024 | Caraguatatuba SP | não eleito
-> ⚠️ Pendência técnica: integrar card com dados reais da API (GET /map/stats ou /candidates)
+- CandidateCard comentado no código (mantido para uso futuro)
+- Card flutuante no mapa está desabilitado temporariamente
 
 ---
 

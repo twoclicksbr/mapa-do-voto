@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
 import api from '@/lib/api';
 import { getPartyColors } from '@/lib/party-colors';
+import { useLoginModal } from '@/components/auth/login-modal-context';
 
 export interface Candidate {
   id: string;
@@ -12,7 +14,9 @@ export interface Candidate {
   year: number | null;
   state_id: number | null;
   state_uf: string | null;
+  city_id?: number | null;
   city: string | null;
+  city_ibge_code?: string | null;
   photo_url?: string | null;
   // kept for sidebar /candidates compat
   avatar?: string;
@@ -28,13 +32,16 @@ interface ApiResult {
   year: number;
   state_id: number | null;
   state_uf: string | null;
+  city_id: number | null;
   city: string | null;
+  city_ibge_code: string | null;
   party: string;
   photo_url: string | null;
 }
 
 interface CandidateSearchProps {
   onSelect: (candidate: Candidate) => void;
+  onClear?: () => void;
   variant?: 'map' | 'sidebar';
 }
 
@@ -153,7 +160,8 @@ function CandidateAvatar({ candidate, size = 48 }: { candidate: Candidate; size?
 }
 
 
-export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
+export function CandidateSearch({ onSelect, onClear, variant }: CandidateSearchProps) {
+  const { loggedIn } = useLoginModal();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -164,9 +172,10 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sidebar: load user's own candidates on mount
+  // Sidebar: load user's own candidates — only when logged in
   useEffect(() => {
     if (variant !== 'sidebar') return;
+    if (!loggedIn) { setSelected(null); return; }
     api.get('/candidates').then((res) => {
       const mapped: Candidate[] = res.data.map((c: {
         id: number;
@@ -174,6 +183,12 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
         ballot_name: string | null;
         party: { abbreviation: string };
         role: string;
+        year: number;
+        state_id: number | null;
+        state_uf: string | null;
+        city_id: number | null;
+        city_name: string | null;
+        city_ibge_code: string | null;
         avatar_url: string | null;
       }) => ({
         id: String(c.id),
@@ -181,10 +196,12 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
         ballot_name: c.ballot_name,
         party: c.party.abbreviation,
         role: c.role,
-        year: null,
-        state_id: null,
-        state_uf: null,
-        city: null,
+        year: c.year,
+        state_id: c.state_id,
+        state_uf: c.state_uf,
+        city_id: c.city_id,
+        city: c.city_name ?? null,
+        city_ibge_code: c.city_ibge_code,
         photo_url: null,
         avatar: c.avatar_url ?? '',
       }));
@@ -193,7 +210,7 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
         onSelect(mapped[0]);
       }
     });
-  }, [variant]);
+  }, [variant, loggedIn]);
 
   // Search with debounce
   const search = useCallback((q: string) => {
@@ -216,7 +233,9 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
           year: c.year,
           state_id: c.state_id,
           state_uf: c.state_uf,
+          city_id: c.city_id,
           city: c.city,
+          city_ibge_code: c.city_ibge_code,
           photo_url: c.photo_url,
         }));
         setResults(mapped);
@@ -266,7 +285,7 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
   return (
     <div ref={containerRef} className={variant === 'sidebar' ? 'relative w-full' : 'absolute top-4 left-4 z-[1000] w-64'}>
       {variant === 'sidebar' && selected && !isEditing ? (
-        <div className="relative w-full">
+        <div className="relative w-full" style={{ overflow: 'visible' }}>
           <PartyBadgeAbsolute party={selected.party} />
           <div
             className="border border-gray-200 rounded-lg px-3 py-2 bg-white cursor-pointer w-full overflow-hidden"
@@ -277,6 +296,12 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
               <CandidateInfo c={selected} hideBadge />
             </div>
           </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setSelected(null); onClear?.(); }}
+            className="absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2 w-5 h-5 rounded-full bg-white border border-gray-300 shadow-sm flex items-center justify-center text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors z-10"
+          >
+            <X size={12} />
+          </button>
         </div>
       ) : (
         <>
@@ -288,7 +313,7 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
               onChange={(e) => handleQueryChange(e.target.value)}
               onFocus={() => { if (query.length >= 2) setOpen(true); }}
               placeholder="Buscar candidato..."
-              className="w-full font-semibold text-sm outline-none placeholder:text-gray-400 placeholder:font-semibold bg-transparent"
+              className="w-full font-semibold text-sm outline-none placeholder:text-gray-400 placeholder:font-semibold bg-transparent uppercase"
             />
             <div className="text-sm text-gray-500">Digite nome ou partido</div>
           </div>

@@ -4,9 +4,11 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\CandidateController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\Map\MapStatsController;
+use App\Http\Controllers\StateController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn () => ['status' => 'ok']);
+Route::get('/states/{uf}/geometry', [StateController::class, 'geometry']);
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 
