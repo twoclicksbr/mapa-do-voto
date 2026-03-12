@@ -1,27 +1,36 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import { getPartyColors } from '@/lib/party-colors';
 
 export interface Candidate {
   id: string;
   name: string;
   ballot_name: string | null;
+  ballot_number: string | null;
   party: string;
   role: string;
   year: number | null;
-  state: string | null;
+  state_id: number | null;
+  state_uf: string | null;
+  city: string | null;
+  photo_url?: string | null;
   // kept for sidebar /candidates compat
   avatar?: string;
 }
 
 interface ApiResult {
   id: number;
+  sq_candidato: string;
   name: string;
   ballot_name: string | null;
+  ballot_number: string | null;
   role: string;
   year: number;
-  state: string | null;
-  city_ibge_code: string | null;
-  party: { abbreviation: string };
+  state_id: number | null;
+  state_uf: string | null;
+  city: string | null;
+  party: string;
+  photo_url: string | null;
 }
 
 interface CandidateSearchProps {
@@ -33,9 +42,116 @@ function displayName(c: Candidate): string {
   return c.ballot_name ?? c.name;
 }
 
-function subtitle(c: Candidate): string {
-  return [c.party, c.role, c.state].filter(Boolean).join(' · ');
+const roleMap: Record<string, string> = {
+  'DEPUTADO ESTADUAL': 'DEP. ESTADUAL',
+  'DEPUTADO FEDERAL': 'DEP. FEDERAL',
+  'DEPUTADA ESTADUAL': 'DEP. ESTADUAL',
+  'DEPUTADA FEDERAL': 'DEP. FEDERAL',
+};
+
+function formatRole(role: string): string {
+  return roleMap[role.toUpperCase()] ?? role;
 }
+
+const municipalRoles = ['PREFEITO', 'PREFEITA', 'VICE-PREFEITO', 'VICE-PREFEITA', 'VEREADOR', 'VEREADORA'];
+const nationalRoles  = ['PRESIDENTE', 'PRESIDENTA'];
+
+
+function PartyBadge({ party }: { party: string }) {
+  const colors = getPartyColors(party);
+  if (colors.gradient) {
+    return (
+      <span
+        className="text-[10px] px-1 py-0.5 rounded font-bold text-white flex-shrink-0"
+        style={{ background: colors.gradient }}
+      >
+        {party}
+      </span>
+    );
+  }
+  return (
+    <span className={`text-[10px] px-1 py-0.5 rounded font-bold flex-shrink-0 ${colors.bg} ${colors.text}`}>
+      {party}
+    </span>
+  );
+}
+
+function PartyBadgeAbsolute({ party }: { party: string }) {
+  const colors = getPartyColors(party);
+  if (colors.gradient) {
+    return (
+      <span
+        className="absolute top-0 right-3 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded font-bold text-white"
+        style={{ background: colors.gradient }}
+      >
+        {party}
+      </span>
+    );
+  }
+  return (
+    <span className={`absolute top-0 right-3 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded font-bold ${colors.bg} ${colors.text}`}>
+      {party}
+    </span>
+  );
+}
+
+function CandidateInfo({ c, hideBadge }: { c: Candidate; hideBadge?: boolean }) {
+  const r = c.role?.toUpperCase() ?? '';
+  const isNational  = nationalRoles.includes(r);
+  const isMunicipal = municipalRoles.includes(r);
+
+  let line2: string;
+  let line3: string | null = null;
+
+  const num = c.ballot_number ? `Nº ${c.ballot_number}` : null;
+
+  if (isNational) {
+    line2 = [formatRole(c.role), c.year, num].filter(Boolean).join(' · ');
+  } else if (isMunicipal) {
+    line2 = [formatRole(c.role), c.year, num].filter(Boolean).join(' · ');
+    line3 = [c.city, c.state_uf].filter(Boolean).join(' · ') || null;
+  } else {
+    line2 = [formatRole(c.role), c.state_uf, c.year, num].filter(Boolean).join(' · ');
+  }
+
+  return (
+    <div className="min-w-0 overflow-hidden flex-1 w-0">
+      <div className="flex items-center gap-1 overflow-hidden">
+        <span className="font-bold text-sm text-gray-900 truncate block">{displayName(c)}</span>
+        {!hideBadge && <PartyBadge party={c.party} />}
+      </div>
+      <div className="text-xs text-gray-600 truncate">{line2}</div>
+      {line3 && <div className="text-xs text-gray-400 truncate">{line3}</div>}
+    </div>
+  );
+}
+
+function CandidateAvatar({ candidate, size = 48 }: { candidate: Candidate; size?: number }) {
+  const photoUrl = candidate.photo_url ?? candidate.avatar;
+  if (photoUrl) {
+    return (
+      <img
+        src={photoUrl}
+        style={{ width: size, height: size }}
+        className="rounded-full object-cover flex-shrink-0"
+      />
+    );
+  }
+  const initial = (displayName(candidate)?.[0] ?? '?').toUpperCase();
+  const colors = getPartyColors(candidate.party);
+  const bgStyle = colors.gradient
+    ? { background: colors.gradient }
+    : { backgroundColor: colors.hex };
+  return (
+    <div
+      style={{ width: size, height: size, ...bgStyle }}
+      className="rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-base"
+    >
+      {initial}
+    </div>
+  );
+}
+
 
 export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
   const [query, setQuery] = useState('');
@@ -66,7 +182,10 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
         party: c.party.abbreviation,
         role: c.role,
         year: null,
-        state: null,
+        state_id: null,
+        state_uf: null,
+        city: null,
+        photo_url: null,
         avatar: c.avatar_url ?? '',
       }));
       if (mapped.length === 1) {
@@ -91,10 +210,14 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
           id: String(c.id),
           name: c.name,
           ballot_name: c.ballot_name,
-          party: c.party.abbreviation,
+          ballot_number: c.ballot_number,
+          party: c.party,
           role: c.role,
           year: c.year,
-          state: c.state,
+          state_id: c.state_id,
+          state_uf: c.state_uf,
+          city: c.city,
+          photo_url: c.photo_url,
         }));
         setResults(mapped);
       })
@@ -143,12 +266,17 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
   return (
     <div ref={containerRef} className={variant === 'sidebar' ? 'relative w-full' : 'absolute top-4 left-4 z-[1000] w-64'}>
       {variant === 'sidebar' && selected && !isEditing ? (
-        <div
-          className="border border-gray-200 rounded-lg px-3 py-2 bg-white cursor-pointer"
-          onClick={() => { setQuery(displayName(selected)); setOpen(false); setIsEditing(true); }}
-        >
-          <div className="font-semibold text-sm truncate">{displayName(selected)}</div>
-          <div className="text-sm text-gray-500">{subtitle(selected)}</div>
+        <div className="relative w-full">
+          <PartyBadgeAbsolute party={selected.party} />
+          <div
+            className="border border-gray-200 rounded-lg px-3 py-2 bg-white cursor-pointer w-full overflow-hidden"
+            onClick={() => { setQuery(displayName(selected)); setOpen(false); setIsEditing(true); }}
+          >
+            <div className="flex gap-3 items-center w-full overflow-hidden">
+              <CandidateAvatar candidate={selected} size={48} />
+              <CandidateInfo c={selected} hideBadge />
+            </div>
+          </div>
         </div>
       ) : (
         <>
@@ -176,10 +304,10 @@ export function CandidateSearch({ onSelect, variant }: CandidateSearchProps) {
                   <button
                     key={candidate.id}
                     onClick={() => handleSelect(candidate)}
-                    className="w-full flex flex-col px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                    className="w-full flex gap-3 items-start px-3 py-2 text-left hover:bg-gray-50 transition-colors"
                   >
-                    <span className="text-xs font-semibold text-gray-900 truncate">{displayName(candidate)}</span>
-                    <span className="text-xs text-gray-500 truncate">{subtitle(candidate)}</span>
+                    <CandidateAvatar candidate={candidate} size={40} />
+                    <CandidateInfo c={candidate} />
                   </button>
                 ))
               )}

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__paper__write_html",
+      "mcp__paper__get_screenshot",
+      "mcp__paper__update_styles"
+    ]
+  }
+}

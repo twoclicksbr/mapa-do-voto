@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class State extends Model
 {
-    protected $fillable = ['country_id', 'name', 'uf', 'ibge_code', 'geometry'];
+    protected $fillable = ['country_id', 'name', 'uf', 'geometry'];
 
     public function country(): BelongsTo
     {
@@ -18,5 +18,10 @@ class State extends Model
     public function cities(): HasMany
     {
         return $this->hasMany(City::class);
+    }
+
+    public function candidacies(): HasMany
+    {
+        return $this->hasMany(Candidacy::class);
     }
 }

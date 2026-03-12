@@ -1,5 +1,5 @@
 # CLAUDE.md — ClickMaps
-<!-- Atualizado em: 11/03/2026 -->
+<!-- Atualizado em: 12/03/2026 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -66,24 +66,21 @@ Fonte: https://dadosabertos.tse.jus.br
 
 ### Dados TSE Importados
 
-#### SP 2024 — votacao_secao_2024_SP.csv
-- Tabelas populadas: `tse_votacao_secao`, `cities`, `candidates` (via ON CONFLICT DO NOTHING)
-- Total de linhas: 9.611.090
-- Tempo de importação: ~35 min
-- Comando: `php artisan tse:import-votacao {file} {--uf=SP} {--ano=2024}`
-- Arquivo: `api/app/Console/Commands/TseImportVotacao.php`
-- Encoding: Latin-1 → UTF-8 via mb_convert_encoding
-- Chunk: 3.000 linhas por INSERT bulk
-- Campo `role` dos candidates populado via coluna `DS_CARGO` do CSV
-- Índice principal: `(sg_uf, ano_eleicao, sq_candidato)`
+| UF | Ano | Tabela staging | Linhas | Status |
+|---|---|---|---|---|
+| SP | 2024 | tse_votacao_secao_2024 | 9.611.090 | ✅ importado |
+| SP | 2022 | tse_votacao_secao_2022 | 18.761.482 | ✅ importado |
 
-#### Console Commands TSE
+**Total votes:** 28.372.572 linhas
 
-| Comando | Arquivo | Descrição |
-|---------|---------|-----------|
-| `tse:import-votacao` | `TseImportVotacao.php` | Importa CSV de votação por seção |
-| `tse:import-fotos` | `TseImportFotos.php` | Importa fotos dos candidatos TSE |
-| `tse:import-raw` | `TseImportRaw.php` | Importa dados brutos TSE |
+Comandos de importação:
+- `php artisan tse:import-votacao-raw {file} {--uf=} {--ano=}` — popula staging
+- `php artisan tse:import-cities {--uf=} {--ano=}` — popula cities
+- `php artisan tse:import-zones {--uf=} {--ano=}` — popula zones
+- `php artisan tse:import-voting-locations {--uf=} {--ano=}` — popula voting_locations
+- `php artisan tse:import-sections {--uf=} {--ano=}` — popula sections
+- `php artisan tse:import-votes {--uf=} {--ano=}` — popula votes (PDO cursor, chunk 2000)
+- `php artisan db:backup` — backup via pg_dump → storage/app/backups/
 
 ### Cliente piloto — Neto Bota (Caraguatatuba/SP)
 
@@ -91,12 +88,9 @@ Fonte: https://dadosabertos.tse.jus.br
 - Partido: PL | Cargo 2026: Deputado Estadual
 - Histórico: Vereador 2008 ✅ | Vereador 2012 ✅ | Dep. Estadual 2022 ❌ suplente | Prefeito 2024 ❌ 2º lugar
 
-#### Dados confirmados no banco (tse_votacao_secao)
-- sq_candidato: `250002019567`
-- cd_municipio: `63118` (código TSE de Caraguatatuba)
-- city_ibge_code: `3510104`
-- Eleição: Prefeito 2024, turno 1
-- Total votos: 20.313 em 373 seções
+#### Dados confirmados no banco
+- **Neto Bota** | PL | Prefeito Caraguatatuba 2024 | 20.313 votos | sq_candidato: 250002019567
+- **Neto Bota** | PP | Dep. Estadual SP 2022 | 28.663 votos (estado) / 18.950 votos (Caraguatatuba)
 
 ---
 
@@ -184,13 +178,14 @@ C:\Herd\clickmaps\
 |---------|-----------|
 | `src/pages/home/page.tsx` | Página principal com mapa + estado `isSplit` |
 | `src/components/map/clickmaps-map.tsx` | Mapa Leaflet + card candidato + botões flutuantes |
-| `src/components/map/candidate-search.tsx` | Autocomplete de busca de candidato (split direito) |
+| `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo |
+| `src/components/map/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, city search, STATUS_MAP |
 | `src/components/auth/login-modal.tsx` | Modal de login automático |
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
+| `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
+| `src/lib/party-colors.ts` | Cores + hex dos 30 partidos |
 | `src/lib/leaflet-icon-fix.ts` | Fix ícone Leaflet no Vite |
-| `src/lib/party-colors.ts` | Cores oficiais dos 30 partidos |
 | `src/routing/app-routing-setup.tsx` | Rotas |
-| `src/components/layouts/layout-33/components/sidebar-header.tsx` | Logo ClickMaps |
 
 ### Logo ClickMaps
 
@@ -221,45 +216,49 @@ C:\Herd\clickmaps\
 | POST | `/api/auth/login` | pública | Retorna token + user + people |
 | POST | `/api/auth/logout` | Bearer | Revoga token atual |
 | GET | `/api/auth/me` | Bearer | Retorna usuário autenticado + people |
-| GET | `/api/map/stats` | Bearer | Candidato order=1 do usuário + stats de votos (turno máximo, total_votos, total_validos, percentual) |
-| GET | `/api/candidates` | Bearer | Lista candidatos do usuário |
-| GET | `/api/candidates/search` | pública | Autocomplete de candidatos (?q=) |
-| GET | `/api/ping` | pública | Health check |
+| GET | `/api/candidates/search?q=` | Bearer | Busca candidatos com unaccent; admin vê todos, user vê apenas seus vinculados |
+| GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE |
+| GET | `/api/cities/search?q=&state_id=` | Bearer | Busca cidades com unaccent, filtro state_id, limit 10 |
 
 ### Tabelas
 
 | Tabela | Descrição |
 |--------|-----------|
-| `people` | Pessoa física (uuid, name, avatar_url, active, softDeletes) |
-| `users` | Acesso (people_id FK, email, password, remember_token) |
-| `parties` | 30 partidos brasileiros (uuid, name, abbreviation) |
-| `candidates` | Candidatos (party_id FK, sq_candidato, cd_municipio, role, year, state, city_ibge_code, status) |
-| `cities` | Cidades (ibge_code int unique nullable, tse_code int unique, name, sg_uf char2, timestamps) |
-| `user_candidates` | Vínculo user ↔ candidate (order, active) |
+| `countries` | País (id, name) |
+| `states` | 27 estados (id, country_id, name, uf) |
+| `cities` | Municípios (id, state_id, name, ibge_code, tse_code, geometry) |
+| `zones` | Zonas eleitorais (id, city_id, zone_number, geometry) |
+| `voting_locations` | Locais de votação (id, zone_id, tse_number, name, address, lat, lng) |
+| `sections` | Seções (id, voting_location_id, section_number) |
+| `genders` | 3 registros |
+| `candidates` | Pessoa do candidato (id, gender_id, name, cpf, photo_url) |
+| `parties` | 30 partidos (id, name, abbreviation, color_bg, color_text, color_gradient) |
+| `candidacies` | Candidatura por eleição (id, sq_candidato unique, candidate_id, party_id, country_id, state_id, city_id, year, role, ballot_name, number, status) |
+| `votes` | Votos por seção, particionada RANGE(year) (id, candidacy_id, country_id, state_id, city_id, zone_id, voting_location_id, section_id, year, round, qty_votes, vote_type) |
+| `tse_votacao_secao_2024` | Staging bruta TSE 2024 (26 colunas text) |
+| `tse_votacao_secao_2022` | Staging bruta TSE 2022 (26 colunas text) |
+| `people` | Usuários da plataforma (id, name, avatar_url, active, role: admin/user) |
+| `users` | Acesso (id, people_id, email, password) |
+| `people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
+| `split_candidacies` | Candidato do split direito (id, people_candidacy_id, candidacy_id, order, active) |
 | `personal_access_tokens` | Tokens Sanctum |
 | `cache` / `jobs` | Infraestrutura Laravel |
-| `people_permissions` | Permissões por pessoa (people_id FK) |
-| `tse_votacao_secao_raw` | Dados brutos TSE antes do processamento |
-| `positions` | Cargos eleitorais |
-| `tse_votacao_secao` | Resultados por seção eleitoral (9.6M linhas SP 2024) |
 
 ### Models e relacionamentos
 
-- `People` — uuid auto-gerado, SoftDeletes, hasMany(PeoplePermission)
+- `People` — sem SoftDeletes, sem uuid; campo `role` (admin/user); relacionamento `peopleCandidacies()`
 - `User` → `belongsTo(People)`, `HasApiTokens`
-- `Party` — uuid auto-gerado, SoftDeletes
-- `Candidate` → `belongsTo(Party)`, `belongsTo(Position)`, uuid auto-gerado, SoftDeletes
-- `UserCandidate` → `belongsTo(User)`, `belongsTo(Candidate)`, SoftDeletes
-- `Position` — uuid auto-gerado, SoftDeletes
-- `PeoplePermission` → `belongsTo(People)`, SoftDeletes
+- `Party` — sem SoftDeletes, sem uuid; campos `color_bg`, `color_text`, `color_gradient`
+- `Candidate` — sem SoftDeletes, sem uuid, sem sq_candidato; campos: `gender_id`, `name`, `cpf`, `photo_url`; relacionamentos `gender()` e `candidacies()`
+- `Candidacy` → `belongsTo(Candidate)`, `belongsTo(Party)`, `belongsTo(City)`, `belongsTo(State)`
+- `PeopleCandidacy` → `belongsTo(People)`, `belongsTo(Candidacy)`
 
 ### Seeders
 
-- `DatabaseSeeder` — cria people + user (Alex / alex@clickmaps.com.br)
-- `PartySeeder` — 30 partidos brasileiros
-- `CandidateSeeder` — Neto Bota (PL / Prefeito / Caraguatatuba SP / 2024 / não eleito)
-- `UserCandidateSeeder` — vincula Alex → Neto Bota (order=1)
-- `PeoplePermissionSeeder` — permissões padrão
+- `DatabaseSeeder` — cria people + user (Alex / alex@clickmaps.com.br, role=admin)
+- `PartySeeder` — 30 partidos com color_bg, color_text, color_gradient
+- `CandidacySeeder` — Neto Bota (candidacies 2024 Prefeito + 2022 Dep. Estadual)
+- `PeopleCandidacySeeder` — vincula Alex → Neto Bota
 
 ### Arquivos chave
 
@@ -267,12 +266,11 @@ C:\Herd\clickmaps\
 |---------|-----------|
 | `api/routes/api.php` | Rotas REST |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
-| `api/app/Http/Controllers/Map/MapStatsController.php` | GET /api/map/stats — stats de votos do candidato logado |
-| `api/app/Http/Controllers/CandidateController.php` | Lista e busca de candidatos |
-| `api/app/Http/Controllers/Map/CandidateSearchController.php` | Autocomplete de candidatos |
-| `api/app/Models/` | People, User, Party, Candidate, UserCandidate |
-| `api/database/migrations/` | 13 migrations |
-| `api/database/seeders/` | 5 seeders |
+| `api/app/Http/Controllers/CandidateController.php` | search + stats |
+| `api/app/Http/Controllers/CityController.php` | search |
+| `api/app/Models/` | People, User, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy |
+| `api/database/migrations/` | migrations 2026_03_12_* |
+| `api/database/seeders/` | DatabaseSeeder, PartySeeder, CandidacySeeder, PeopleCandidacySeeder |
 | `api/config/cors.php` | CORS — `allowed_origins: ['*']` |
 
 ### Frontend → Backend
@@ -384,9 +382,26 @@ Dados atuais (hardcoded no frontend): Neto Bota | PL | Deputado Estadual
 
 ---
 
+## Status TSE
+
+Mapeamento em `sidebar.tsx` via `STATUS_MAP` + `resolveStatus(raw)`:
+
+| Status TSE | Label exibido | Cor |
+|---|---|---|
+| ELEITO | ELEITO | green |
+| ELEITO POR QP | ELEITO POR QP | green |
+| ELEITO POR MÉDIA | ELEITO POR MÉDIA | green |
+| 2º TURNO | ELEITO (2° TURNO) | green |
+| NÃO ELEITO | NÃO ELEITO | red |
+| SUPLENTE | SUPLENTE | yellow |
+
+Fallback: label = raw, cor = red.
+
+---
+
 ## Cores dos Partidos (`src/lib/party-colors.ts`)
 
-30 partidos com `{ bg, text, gradient? }`. Partidos com duas cores usam gradiente vertical:
+30 partidos com `{ bg, text, gradient?, hex }`. Partidos com duas cores usam gradiente vertical:
 
 - **UNIÃO:** `linear-gradient(180deg, #003087 50%, #C8970A 50%)`
 - **MDB:** `linear-gradient(180deg, #007A33 50%, #FFD700 50%)`

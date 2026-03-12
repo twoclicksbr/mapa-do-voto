@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\CandidateController;
-use App\Http\Controllers\Map\CandidateSearchController;
+use App\Http\Controllers\CityController;
 use App\Http\Controllers\Map\MapStatsController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,5 +15,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::get('/candidates', [CandidateController::class, 'index']);
     Route::get('/map/stats', MapStatsController::class);
-    Route::get('/candidates/search', CandidateSearchController::class);
+    Route::get('/candidates/search', [CandidateController::class, 'search']);
+    Route::get('/candidacies/{id}/stats', [CandidateController::class, 'stats']);
+    Route::get('/cities/search', [CityController::class, 'search']);
 });

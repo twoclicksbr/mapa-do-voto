@@ -1,54 +1,204 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarHeader } from "@/components/layouts/layout-33/components/sidebar-header";
 import { SidebarFooter } from "@/components/layouts/layout-33/components/sidebar-footer";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
-import { CandidateSearch } from "@/components/map/candidate-search";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CandidateSearch, type Candidate } from "@/components/map/candidate-search";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
-import { ChevronDownIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import axios from "axios";
+import api from "@/lib/api";
 
-const elections = [
-  { value: "2008", label: "2008", description: "Vereador · Caraguatatuba · SP" },
-  { value: "2012", label: "2012", description: "Vereador · Caraguatatuba · SP" },
-  { value: "2022", label: "2022", description: "Deputado Estadual · SP" },
-  { value: "2024", label: "2024", description: "Prefeito · Caraguatatuba · SP" },
-];
+interface RoundStat {
+  qty_votes: number;
+  percentage: number;
+  total_valid: number;
+  qty_blank: number;
+  qty_null: number;
+  qty_legend: number;
+  qty_party_total: number;
+  qty_total: number;
+  status: string | null;
+}
 
-const hasTwoRounds = ['Prefeito', 'Governador', 'Presidente'];
+interface StatsResponse {
+  rounds: number[];
+  default_round: number | null;
+  stats: Record<string, RoundStat>;
+}
 
-const cities = [
-  { value: "caraguatatuba", label: "Caraguatatuba" },
-  { value: "ubatuba", label: "Ubatuba" },
-  { value: "sao-sebastiao", label: "São Sebastião" },
-];
+interface CityOption {
+  id: number;
+  name: string;
+}
 
-const electionStats = {
-  votes: 9999,
-  percentage: 42.3,
-  details: [
-    { label: "Abstenção", value: "18,2%" },
-    { label: "Votos nulos", value: "3,1%" },
-    { label: "Votos brancos", value: "1,4%" },
-    { label: "Total de eleitores", value: "102.450" },
-    { label: "Seções apuradas", value: "100%" },
-  ],
+const STATUS_MAP: Record<string, { label: string; color: 'green' | 'yellow' | 'red' }> = {
+  'ELEITO':            { label: 'ELEITO',            color: 'green'  },
+  'ELEITO POR QP':     { label: 'ELEITO POR QP',     color: 'green'  },
+  'ELEITO POR MÉDIA':  { label: 'ELEITO POR MÉDIA',  color: 'green'  },
+  '2º TURNO':          { label: 'ELEITO (2° TURNO)', color: 'green'  },
+  'NÃO ELEITO':        { label: 'NÃO ELEITO',        color: 'red'    },
+  'SUPLENTE':          { label: 'SUPLENTE',           color: 'yellow' },
 };
+
+function resolveStatus(raw: string | null): { label: string; color: 'green' | 'yellow' | 'red' } {
+  if (!raw) return { label: '—', color: 'red' };
+  const key = raw.toUpperCase().trim();
+  return STATUS_MAP[key] ?? { label: raw, color: 'red' };
+}
+
+const STATE_ROLES = [
+  'DEPUTADO ESTADUAL', 'DEPUTADA ESTADUAL',
+  'DEPUTADO FEDERAL',  'DEPUTADA FEDERAL',
+  'SENADOR',           'SENADORA',
+  'GOVERNADOR',        'GOVERNADORA',
+];
+
+function isStateLevel(role: string | undefined): boolean {
+  return STATE_ROLES.includes((role ?? '').toUpperCase());
+}
+
+function CitySearch({ stateId, onSelect, onClear, selected }: {
+  stateId: number;
+  onSelect: (city: CityOption) => void;
+  onClear: () => void;
+  selected: CityOption | null;
+}) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<CityOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const search = useCallback((q: string) => {
+    if (q.length < 2) { setResults([]); setOpen(false); return; }
+    api.get<CityOption[]>('/cities/search', { params: { q, state_id: stateId } })
+      .then((res) => { setResults(res.data); setOpen(true); });
+  }, [stateId]);
+
+  const handleChange = (value: string) => {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(value), 300);
+  };
+
+  const handleSelect = (city: CityOption) => {
+    setQuery('');
+    setResults([]);
+    setOpen(false);
+    onSelect(city);
+  };
+
+  const handleClear = () => {
+    setQuery('');
+    setResults([]);
+    setOpen(false);
+    onClear();
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      {selected ? (
+        <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white flex items-center justify-between gap-2">
+          <span className="text-sm font-medium truncate">{selected.name}</span>
+          <button onClick={handleClear} className="flex-shrink-0 text-gray-400 hover:text-gray-600">
+            <XIcon className="size-3.5" />
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => handleChange(e.target.value)}
+              placeholder="Filtrar por cidade..."
+              className="w-full text-sm outline-none placeholder:text-gray-400 bg-transparent"
+            />
+          </div>
+          {open && results.length > 0 && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-md overflow-hidden">
+              {results.map((city) => (
+                <button
+                  key={city.id}
+                  onClick={() => handleSelect(city)}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
+                >
+                  {city.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 export function ClickMapsSidebarContent() {
   const { isMobile } = useLayout();
-  const [selectedElectionValue, setSelectedElectionValue] = useState("2024");
-  const [turno, setTurno] = useState<1 | 2>(1);
-  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsData, setStatsData] = useState<StatsResponse | null>(null);
+  const [activeRound, setActiveRound] = useState<number | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [selectedCity, setSelectedCity] = useState<CityOption | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const selectedElection = elections.find((e) => e.value === selectedElectionValue) ?? elections[3];
-  const showTurno = hasTwoRounds.some((c) => selectedElection.description.includes(c));
-  const hasFixedCity = ['Prefeito', 'Vereador'].some((c) => selectedElection.description.includes(c));
+  const fetchStats = useCallback((candidateId: string, cityId?: number) => {
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+
+    setLoadingStats(true);
+    setStatsData(null);
+    const params = cityId ? { city_id: cityId } : {};
+    api.get<StatsResponse>(`/candidacies/${candidateId}/stats`, { params, signal: abortRef.current.signal })
+      .then((res) => {
+        setStatsData(res.data);
+        setActiveRound(res.data.default_round);
+      })
+      .catch((err) => {
+        if (axios.isCancel(err)) return;
+      })
+      .finally(() => setLoadingStats(false));
+  }, []);
+
+  const handleCandidateSelect = (candidate: Candidate) => {
+    setSelectedCandidate(candidate);
+    setSelectedCity(null);
+    setStatsData(null);
+    setActiveRound(null);
+    fetchStats(candidate.id);
+  };
+
+  const handleCitySelect = (city: CityOption) => {
+    setSelectedCity(city);
+    if (selectedCandidate) fetchStats(selectedCandidate.id, city.id);
+  };
+
+  const handleCityClear = () => {
+    setSelectedCity(null);
+    if (selectedCandidate) fetchStats(selectedCandidate.id);
+  };
+
+  const currentStat = statsData && activeRound !== null
+    ? statsData.stats[String(activeRound)] ?? null
+    : null;
+
+  const showCityFilter = selectedCandidate && isStateLevel(selectedCandidate.role);
 
   return (
     <div className="flex flex-col items-stretch grow">
@@ -56,120 +206,122 @@ export function ClickMapsSidebarContent() {
       <ScrollArea className="shrink-0 h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-8.5rem)]">
         <div className="px-4 py-3 flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-500">Candidato:</label>
-          <CandidateSearch variant="sidebar" onSelect={(candidate) => console.log(candidate)} />
+          <CandidateSearch variant="sidebar" onSelect={handleCandidateSelect} />
         </div>
-        <div className="px-4 py-3 flex flex-col gap-1 mt-1">
-          <label className="text-xs font-medium text-gray-500">Eleição:</label>
-          <Select defaultValue="2024" onValueChange={(v) => { setSelectedElectionValue(v); setTurno(1); }}>
-            <SelectTrigger className="w-full h-auto py-2">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {elections.map((e) => (
-                  <SelectItem key={e.value} value={e.value} className="[&_svg]:text-primary">
-                    <span className="flex flex-col items-start gap-px">
-                      <span className="font-medium">{e.label}</span>
-                      <small className="text-muted-foreground text-xs">{e.description}</small>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        {showTurno && (
+
+        {showCityFilter && (
+          <div className="px-4 flex flex-col gap-1 mt-1">
+            <label className="text-xs font-medium text-gray-500">Cidade:</label>
+            <CitySearch
+              stateId={selectedCandidate.state_id!}
+              selected={selectedCity}
+              onSelect={handleCitySelect}
+              onClear={handleCityClear}
+            />
+          </div>
+        )}
+
+        {statsData && statsData.rounds.length > 1 && (
           <div className="px-4 flex flex-col gap-1 mt-1">
             <label className="text-xs font-medium text-gray-500">Turno:</label>
             <div className="flex w-full">
-              <Button
-                variant={turno === 1 ? 'primary' : 'outline'}
-                size="sm"
-                className="flex-1 rounded-r-none border-r-0"
-                onClick={() => setTurno(1)}
-              >
-                1° turno
-              </Button>
-              <Button
-                variant={turno === 2 ? 'primary' : 'outline'}
-                size="sm"
-                className="flex-1 rounded-l-none"
-                onClick={() => setTurno(2)}
-              >
-                2° turno
-              </Button>
+              {statsData.rounds.map((round, i) => (
+                <Button
+                  key={round}
+                  variant={activeRound === round ? 'primary' : 'outline'}
+                  size="sm"
+                  className={cn(
+                    "flex-1",
+                    i === 0 && "rounded-r-none border-r-0",
+                    i === statsData.rounds.length - 1 && "rounded-l-none",
+                  )}
+                  onClick={() => setActiveRound(round)}
+                >
+                  {round}° turno
+                </Button>
+              ))}
             </div>
           </div>
         )}
+
         <div className="px-4 mt-3 pb-6">
-          <Collapsible open={statsOpen} onOpenChange={setStatsOpen} className="relative">
+          {loadingStats ? (
             <Card>
               <CardHeader className="px-4 min-h-0 py-3">
-                <CardTitle className="text-sm font-medium">
-                  Quantidade de Votos: <b>{electionStats.votes.toLocaleString('pt-BR')}</b>
-                </CardTitle>
+                <div className="animate-pulse bg-gray-200 rounded h-5 w-32" />
               </CardHeader>
               <CardContent className="px-4 py-3 space-y-4">
-                <div className="bg-muted/60 border border-border rounded-lg space-y-2 p-3">
-                  <div className="flex justify-between text-sm font-medium">
-                    <span>{electionStats.percentage}% dos votos válidos</span>
-                  </div>
-                  <Progress
-                    value={electionStats.percentage}
-                    className="h-1.5 bg-primary/20"
-                  />
+                <div className="animate-pulse bg-gray-200 rounded h-10 w-full" />
+                <div className="space-y-2">
+                  <div className="animate-pulse bg-gray-200 rounded h-4 w-full" />
+                  <div className="animate-pulse bg-gray-200 rounded h-4 w-full" />
+                  <div className="animate-pulse bg-gray-200 rounded h-4 w-full" />
                 </div>
-                <CollapsibleContent>
-                  <div className="flex flex-col gap-2.5 pt-2">
-                    {electionStats.details.map((item) => (
-                      <div key={item.label} className="flex justify-between text-xs">
-                        <span className="text-muted-foreground font-medium">{item.label}</span>
-                        <span className="font-medium">{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pt-2 border-t border-border mt-2">
-                    {hasFixedCity ? (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground font-medium">Cidade</span>
-                        <span className="font-medium">Caraguatatuba</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs text-muted-foreground font-medium">Cidade</span>
-                        <Select defaultValue="caraguatatuba">
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              {cities.map((c) => (
-                                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
-                </CollapsibleContent>
               </CardContent>
             </Card>
-            <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2">
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  mode="icon"
-                  className="bg-background rounded-full shadow-sm w-7 h-7"
-                >
-                  <ChevronDownIcon className={cn("size-3.5 transition-transform", statsOpen && "rotate-180")} />
-                  <span className="sr-only">Ver detalhes</span>
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-          </Collapsible>
+          ) : (
+          <Card>
+            <CardHeader className="px-4 min-h-0 py-3">
+              <CardTitle className="text-sm font-medium">
+                <>Quantidade de Votos: <b>{(currentStat?.qty_votes ?? 0).toLocaleString('pt-BR')}</b></>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 py-3 space-y-4">
+              <div className="bg-muted/60 border border-border rounded-lg space-y-2 p-3">
+                <div className="flex justify-between text-sm font-medium">
+                  <span>{currentStat ? (currentStat.percentage < 0.1 ? currentStat.percentage.toFixed(2) : currentStat.percentage.toFixed(1)) : '0.0'}% dos votos válidos</span>
+                </div>
+                <Progress
+                  value={currentStat?.percentage ?? 0}
+                  className="h-1.5 bg-primary/20"
+                />
+              </div>
+              {currentStat && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <span className="text-muted-foreground font-medium">Votos válidos</span>
+                  <span className="font-medium text-right">{currentStat.total_valid.toLocaleString('pt-BR')}</span>
+
+                  <span className="text-muted-foreground font-medium">Votos brancos</span>
+                  <span className="font-medium text-right">{currentStat.qty_blank.toLocaleString('pt-BR')}</span>
+
+                  <span className="text-muted-foreground font-medium">Votos nulos</span>
+                  <span className="font-medium text-right">{currentStat.qty_null.toLocaleString('pt-BR')}</span>
+
+                  <span className="text-muted-foreground font-medium">Votos legenda</span>
+                  <span className="font-medium text-right">{currentStat.qty_legend.toLocaleString('pt-BR')}</span>
+
+                  <span className="text-muted-foreground font-medium">Total partido</span>
+                  <span className="font-medium text-right">{currentStat.qty_party_total.toLocaleString('pt-BR')}</span>
+
+                  <span className="text-muted-foreground font-medium">Comparecimento</span>
+                  <span className="font-medium text-right">{currentStat.qty_total.toLocaleString('pt-BR')}</span>
+
+                  {/* <span className="text-muted-foreground font-medium">Posição</span>
+                  <span className="font-medium text-right">{currentStat.ranking_position}° de {currentStat.total_candidates}</span> */}
+
+                  <span className="text-muted-foreground font-medium">Status TSE</span>
+                  <span className="text-right">
+                    {(() => {
+                      const s = resolveStatus(currentStat.status);
+                      return (
+                        <span className={cn(
+                          "text-[10px] px-1.5 py-0.5 rounded font-bold",
+                          s.color === 'green'  && "bg-green-100 text-green-700",
+                          s.color === 'yellow' && "bg-yellow-100 text-yellow-700",
+                          s.color === 'red'    && "bg-red-100 text-red-600",
+                        )}>
+                          {s.label}
+                        </span>
+                      );
+                    })()}
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          )}
         </div>
+
         <div className="px-4 mt-3 pb-6 flex flex-col gap-2">
           {[
             { id: "zonas", label: "Zonas Eleitorais" },

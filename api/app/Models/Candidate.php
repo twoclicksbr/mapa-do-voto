@@ -3,33 +3,25 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Candidate extends Model
 {
-    use SoftDeletes;
-
     protected $fillable = [
-        'sq_candidato',
-        'party_id',
-        'position_id',
+        'gender_id',
         'name',
-        'ballot_name',
-        'number',
-        'year',
-        'cd_municipio',
-        'avatar_url',
-        'status',
-        'active',
+        'cpf',
+        'photo_url',
     ];
 
-    public function party()
+    public function gender(): BelongsTo
     {
-        return $this->belongsTo(Party::class);
+        return $this->belongsTo(Gender::class);
     }
 
-    public function position()
+    public function candidacies(): HasMany
     {
-        return $this->belongsTo(Position::class);
+        return $this->hasMany(Candidacy::class);
     }
 }

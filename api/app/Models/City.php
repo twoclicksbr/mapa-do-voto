@@ -19,4 +19,9 @@ class City extends Model
     {
         return $this->hasMany(Zone::class);
     }
+
+    public function candidacies(): HasMany
+    {
+        return $this->hasMany(Candidacy::class);
+    }
 }
