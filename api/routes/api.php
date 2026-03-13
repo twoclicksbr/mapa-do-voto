@@ -19,5 +19,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/map/stats', MapStatsController::class);
     Route::get('/candidates/search', [CandidateController::class, 'search']);
     Route::get('/candidacies/{id}/stats', [CandidateController::class, 'stats']);
+    Route::get('/candidacies/{id}/cities', [CandidateController::class, 'cities']);
     Route::get('/cities/search', [CityController::class, 'search']);
 });

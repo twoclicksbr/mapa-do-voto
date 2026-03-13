@@ -2,24 +2,29 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        DB::statement('SET search_path TO maps');
+
         Schema::create('sections', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('zone_id')->constrained()->cascadeOnDelete();
-            $table->integer('section_number');
+            $table->foreignId('voting_location_id')->constrained('maps.voting_locations');
+            $table->string('section_number');
             $table->timestamps();
-
-            $table->unique(['zone_id', 'section_number']);
         });
+
+        DB::statement('SET search_path TO maps,public');
     }
 
     public function down(): void
     {
+        DB::statement('SET search_path TO maps');
         Schema::dropIfExists('sections');
+        DB::statement('SET search_path TO maps,public');
     }
 };

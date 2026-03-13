@@ -233,4 +233,29 @@ class CandidateController extends Controller
             'stats'         => $stats,
         ]);
     }
+
+    public function cities(Request $request, int $id)
+    {
+        $candidacy = \App\Models\Candidacy::findOrFail($id);
+
+        if (!$candidacy->state_id) {
+            return response()->json([]);
+        }
+
+        $cities = DB::select("
+            SELECT c.id, c.name, c.ibge_code,
+                   COALESCE(SUM(v.qty_votes), 0) AS qty_votes
+            FROM cities c
+            LEFT JOIN votes v ON v.city_id = c.id
+                AND v.candidacy_id = ?
+                AND v.vote_type = 'candidate'
+                AND v.round = (SELECT MAX(round) FROM votes WHERE candidacy_id = ?)
+            WHERE c.state_id = ?
+              AND c.tse_code SIMILAR TO '[0-9]+'
+            GROUP BY c.id, c.name, c.ibge_code
+            ORDER BY qty_votes DESC, c.name ASC
+        ", [$id, $id, $candidacy->state_id]);
+
+        return response()->json($cities);
+    }
 }

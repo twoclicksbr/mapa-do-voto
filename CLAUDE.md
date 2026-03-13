@@ -1,5 +1,5 @@
 # CLAUDE.md — ClickMaps
-<!-- Atualizado em: 12/03/2026 -->
+<!-- Atualizado em: 13/03/2026 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -169,6 +169,8 @@ C:\Herd\clickmaps\
 
 **Layout 33** do Metronic. URL local: `http://localhost:5173`
 
+**Sidebar fixa removida do desktop** — `wrapper.tsx` não monta `<Sidebar />` nem aplica padding lateral; mapa ocupa 100% da largura. Sidebar continua acessível em mobile via Sheet (Header).
+
 ### Terminologia do projeto
 
 - **background-maps** = o `div` wrapper do `<ClickMapsMap />` em `src/pages/home/page.tsx`
@@ -178,10 +180,10 @@ C:\Herd\clickmaps\
 | Arquivo | Descrição |
 |---------|-----------|
 | `src/pages/home/page.tsx` | Página principal com mapa + estado `isSplit` |
-| `src/components/map/clickmaps-map.tsx` | Mapa Leaflet + card candidato + botões flutuantes |
+| `src/components/map/clickmaps-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch + heatmap + botões flutuantes |
 | `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — input uppercase, vice-prefeito/vice-governador excluídos |
-| `src/components/map/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, city search, STATUS_MAP |
-| `src/components/map/active-candidate-context.tsx` | Contexto global: activeCandidate, setActiveCandidate, showCities, setShowCities, mapClickedCity, focusCityOnMap |
+| `src/components/clickmaps/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
+| `src/components/map/active-candidate-context.tsx` | Contexto global: activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, mapClickedCity (inclui city_id), focusCityOnMap, clearCityHighlight |
 | `src/components/auth/login-modal.tsx` | Modal de login automático |
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
 | `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
@@ -191,7 +193,11 @@ C:\Herd\clickmaps\
 
 ### Logo ClickMaps
 
-Ícone `MapPin` vermelho (#E63946) + "Click"(normal) + "Maps"(bold), text-2xl
+Ícone `MapPin` vermelho (#E63946) + "Click"(normal) + "Maps"(bold), text-xl. Exibido no `header.tsx` (mobile) e no `sidebar-header.tsx` foi removido.
+
+### Navbar (desktop — canto superior direito)
+
+Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fullscreen), **UserDropdownMenu**. Botões antigos removidos: `MessageSquareCode`, `Pin`, `Reports`, `Add`.
 
 ### Modal de Login
 
@@ -220,6 +226,7 @@ C:\Herd\clickmaps\
 | GET | `/api/auth/me` | Bearer | Retorna usuário autenticado + people |
 | GET | `/api/candidates/search?q=` | Bearer | Busca candidatos com unaccent; admin vê todos, user vê apenas seus vinculados |
 | GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE |
+| GET | `/api/candidacies/{id}/cities` | Bearer | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) |
 | GET | `/api/cities/search?q=&state_id=` | Bearer | Busca cidades com unaccent, filtro state_id, limit 10 |
 | GET | `/api/states/{uf}/geometry` | pública | Retorna geometry GeoJSON do estado (campo geometry da tabela states) |
 
@@ -269,13 +276,14 @@ C:\Herd\clickmaps\
 |---------|-----------|
 | `api/routes/api.php` | Rotas REST |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
-| `api/app/Http/Controllers/CandidateController.php` | search + stats |
+| `api/app/Http/Controllers/CandidateController.php` | search + stats + cities |
 | `api/app/Http/Controllers/CityController.php` | search |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy |
-| `api/database/migrations/` | migrations 2026_03_12_* |
+| `api/database/migrations/` | migrations 2026_03_13_* (as 2026_03_12_* foram deletadas) |
 | `api/database/seeders/` | DatabaseSeeder, PartySeeder, CandidacySeeder, PeopleCandidacySeeder |
 | `api/config/cors.php` | CORS — `allowed_origins: ['*']` |
+| `api/config/database.php` | `search_path: 'public,maps'` |
 
 ### Frontend → Backend
 
@@ -310,10 +318,14 @@ Lógica em `clickmaps-map.tsx` via `MUNICIPAL_ROLES` e `STATE_ROLES`:
 
 **Cargos estaduais** (DEPUTADO ESTADUAL, DEPUTADO FEDERAL, SENADOR, GOVERNADOR, etc):
 - Busca via `GET /api/states/{uf}/geometry`
-- Checkbox "Exibir Cidades" aparece na sidebar → carrega municípios do estado com tooltip + clique
-- Ao marcar "Exibir Cidades": remove polígono do estado, exibe municípios individualmente
-- Ao clicar num município: destaque (fillOpacity 0.15) + flyToBounds + atualiza stats na sidebar
-- Ao selecionar cidade na sidebar: foca no município via match por nome
+- Painel colapsível "Visualização" aparece no overlay do mapa (canto superior esquerdo) → Switch "Exibir Cidades" + CitySearch
+- Ao marcar "Exibir Cidades": remove polígono do estado, exibe municípios individualmente com heatmap de votos
+- Heatmap: paleta azul→verde→amarelo→vermelho baseada em qty_votes; cidades sem votos em cinza
+- Match GeoJSON ↔ banco: exact → normalized (sem acento) → prefix → Levenshtein ≤ 2
+- Ao clicar num município: destaque (`CITIES_HIGHLIGHT_STYLE`) + flyToBounds + atualiza stats na sidebar
+- `CitySearch` no overlay: lista cidades agrupadas em "Com votos / Sem votos" com dropdown via portal
+- Legenda do heatmap (gradiente vertical) exibida no canto inferior direito quando `showCities && maxVotes > 0`
+- Ao limpar cidade na sidebar: `clearCityHighlight` reseta highlight e volta ao fitBounds do estado
 
 **UF → código IBGE estado** (mapeamento em `UF_TO_IBGE` no clickmaps-map.tsx):
 - SP=35, RJ=33, MG=31, etc.
@@ -396,16 +408,18 @@ const fitToCity = useCallback(() => {
 
 ---
 
-## Card do Candidato
+## Card do Candidato e Stats
 
-- CandidateCard comentado no código (mantido para uso futuro)
-- Card flutuante no mapa está desabilitado temporariamente
+- `CandidateCard` + `StatsCard` exibidos como overlay flutuante no canto superior esquerdo do mapa
+- Controlados por `showCard` do contexto: opacidade 20% quando oculto, 100% quando visível, com transição
+- Toggle via botão Eye/EyeOff na Navbar
+- `StatsCard`: exibe qty_votes, percentual, barra de progresso (Progress), badge de Status TSE; suporte a múltiplos turnos via botões segmentados
 
 ---
 
 ## Status TSE
 
-Mapeamento em `sidebar.tsx` via `STATUS_MAP` + `resolveStatus(raw)`:
+Mapeamento em `clickmaps-map.tsx` e `sidebar.tsx` via `STATUS_MAP` / `STATUS_COLORS` + `resolveStatus(raw)`:
 
 | Status TSE | Label exibido | Cor |
 |---|---|---|

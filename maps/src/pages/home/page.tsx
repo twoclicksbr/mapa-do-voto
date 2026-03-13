@@ -4,13 +4,13 @@ import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
-import { PanelRight, Columns2 } from "lucide-react";
+import { Columns2 } from "lucide-react";
 import { ClickMapsMap } from "@/components/map/clickmaps-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function HomePage() {
-  const { isSidebarOpen, isMobile, sidebarToggle } = useLayout();
+  const { isMobile } = useLayout();
   const [isSplit, setIsSplit] = useState(false);
 
   const mapRef1 = useRef<L.Map | null>(null);
@@ -54,11 +54,6 @@ export function HomePage() {
       <LoginModal />
       <Toolbar>
         <div className="flex items-center gap-3">
-          {(!isSidebarOpen && !isMobile) && (
-            <Button mode="icon" variant="dim" onClick={() => sidebarToggle()} className="-ms-2">
-              <PanelRight />
-            </Button>
-          )}
           <ToolbarHeading>
             <Tabs defaultValue="overview" className="text-sm text-muted-foreground">
               <TabsList size="xs">

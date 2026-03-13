@@ -7,10 +7,9 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Menu } from 'lucide-react';
+import { Menu, MapPin } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SidebarContent } from './sidebar-content';
-import { toAbsoluteUrl } from '@/lib/helpers';
 import { Link, useLocation } from 'react-router';
 import { ToolbarActions } from './toolbar';
 import { Navbar } from './navbar';
@@ -30,17 +29,13 @@ export function Header() {
       <div className="container-fluid grow flex items-center justify-between gap-2">
         {/* Mobile sidebar toggle */}
         <div className="flex items-center gap-2">
-          <Link to="/layout-33">
-            <img
-              src={toAbsoluteUrl('/media/app/mini-logo-gray-dark.svg')}
-              className="dark:hidden min-h-[30px]"
-              alt="Logo"
-            />
-            <img
-              src={toAbsoluteUrl('/media/app/mini-logo-gray.svg')}
-              className="hidden dark:block min-h-[30px]"
-              alt="Logo"
-            />
+          <Link to="/" className="flex items-center gap-2">
+            <div className="size-8 rounded-lg flex items-center justify-center shrink-0 bg-[#E63946]">
+              <MapPin className="size-4 text-white" />
+            </div>
+            <span className="text-xl text-foreground hidden lg:inline">
+              <span className="font-normal">Click</span><span className="font-bold">Maps</span>
+            </span>
           </Link>
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>

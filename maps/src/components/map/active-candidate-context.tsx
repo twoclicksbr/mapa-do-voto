@@ -6,10 +6,14 @@ interface ActiveCandidateContextValue {
   setActiveCandidate: (c: Candidate | null) => void;
   showCities: boolean;
   setShowCities: (v: boolean) => void;
-  mapClickedCity: { name: string; ibge_code: string } | null;
-  setMapClickedCity: (v: { name: string; ibge_code: string } | null) => void;
+  showCard: boolean;
+  setShowCard: (v: boolean) => void;
+  mapClickedCity: { name: string; ibge_code: string; city_id?: number } | null;
+  setMapClickedCity: (v: { name: string; ibge_code: string; city_id?: number } | null) => void;
   focusCityOnMap: { name: string } | null;
   setFocusCityOnMap: (v: { name: string } | null) => void;
+  clearCityHighlight: boolean;
+  setClearCityHighlight: (v: boolean) => void;
 }
 
 const ActiveCandidateContext = createContext<ActiveCandidateContextValue | null>(null);
@@ -17,11 +21,13 @@ const ActiveCandidateContext = createContext<ActiveCandidateContextValue | null>
 export function ActiveCandidateProvider({ children }: { children: React.ReactNode }) {
   const [activeCandidate, setActiveCandidate] = useState<Candidate | null>(null);
   const [showCities, setShowCities] = useState(false);
-  const [mapClickedCity, setMapClickedCity] = useState<{ name: string; ibge_code: string } | null>(null);
-  const [focusCityOnMap, setFocusCityOnMap] = useState<{ ibge_code: string } | null>(null);
+  const [showCard, setShowCard] = useState(true);
+  const [mapClickedCity, setMapClickedCity] = useState<{ name: string; ibge_code: string; city_id?: number } | null>(null);
+  const [focusCityOnMap, setFocusCityOnMap] = useState<{ name: string } | null>(null);
+  const [clearCityHighlight, setClearCityHighlight] = useState(false);
 
   return (
-    <ActiveCandidateContext.Provider value={{ activeCandidate, setActiveCandidate, showCities, setShowCities, mapClickedCity, setMapClickedCity, focusCityOnMap, setFocusCityOnMap }}>
+    <ActiveCandidateContext.Provider value={{ activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, mapClickedCity, setMapClickedCity, focusCityOnMap, setFocusCityOnMap, clearCityHighlight, setClearCityHighlight }}>
       {children}
     </ActiveCandidateContext.Provider>
   );

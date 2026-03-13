@@ -2,13 +2,16 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('tse_votacao_secao_2024', function (Blueprint $table) {
+        DB::statement('SET search_path TO maps');
+
+        Schema::create('tse_votacao_secao_2010', function (Blueprint $table) {
             $table->text('dt_geracao')->nullable();
             $table->text('hh_geracao')->nullable();
             $table->text('ano_eleicao')->nullable();
@@ -36,10 +39,14 @@ return new class extends Migration
             $table->text('nm_local_votacao')->nullable();
             $table->text('ds_local_votacao_endereco')->nullable();
         });
+
+        DB::statement('SET search_path TO maps,public');
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('tse_votacao_secao_2024');
+        DB::statement('SET search_path TO maps');
+        Schema::dropIfExists('tse_votacao_secao_2010');
+        DB::statement('SET search_path TO maps,public');
     }
 };

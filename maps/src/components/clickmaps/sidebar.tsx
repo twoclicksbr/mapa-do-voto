@@ -3,7 +3,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarHeader } from "@/components/layouts/layout-33/components/sidebar-header";
 import { SidebarFooter } from "@/components/layouts/layout-33/components/sidebar-footer";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
-import { CandidateSearch, type Candidate } from "@/components/map/candidate-search";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -155,11 +154,10 @@ function CitySearch({ stateId, onSelect, onClear, selected }: {
 
 export function ClickMapsSidebarContent() {
   const { isMobile } = useLayout();
-  const { setActiveCandidate, showCities, setShowCities, mapClickedCity, setMapClickedCity, setFocusCityOnMap } = useActiveCandidate();
+  const { activeCandidate, showCities, setShowCities, mapClickedCity, setMapClickedCity, setFocusCityOnMap, setClearCityHighlight } = useActiveCandidate();
   const [statsData, setStatsData] = useState<StatsResponse | null>(null);
   const [activeRound, setActiveRound] = useState<number | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [selectedCity, setSelectedCity] = useState<CityOption | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -181,44 +179,35 @@ export function ClickMapsSidebarContent() {
       .finally(() => setLoadingStats(false));
   }, []);
 
-  const handleCandidateSelect = (candidate: Candidate) => {
-    setSelectedCandidate(candidate);
-    setActiveCandidate(candidate);
+  useEffect(() => {
     setSelectedCity(null);
     setStatsData(null);
     setActiveRound(null);
-    setShowCities(false);
-    fetchStats(candidate.id);
-  };
-
-  const handleCandidateClear = () => {
-    setSelectedCandidate(null);
-    setActiveCandidate(null);
-    setSelectedCity(null);
-    setStatsData(null);
-    setActiveRound(null);
-    setShowCities(false);
-  };
+    if (!activeCandidate) return;
+    fetchStats(activeCandidate.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCandidate?.id]);
 
   const handleCitySelect = (city: CityOption) => {
     setSelectedCity(city);
-    if (selectedCandidate) fetchStats(selectedCandidate.id, city.id);
+    if (activeCandidate) fetchStats(activeCandidate.id, city.id);
     setFocusCityOnMap({ name: city.name });
   };
 
   const handleCityClear = () => {
     setSelectedCity(null);
-    if (selectedCandidate) fetchStats(selectedCandidate.id);
+    if (activeCandidate) fetchStats(activeCandidate.id);
+    setClearCityHighlight(true);
   };
 
   useEffect(() => {
-    if (!mapClickedCity || !selectedCandidate?.state_id) return;
-    api.get<CityOption[]>('/cities/search', { params: { q: mapClickedCity.name, state_id: selectedCandidate.state_id } })
+    if (!mapClickedCity || !activeCandidate?.state_id) return;
+    api.get<CityOption[]>('/cities/search', { params: { q: mapClickedCity.name, state_id: activeCandidate.state_id } })
       .then((res) => {
         const city = res.data[0];
         if (city) {
           setSelectedCity(city);
-          fetchStats(selectedCandidate.id, city.id);
+          fetchStats(activeCandidate.id, city.id);
         }
       })
       .finally(() => setMapClickedCity(null));
@@ -229,42 +218,12 @@ export function ClickMapsSidebarContent() {
     ? statsData.stats[String(activeRound)] ?? null
     : null;
 
-  const showCityFilter = selectedCandidate && isStateLevel(selectedCandidate.role);
+  const showCityFilter = activeCandidate && isStateLevel(activeCandidate.role);
 
   return (
     <div className="flex flex-col items-stretch grow">
       {!isMobile && <SidebarHeader />}
       <ScrollArea className="shrink-0 h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-8.5rem)]">
-        <div className="px-4 py-3 flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500">Candidato:</label>
-          <CandidateSearch variant="sidebar" onSelect={handleCandidateSelect} onClear={handleCandidateClear} />
-        </div>
-
-        {showCityFilter && (
-          <div className="px-4 flex flex-col gap-1 mt-1">
-            <label className="flex items-center gap-2 text-sm cursor-pointer mb-1">
-              <Checkbox
-                id="show-cities"
-                size="sm"
-                checked={showCities}
-                onCheckedChange={(v) => setShowCities(Boolean(v))}
-              />
-              Exibir Cidades
-            </label>
-            {showCities && (
-              <>
-                <label className="text-xs font-medium text-gray-500">Cidade:</label>
-                <CitySearch
-                  stateId={selectedCandidate.state_id!}
-                  selected={selectedCity}
-                  onSelect={handleCitySelect}
-                  onClear={handleCityClear}
-                />
-              </>
-            )}
-          </div>
-        )}
-
         {statsData && statsData.rounds.length > 1 && (
           <div className="px-4 flex flex-col gap-1 mt-1">
             <label className="text-xs font-medium text-gray-500">Turno:</label>
@@ -304,7 +263,21 @@ export function ClickMapsSidebarContent() {
               </CardContent>
             </Card>
           ) : (
-          <Card>
+          <Card className="relative">
+            {currentStat && (() => {
+              const s = resolveStatus(currentStat.status);
+              return (
+                <span className={cn(
+                  "absolute top-0 right-4 -translate-y-1/2 z-10",
+                  "text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm",
+                  s.color === 'green'  && "bg-green-100 text-green-700 border border-green-200",
+                  s.color === 'yellow' && "bg-yellow-100 text-yellow-700 border border-yellow-200",
+                  s.color === 'red'    && "bg-red-100 text-red-600 border border-red-200",
+                )}>
+                  {s.label}
+                </span>
+              );
+            })()}
             <CardHeader className="px-4 min-h-0 py-3">
               <CardTitle className="text-sm font-medium">
                 <>Quantidade de Votos: <b>{(currentStat?.qty_votes ?? 0).toLocaleString('pt-BR')}</b></>
@@ -342,23 +315,6 @@ export function ClickMapsSidebarContent() {
 
                   {/* <span className="text-muted-foreground font-medium">Posição</span>
                   <span className="font-medium text-right">{currentStat.ranking_position}° de {currentStat.total_candidates}</span> */}
-
-                  <span className="text-muted-foreground font-medium">Status TSE</span>
-                  <span className="text-right">
-                    {(() => {
-                      const s = resolveStatus(currentStat.status);
-                      return (
-                        <span className={cn(
-                          "text-[10px] px-1.5 py-0.5 rounded font-bold",
-                          s.color === 'green'  && "bg-green-100 text-green-700",
-                          s.color === 'yellow' && "bg-yellow-100 text-yellow-700",
-                          s.color === 'red'    && "bg-red-100 text-red-600",
-                        )}>
-                          {s.label}
-                        </span>
-                      );
-                    })()}
-                  </span>
                 </div>
               )}
             </CardContent>
