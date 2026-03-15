@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SplitCandidacy extends Model
 {
+    protected $table = 'gabinete_clickmaps.split_candidacies';
+
     protected $fillable = [
         'people_candidacy_id',
         'candidacy_id',

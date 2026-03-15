@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Party extends Model
 {
+    protected $table = 'maps.parties';
+
     protected $fillable = [
         'name',
         'abbreviation',

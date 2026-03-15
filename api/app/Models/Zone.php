@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Zone extends Model
 {
+    protected $table = 'maps.zones';
+
     protected $fillable = ['city_id', 'zone_number', 'geometry'];
 
     public function city(): BelongsTo

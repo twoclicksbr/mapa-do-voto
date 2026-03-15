@@ -62,7 +62,7 @@ class TseImportVotes extends Command
         // Pré-carregar cities: tse_code → [id, state_id]
         $this->info("Carregando cities...");
         $cityCache = [];
-        DB::table('cities')->select('id', 'tse_code', 'state_id')->get()->each(function ($c) use (&$cityCache) {
+        DB::table('maps.cities')->select('id', 'tse_code', 'state_id')->get()->each(function ($c) use (&$cityCache) {
             $cityCache[$c->tse_code] = ['id' => $c->id, 'state_id' => $c->state_id];
         });
         $this->info("  " . count($cityCache) . " cities carregadas.");
@@ -70,7 +70,7 @@ class TseImportVotes extends Command
         // Pré-carregar zones
         $this->info("Carregando zones...");
         $zoneCache = [];
-        DB::table('zones')->select('id', 'city_id', 'zone_number')->orderBy('id')->each(function ($z) use (&$zoneCache) {
+        DB::table('maps.zones')->select('id', 'city_id', 'zone_number')->orderBy('id')->each(function ($z) use (&$zoneCache) {
             $zoneCache["{$z->city_id}:{$z->zone_number}"] = $z->id;
         });
         $this->info("  " . count($zoneCache) . " zones carregadas.");
@@ -78,7 +78,7 @@ class TseImportVotes extends Command
         // Pré-carregar voting_locations
         $this->info("Carregando voting_locations...");
         $locationCache = [];
-        DB::table('voting_locations')->select('id', 'zone_id', 'tse_number')->orderBy('id')->each(function ($l) use (&$locationCache) {
+        DB::table('maps.voting_locations')->select('id', 'zone_id', 'tse_number')->orderBy('id')->each(function ($l) use (&$locationCache) {
             $locationCache["{$l->zone_id}:{$l->tse_number}"] = $l->id;
         });
         $this->info("  " . count($locationCache) . " voting_locations carregadas.");
@@ -86,7 +86,7 @@ class TseImportVotes extends Command
         // Pré-carregar sections
         $this->info("Carregando sections...");
         $sectionCache = [];
-        DB::table('sections')->select('id', 'voting_location_id', 'section_number')->orderBy('id')->each(function ($s) use (&$sectionCache) {
+        DB::table('maps.sections')->select('id', 'voting_location_id', 'section_number')->orderBy('id')->each(function ($s) use (&$sectionCache) {
             $sectionCache["{$s->voting_location_id}:{$s->section_number}"] = $s->id;
         });
         $this->info("  " . count($sectionCache) . " sections carregadas.");

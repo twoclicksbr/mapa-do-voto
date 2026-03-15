@@ -1,5 +1,5 @@
 # CLAUDE.md — ClickMaps
-<!-- Atualizado em: 13/03/2026 -->
+<!-- Atualizado em: 14/03/2026 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -30,7 +30,8 @@
 ClickMaps é um produto **independente** da TwoClicks:
 - Clientes são políticos — perfil diferente do SaaS genérico
 - Backend simples — candidatos, partidos, dados TSE, autenticação
-- Um banco PostgreSQL direto, sem multi-tenant
+- Um banco PostgreSQL com dois schemas: `gabinete_clickmaps` (auth/tenants) e `maps` (dados eleitorais)
+- **Multi-tenant por subdomínio:** `{slug}.clickmaps.com.br` → identifica o gabinete via `gabinete_clickmaps.tenants.slug`
 - Marca própria ("ClickMaps" é nome provisório — será renomeado no futuro)
 
 ---
@@ -219,49 +220,67 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 
 ### Rotas da API
 
-| Método | Endpoint | Auth | Descrição |
-|--------|----------|------|-----------|
-| POST | `/api/auth/login` | pública | Retorna token + user + people |
-| POST | `/api/auth/logout` | Bearer | Revoga token atual |
-| GET | `/api/auth/me` | Bearer | Retorna usuário autenticado + people |
-| GET | `/api/candidates/search?q=` | Bearer | Busca candidatos com unaccent; admin vê todos, user vê apenas seus vinculados |
-| GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE |
-| GET | `/api/candidacies/{id}/cities` | Bearer | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) |
-| GET | `/api/cities/search?q=&state_id=` | Bearer | Busca cidades com unaccent, filtro state_id, limit 10 |
-| GET | `/api/states/{uf}/geometry` | pública | Retorna geometry GeoJSON do estado (campo geometry da tabela states) |
+| Método | Endpoint | Auth | Middleware | Descrição |
+|--------|----------|------|------------|-----------|
+| POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
+| POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
+| GET | `/api/auth/me` | Bearer | — | Retorna usuário autenticado + people |
+| GET | `/api/candidates/search?q=` | Bearer | — | Busca candidatos com unaccent; admin vê todos, user vê apenas seus vinculados |
+| GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | — | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE |
+| GET | `/api/candidacies/{id}/cities` | Bearer | — | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) |
+| GET | `/api/cities/search?q=&state_id=` | Bearer | — | Busca cidades com unaccent, filtro state_id, limit 10 |
+| GET | `/api/states/{uf}/geometry` | pública | — | Retorna geometry GeoJSON do estado (campo geometry da tabela states) |
 
-### Tabelas
+### Schemas e Tabelas
+
+**Schema `gabinete_clickmaps`** — auth, tenants, usuários da plataforma:
 
 | Tabela | Descrição |
 |--------|-----------|
-| `countries` | País (id, name) |
-| `states` | 27 estados (id, country_id, name, uf, geometry) — geometry preenchida via `tse:import-state-geometry {uf}` |
-| `cities` | Municípios (id, state_id, name, ibge_code, tse_code, geometry) — ⚠️ `ibge_code` NULL em todas as cities, match por nome até ser populado |
-| `zones` | Zonas eleitorais (id, city_id, zone_number, geometry) |
-| `voting_locations` | Locais de votação (id, zone_id, tse_number, name, address, lat, lng) |
-| `sections` | Seções (id, voting_location_id, section_number) |
-| `genders` | 3 registros |
-| `candidates` | Pessoa do candidato (id, gender_id, name, cpf, photo_url) |
-| `parties` | 30 partidos (id, name, abbreviation, color_bg, color_text, color_gradient) |
-| `candidacies` | Candidatura por eleição (id, sq_candidato unique, candidate_id, party_id, country_id, state_id, city_id, year, role, ballot_name, number, status) |
-| `votes` | Votos por seção, particionada RANGE(year) (id, candidacy_id, country_id, state_id, city_id, zone_id, voting_location_id, section_id, year, round, qty_votes, vote_type) |
-| `tse_votacao_secao_2024` | Staging bruta TSE 2024 (26 colunas text) |
-| `tse_votacao_secao_2022` | Staging bruta TSE 2022 (26 colunas text) |
-| `people` | Usuários da plataforma (id, name, avatar_url, active, role: admin/user) |
-| `users` | Acesso (id, people_id, email, password) |
-| `people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
-| `split_candidacies` | Candidato do split direito (id, people_candidacy_id, candidacy_id, order, active) |
-| `personal_access_tokens` | Tokens Sanctum |
-| `cache` / `jobs` | Infraestrutura Laravel |
+| `gabinete_clickmaps.tenants` | Gabinetes (id, name, slug unique, schema unique, active) — slug identifica o tenant pelo subdomínio |
+| `gabinete_clickmaps.type_people` | Tipos de pessoa (id, name) — seeds: Admin, Político, Equipe, Eleitor |
+| `gabinete_clickmaps.people` | Usuários da plataforma (id, type_people_id nullable FK, name, active) |
+| `gabinete_clickmaps.users` | Acesso (id, people_id, email, password, active) |
+| `gabinete_clickmaps.people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
+| `gabinete_clickmaps.split_candidacies` | Candidato do split direito (id, people_candidacy_id, candidacy_id, order, active) |
+| `gabinete_clickmaps.personal_access_tokens` | Tokens Sanctum customizados (inclui campo `schema`) |
+| `gabinete_clickmaps.permission_actions` | Ações de permissão por módulo (people, attendances, map, restrictions) |
+| `gabinete_clickmaps.permissions` | Permissões por people (people_id, permission_action_id, allowed) |
+| `gabinete_clickmaps.attendances` | Atendimentos (people_id, title, description, address, lat, lng, status, opened_at, resolved_at) |
+| `gabinete_clickmaps.attendance_history` | Histórico de status dos atendimentos |
+| `gabinete_clickmaps.cache` / `gabinete_clickmaps.jobs` | Infraestrutura Laravel |
+
+**Schema `maps`** — dados eleitorais TSE:
+
+| Tabela | Descrição |
+|--------|-----------|
+| `maps.countries` | País (id, name) |
+| `maps.states` | 27 estados (id, country_id, name, uf, geometry) — geometry preenchida via `tse:import-state-geometry {uf}` |
+| `maps.cities` | Municípios (id, state_id, name, ibge_code, tse_code, geometry) — ⚠️ `ibge_code` NULL em todas as cities, match por nome até ser populado |
+| `maps.zones` | Zonas eleitorais (id, city_id, zone_number, geometry) |
+| `maps.voting_locations` | Locais de votação (id, zone_id, tse_number, name, address, lat, lng) |
+| `maps.sections` | Seções (id, voting_location_id, section_number) |
+| `maps.genders` | 3 registros |
+| `maps.candidates` | Pessoa do candidato (id, gender_id, name, cpf, photo_url) |
+| `maps.parties` | 30 partidos (id, name, abbreviation, color_bg, color_text, color_gradient) |
+| `maps.candidacies` | Candidatura por eleição (id, sq_candidato unique, candidate_id, party_id, country_id, state_id, city_id, year, role, ballot_name, number, status) |
+| `maps.votes` | Votos por seção, particionada RANGE(year) (id, candidacy_id, country_id, state_id, city_id, zone_id, voting_location_id, section_id, year, round, qty_votes, vote_type) |
+| `maps.tse_votacao_secao_2024` | Staging bruta TSE 2024 (26 colunas text) |
+| `maps.tse_votacao_secao_2022` | Staging bruta TSE 2022 (26 colunas text) |
 
 ### Models e relacionamentos
 
-- `People` — sem SoftDeletes, sem uuid; campo `role` (admin/user); relacionamento `peopleCandidacies()`
-- `User` → `belongsTo(People)`, `HasApiTokens`
-- `Party` — sem SoftDeletes, sem uuid; campos `color_bg`, `color_text`, `color_gradient`
-- `Candidate` — sem SoftDeletes, sem uuid, sem sq_candidato; campos: `gender_id`, `name`, `cpf`, `photo_url`; relacionamentos `gender()` e `candidacies()`
-- `Candidacy` → `belongsTo(Candidate)`, `belongsTo(Party)`, `belongsTo(City)`, `belongsTo(State)`
-- `PeopleCandidacy` → `belongsTo(People)`, `belongsTo(Candidacy)`
+Todos os models têm `$table` explícito com schema qualificado.
+
+- `People` (`gabinete_clickmaps.people`) — sem SoftDeletes, sem uuid; campo `role` (admin/user); relacionamento `peopleCandidacies()`
+- `User` (`gabinete_clickmaps.users`) → `belongsTo(People)`, `HasApiTokens`
+- `PersonalAccessToken` (`gabinete_clickmaps.personal_access_tokens`) — model customizado registrado via `Sanctum::usePersonalAccessTokenModel()` no `AppServiceProvider`
+- `Party` (`maps.parties`) — sem SoftDeletes, sem uuid; campos `color_bg`, `color_text`, `color_gradient`
+- `Candidate` (`maps.candidates`) — sem SoftDeletes, sem uuid, sem sq_candidato; campos: `gender_id`, `name`, `cpf`, `photo_url`; relacionamentos `gender()` e `candidacies()`
+- `Candidacy` (`maps.candidacies`) → `belongsTo(Candidate)`, `belongsTo(Party)`, `belongsTo(City)`, `belongsTo(State)`
+- `PeopleCandidacy` (`gabinete_clickmaps.people_candidacies`) → `belongsTo(People)`, `belongsTo(Candidacy)`
+- `SplitCandidacy` (`gabinete_clickmaps.split_candidacies`)
+- `City` (`maps.cities`), `State` (`maps.states`), `Country` (`maps.countries`), `Zone` (`maps.zones`), `Section` (`maps.sections`), `VotingLocation` (`maps.voting_locations`), `Vote` (`maps.votes`), `Gender` (`maps.genders`)
 
 ### Seeders
 
@@ -270,20 +289,39 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 - `CandidacySeeder` — Neto Bota (candidacies 2024 Prefeito + 2022 Dep. Estadual)
 - `PeopleCandidacySeeder` — vincula Alex → Neto Bota
 
+### TenantMiddleware
+
+`app/Http/Middleware/TenantMiddleware.php` — identifica o gabinete pelo subdomínio:
+1. Extrai subdomínio de `$request->getHost()` (ex: `netobota` de `netobota.clickmaps.com.br`)
+2. Busca em `gabinete_clickmaps.tenants` por `slug` + `active=true` + `deleted_at IS NULL`
+3. Retorna 404 se subdomínio ausente ou tenant não encontrado
+4. Armazena tenant em `$request->attributes` e executa `SET search_path TO {tenant.schema},maps,public`
+5. Registrado via alias `'tenant'` em `bootstrap/app.php`
+
+### Migrations (numeração atual)
+
+| Range | Schema | Conteúdo |
+|-------|--------|----------|
+| `000001`–`000052` | `gabinete_clickmaps` | schema, tenants, PAT, cache, jobs, type_people, people, users, permission_actions, permissions, people_candidacies, split_candidacies, attendances, attendance_history |
+| `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes, tse_votacao_secao (2008–2024) |
+
 ### Arquivos chave
 
 | Arquivo | Descrição |
 |---------|-----------|
 | `api/routes/api.php` | Rotas REST |
+| `api/bootstrap/app.php` | Registro do alias `tenant` → `TenantMiddleware` |
+| `api/app/Http/Middleware/TenantMiddleware.php` | Middleware de identificação de tenant por subdomínio |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
-| `api/app/Http/Controllers/CandidateController.php` | search + stats + cities |
-| `api/app/Http/Controllers/CityController.php` | search |
+| `api/app/Http/Controllers/CandidateController.php` | search + stats + cities (com schema explícito `maps.*`) |
+| `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
-| `api/app/Models/` | People, User, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy |
-| `api/database/migrations/` | migrations 2026_03_13_* (as 2026_03_12_* foram deletadas) |
+| `api/app/Models/` | People, User, PersonalAccessToken, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |
+| `api/app/Providers/AppServiceProvider.php` | `Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class)` |
+| `api/database/migrations/` | migrations 2026_03_13_* numeradas 000001–000052 (gabinete) e 000101–000121 (maps) |
 | `api/database/seeders/` | DatabaseSeeder, PartySeeder, CandidacySeeder, PeopleCandidacySeeder |
 | `api/config/cors.php` | CORS — `allowed_origins: ['*']` |
-| `api/config/database.php` | `search_path: 'public,maps'` |
+| `api/config/database.php` | `search_path: 'gabinete_clickmaps,maps,public'` |
 
 ### Frontend → Backend
 

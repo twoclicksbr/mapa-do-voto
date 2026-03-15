@@ -18,7 +18,7 @@ class TseImportCities extends Command
         $uf  = $this->option('uf');
         $ano = $this->option('ano');
 
-        $query = DB::table('tse_votacao_secao_2024')
+        $query = DB::table('maps.tse_votacao_secao_2024')
             ->selectRaw('DISTINCT cd_municipio, nm_municipio, sg_uf')
             ->orderBy('sg_uf')
             ->orderBy('nm_municipio');

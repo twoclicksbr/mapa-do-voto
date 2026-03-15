@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Vote extends Model
 {
+    protected $table = 'maps.votes';
+
     protected $fillable = [
         'candidacy_id',
         'country_id',

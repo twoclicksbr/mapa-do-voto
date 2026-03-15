@@ -25,7 +25,7 @@ class TseImportStateGeometry extends Command
             return self::FAILURE;
         }
 
-        $updated = DB::table('states')
+        $updated = DB::table('maps.states')
             ->where('uf', strtoupper($uf))
             ->update(['geometry' => $json]);
 

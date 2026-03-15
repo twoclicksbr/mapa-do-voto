@@ -53,7 +53,7 @@ class MapsMigrateVotingLocations extends Command
                 'updated_at' => $row->updated_at,
             ], $rows);
 
-            DB::table('voting_locations')->upsert($records, ['id'], [
+            DB::table('maps.voting_locations')->upsert($records, ['id'], [
                 'zone_id', 'tse_number', 'name', 'address', 'lat', 'lng', 'created_at', 'updated_at',
             ]);
 

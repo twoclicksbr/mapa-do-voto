@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Candidacy extends Model
 {
+    protected $table = 'maps.candidacies';
+
     protected $fillable = [
         'sq_candidato',
         'candidate_id',

@@ -42,7 +42,7 @@ class MapsMigrateSections extends Command
 
             $records = array_map(fn($row) => (array) $row, $rows);
 
-            DB::table('sections')->upsert($records, ['id'], [
+            DB::table('maps.sections')->upsert($records, ['id'], [
                 'voting_location_id', 'section_number', 'created_at', 'updated_at',
             ]);
 

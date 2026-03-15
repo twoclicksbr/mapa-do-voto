@@ -32,7 +32,7 @@ class MapsMigrateGenders extends Command
         DB::statement('SET search_path TO maps');
 
         foreach (array_chunk($records, 500) as $chunk) {
-            DB::table('genders')->upsert($chunk, ['id'], [
+            DB::table('maps.genders')->upsert($chunk, ['id'], [
                 'name', 'created_at', 'updated_at',
             ]);
         }

@@ -13,6 +13,8 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    protected $table = 'gabinete_clickmaps.users';
+
     protected $fillable = [
         'people_id',
         'email',

@@ -42,7 +42,7 @@ class MapsMigrateCities extends Command
 
             $records = array_map(fn($row) => (array) $row, $rows);
 
-            DB::table('cities')->upsert($records, ['id'], [
+            DB::table('maps.cities')->upsert($records, ['id'], [
                 'state_id', 'name', 'ibge_code', 'tse_code', 'geometry', 'created_at', 'updated_at',
             ]);
 

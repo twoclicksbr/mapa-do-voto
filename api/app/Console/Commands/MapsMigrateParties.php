@@ -26,7 +26,7 @@ class MapsMigrateParties extends Command
         DB::statement('SET search_path TO maps');
 
         foreach (array_chunk($records, 500) as $chunk) {
-            DB::table('parties')->upsert($chunk, ['id'], [
+            DB::table('maps.parties')->upsert($chunk, ['id'], [
                 'name', 'abbreviation', 'color_bg', 'color_text', 'color_gradient', 'created_at', 'updated_at',
             ]);
         }

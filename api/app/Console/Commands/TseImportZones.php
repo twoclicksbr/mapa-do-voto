@@ -17,7 +17,7 @@ class TseImportZones extends Command
     {
         $uf    = $this->option('uf');
         $ano   = $this->option('ano') ?: '2024';
-        $table = "tse_votacao_secao_{$ano}";
+        $table = "maps.tse_votacao_secao_{$ano}";
 
         $query = DB::table($table)
             ->selectRaw('DISTINCT cd_municipio, nr_zona')

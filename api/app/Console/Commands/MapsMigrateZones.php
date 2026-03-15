@@ -42,7 +42,7 @@ class MapsMigrateZones extends Command
 
             $records = array_map(fn($row) => (array) $row, $rows);
 
-            DB::table('zones')->upsert($records, ['id'], [
+            DB::table('maps.zones')->upsert($records, ['id'], [
                 'city_id', 'zone_number', 'geometry', 'created_at', 'updated_at',
             ]);
 

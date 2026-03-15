@@ -54,6 +54,8 @@ export function HomePage() {
       <LoginModal />
       <Toolbar>
         <div className="flex items-center gap-3">
+          <img src="/media/logo/logo.svg" alt="ClickMaps" className="h-7 w-auto" />
+          <span className="text-lg text-foreground"><strong>Mapa</strong>do<strong>Voto</strong></span>
           <ToolbarHeading>
             <Tabs defaultValue="overview" className="text-sm text-muted-foreground">
               <TabsList size="xs">

@@ -53,7 +53,7 @@ class MapsMigrateCandidacies extends Command
             }
 
             if (! empty($records)) {
-                DB::table('candidacies')->upsert($records, ['id'], [
+                DB::table('maps.candidacies')->upsert($records, ['id'], [
                     'sq_candidato', 'candidate_id', 'party_id', 'country_id', 'state_id', 'city_id',
                     'year', 'role', 'ballot_name', 'number', 'status', 'created_at', 'updated_at',
                 ]);

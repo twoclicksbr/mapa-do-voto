@@ -62,7 +62,7 @@ class MapsMigrateCandidates extends Command
                 'updated_at' => $row->updated_at,
             ], $rows);
 
-            DB::table('candidates')->upsert($records, ['id'], [
+            DB::table('maps.candidates')->upsert($records, ['id'], [
                 'gender_id', 'name', 'cpf', 'photo_url', 'created_at', 'updated_at',
             ]);
 

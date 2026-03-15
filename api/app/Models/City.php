@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class City extends Model
 {
+    protected $table = 'maps.cities';
+
     protected $fillable = ['state_id', 'name', 'ibge_code', 'tse_code', 'geometry'];
 
     public function state(): BelongsTo

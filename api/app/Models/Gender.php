@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Gender extends Model
 {
+    protected $table = 'maps.genders';
+
     protected $fillable = ['description'];
 
     public function candidates(): HasMany
