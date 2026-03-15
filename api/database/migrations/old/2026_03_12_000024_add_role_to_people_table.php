@@ -17,7 +17,7 @@ return new class extends Migration
             ->whereIn('id', function ($query) {
                 $query->select('people_id')
                     ->from('users')
-                    ->where('email', 'alex@clickmaps.com.br');
+                    ->where('email', 'alex@mapadovoto.com');
             })
             ->update(['role' => 'admin']);
     }

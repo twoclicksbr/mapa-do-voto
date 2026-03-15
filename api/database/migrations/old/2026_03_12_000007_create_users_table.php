@@ -21,7 +21,7 @@ return new class extends Migration
 
         DB::table('users')->insert([
             'people_id'      => 1,
-            'email'          => 'alex@clickmaps.com.br',
+            'email'          => 'alex@mapadovoto.com',
             'password'       => Hash::make('Alex1985@'),
             'remember_token' => null,
             'created_at'     => now(),

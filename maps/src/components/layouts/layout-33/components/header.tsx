@@ -34,7 +34,7 @@ export function Header() {
               <MapPin className="size-4 text-white" />
             </div>
             <span className="text-xl text-foreground hidden lg:inline">
-              <span className="font-normal">Click</span><span className="font-bold">Maps</span>
+              <span className="font-normal">Mapa</span><span className="font-bold">do Voto</span>
             </span>
           </Link>
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>

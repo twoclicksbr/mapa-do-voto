@@ -22,8 +22,8 @@ return new class extends Migration
         });
 
         DB::table('gabinete_clickmaps.tenants')->insert([
-            'name'       => 'ClickMaps',
-            'slug'       => 'clickmaps',
+            'name'       => 'Mapa do Voto',
+            'slug'       => 'mapadovoto',
             'schema'     => 'gabinete_clickmaps',
             'active'     => true,
             'created_at' => now(),

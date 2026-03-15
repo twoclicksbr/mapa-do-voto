@@ -1,4 +1,4 @@
-# CLAUDE.md — ClickMaps
+# CLAUDE.md — Mapa do Voto
 <!-- Atualizado em: 14/03/2026 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -27,12 +27,12 @@
 
 ## Decisão Arquitetural
 
-ClickMaps é um produto **independente** da TwoClicks:
+Mapa do Voto é um produto **independente** da TwoClicks:
 - Clientes são políticos — perfil diferente do SaaS genérico
 - Backend simples — candidatos, partidos, dados TSE, autenticação
 - Um banco PostgreSQL com dois schemas: `gabinete_clickmaps` (auth/tenants) e `maps` (dados eleitorais)
-- **Multi-tenant por subdomínio:** `{slug}.clickmaps.com.br` → identifica o gabinete via `gabinete_clickmaps.tenants.slug`
-- Marca própria ("ClickMaps" é nome provisório — será renomeado no futuro)
+- **Multi-tenant por subdomínio:** `{slug}.mapadovoto.com` → identifica o gabinete via `gabinete_clickmaps.tenants.slug`
+- Marca própria: **Mapa do Voto** | Domínio: `mapadovoto.com`
 
 ---
 
@@ -192,9 +192,9 @@ C:\Herd\clickmaps\
 | `src/lib/leaflet-icon-fix.ts` | Fix ícone Leaflet no Vite |
 | `src/routing/app-routing-setup.tsx` | Rotas |
 
-### Logo ClickMaps
+### Logo Mapa do Voto
 
-Ícone `MapPin` vermelho (#E63946) + "Click"(normal) + "Maps"(bold), text-xl. Exibido no `header.tsx` (mobile) e no `sidebar-header.tsx` foi removido.
+Ícone `MapPin` vermelho (#E63946) + "Mapa"(normal) + "do Voto"(bold), text-xl. Exibido no `header.tsx` (mobile) e no `sidebar-header.tsx` foi removido.
 
 ### Navbar (desktop — canto superior direito)
 
@@ -214,7 +214,7 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 
 ### Ambiente local
 
-- **URL:** `http://clickmaps-api.test` (via Herd symlink)
+- **URL:** `http://mapadovoto-api.test` (via Herd symlink)
 - **Laravel:** 12.53.0 | **PHP:** 8.4 | **PostgreSQL:** 17.7
 - **Banco:** `cm_politico` | **Usuário:** `clickmaps_politico`
 
@@ -284,7 +284,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 
 ### Seeders
 
-- `DatabaseSeeder` — cria people + user (Alex / alex@clickmaps.com.br, role=admin)
+- `DatabaseSeeder` — cria people + user (Alex / alex@mapadovoto.com, role=admin)
 - `PartySeeder` — 30 partidos com color_bg, color_text, color_gradient
 - `CandidacySeeder` — Neto Bota (candidacies 2024 Prefeito + 2022 Dep. Estadual)
 - `PeopleCandidacySeeder` — vincula Alex → Neto Bota
@@ -292,7 +292,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 ### TenantMiddleware
 
 `app/Http/Middleware/TenantMiddleware.php` — identifica o gabinete pelo subdomínio:
-1. Extrai subdomínio de `$request->getHost()` (ex: `netobota` de `netobota.clickmaps.com.br`)
+1. Extrai subdomínio de `$request->getHost()` (ex: `netobota` de `netobota.mapadovoto.com`)
 2. Busca em `gabinete_clickmaps.tenants` por `slug` + `active=true` + `deleted_at IS NULL`
 3. Retorna 404 se subdomínio ausente ou tenant não encontrado
 4. Armazena tenant em `$request->attributes` e executa `SET search_path TO {tenant.schema},maps,public`
@@ -325,7 +325,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 
 ### Frontend → Backend
 
-- `maps/.env` → `VITE_API_URL=http://clickmaps-api.test/api`
+- `maps/.env` → `VITE_API_URL=http://mapadovoto-api.test/api`
 - `maps/src/lib/api.ts` → axios com interceptor Bearer token (localStorage)
 
 ---
@@ -501,4 +501,4 @@ Relatório premium cruzando histórico TSE com candidatos aliados potenciais, ra
 ## Deploy
 
 **VPS:** `root@168.231.64.36` (pago até 2027-04-11)
-**Domínio:** `clickmaps.com.br`
+**Domínio:** `mapadovoto.com`

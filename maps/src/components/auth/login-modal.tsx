@@ -16,7 +16,7 @@ import api from '@/lib/api';
 
 export function LoginModal() {
   const { open, setOpen, setLoggedIn } = useLoginModal();
-  const [email, setEmail] = useState('alex@clickmaps.com.br');
+  const [email, setEmail] = useState('alex@mapadovoto.com');
   const [password, setPassword] = useState('Alex1985@');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,7 +47,7 @@ export function LoginModal() {
             <MapPin className="size-4 text-white" />
           </div>
           <span className="text-2xl text-foreground">
-            <span className="font-normal">Click</span><span className="font-bold">Maps</span>
+            <span className="font-normal">Mapa</span><span className="font-bold">do Voto</span>
           </span>
         </div>
 

@@ -28,7 +28,7 @@ return new class extends Migration
 
         DB::table('gabinete_clickmaps.users')->insert([
             'people_id'  => $peopleId,
-            'email'      => 'alex@clickmaps.com.br',
+            'email'      => 'alex@mapadovoto.com',
             'password'   => Hash::make('Alex1985@'),
             'active'     => true,
             'created_at' => now(),
