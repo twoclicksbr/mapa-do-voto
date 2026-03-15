@@ -21,7 +21,7 @@
 
 ## Repositório
 
-- **GitHub:** https://github.com/twoclicksbr/clickmaps.git
+- **GitHub:** https://github.com/twoclicksbr/mapa-do-voto.git
 
 ---
 
