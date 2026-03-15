@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('SET search_path TO gabinete_clickmaps');
+        DB::statement('SET search_path TO gabinete_master');
 
         Schema::create('permission_actions', function (Blueprint $table) {
             $table->id();
@@ -22,7 +22,7 @@ return new class extends Migration
 
         $now = now();
 
-        DB::table('gabinete_clickmaps.permission_actions')->insert([
+        DB::table('gabinete_master.permission_actions')->insert([
             ['module' => 'people',       'action' => 'view',   'description' => null, 'created_at' => $now, 'updated_at' => $now],
             ['module' => 'people',       'action' => 'create', 'description' => null, 'created_at' => $now, 'updated_at' => $now],
             ['module' => 'people',       'action' => 'update', 'description' => null, 'created_at' => $now, 'updated_at' => $now],
@@ -38,13 +38,13 @@ return new class extends Migration
             ['module' => 'restrictions', 'action' => 'delete', 'description' => null, 'created_at' => $now, 'updated_at' => $now],
         ]);
 
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 
     public function down(): void
     {
-        DB::statement('SET search_path TO gabinete_clickmaps');
+        DB::statement('SET search_path TO gabinete_master');
         Schema::dropIfExists('permission_actions');
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 };

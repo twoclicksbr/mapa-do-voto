@@ -105,7 +105,7 @@ class CandidateController extends Controller
             if ($people->role !== 'admin') {
                 $query->whereIn('candidacies.id', function ($sub) use ($people) {
                     $sub->select('candidacy_id')
-                        ->from('gabinete_clickmaps.people_candidacies')
+                        ->from('gabinete_master.people_candidacies')
                         ->where('people_id', $people->id)
                         ->where('active', true);
                 });

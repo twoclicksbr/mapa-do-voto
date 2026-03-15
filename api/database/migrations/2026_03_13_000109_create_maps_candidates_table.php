@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -22,13 +22,13 @@ return new class extends Migration
             });
         }
 
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 
     public function down(): void
     {
         DB::statement('SET search_path TO maps');
         Schema::dropIfExists('candidates');
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 };

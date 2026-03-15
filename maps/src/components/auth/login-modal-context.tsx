@@ -18,6 +18,7 @@ interface LoginModalContextValue {
   loggedIn: boolean;
   setLoggedIn: (v: boolean) => void;
   user: UserData | null;
+  setUser: (user: UserData | null) => void;
   logout: () => Promise<void>;
 }
 
@@ -39,7 +40,7 @@ export function LoginModalProvider({ children }: { children: React.ReactNode }) 
     api.get('/auth/me')
       .then((res) => {
         setLoggedIn(true);
-        setUser(res.data.user);
+        setUser(res.data);
         setOpen(false);
       })
       .catch(() => {
@@ -63,7 +64,7 @@ export function LoginModalProvider({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <LoginModalContext.Provider value={{ open, setOpen, loggedIn, setLoggedIn, user, logout }}>
+    <LoginModalContext.Provider value={{ open, setOpen, loggedIn, setLoggedIn, user, setUser, logout }}>
       {children}
     </LoginModalContext.Provider>
   );

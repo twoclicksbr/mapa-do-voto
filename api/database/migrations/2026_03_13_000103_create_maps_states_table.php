@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -54,13 +54,13 @@ return new class extends Migration
             ['country_id' => 1, 'name' => 'Tocantins',           'uf' => 'TO', 'geometry' => null, 'created_at' => $now, 'updated_at' => $now],
         ]);
 
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 
     public function down(): void
     {
         DB::statement('SET search_path TO maps');
         Schema::dropIfExists('states');
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 };

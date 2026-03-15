@@ -1,5 +1,5 @@
-# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 14/03/2026 -->
+﻿# CLAUDE.md — Mapa do Voto
+<!-- Atualizado em: 15/03/2026 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -30,8 +30,8 @@
 Mapa do Voto é um produto **independente** da TwoClicks:
 - Clientes são políticos — perfil diferente do SaaS genérico
 - Backend simples — candidatos, partidos, dados TSE, autenticação
-- Um banco PostgreSQL com dois schemas: `gabinete_clickmaps` (auth/tenants) e `maps` (dados eleitorais)
-- **Multi-tenant por subdomínio:** `{slug}.mapadovoto.com` → identifica o gabinete via `gabinete_clickmaps.tenants.slug`
+- Um banco PostgreSQL com dois schemas: `gabinete_master` (auth/tenants) e `maps` (dados eleitorais)
+- **Multi-tenant por subdomínio:** `{slug}.mapadovoto.com` → identifica o gabinete via `gabinete_master.tenants.slug`
 - Marca própria: **Mapa do Voto** | Domínio: `mapadovoto.com`
 
 ---
@@ -153,7 +153,7 @@ Cada cargo faz aliança com **todos dentro da sua área de disputa**:
 ## Estrutura Local
 
 ```
-C:\Herd\clickmaps\
+C:\Herd\mapa-do-voto\
 ├── api\           → Laravel 12 (backend REST API)
 ├── maps\          → Vite + React + Metronic (app do mapa)
 ├── site\          → Next.js (landing page — não iniciada ainda)
@@ -174,16 +174,16 @@ C:\Herd\clickmaps\
 
 ### Terminologia do projeto
 
-- **background-maps** = o `div` wrapper do `<ClickMapsMap />` em `src/pages/home/page.tsx`
+- **background-maps** = o `div` wrapper do `<MapaDoVotoMap />` em `src/pages/home/page.tsx`
 
 ### Arquivos chave
 
 | Arquivo | Descrição |
 |---------|-----------|
 | `src/pages/home/page.tsx` | Página principal com mapa + estado `isSplit` |
-| `src/components/map/clickmaps-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch + heatmap + botões flutuantes |
+| `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch + heatmap + botões flutuantes |
 | `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — input uppercase, vice-prefeito/vice-governador excluídos |
-| `src/components/clickmaps/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
+| `src/components/mapa-do-voto/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
 | `src/components/map/active-candidate-context.tsx` | Contexto global: activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, mapClickedCity (inclui city_id), focusCityOnMap, clearCityHighlight |
 | `src/components/auth/login-modal.tsx` | Modal de login automático |
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
@@ -203,10 +203,14 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 ### Modal de Login
 
 - Abre automaticamente ao carregar
-- Campos vazios (sem preenchimento automático: `autoComplete="off"`)
-- Ao entrar: POST `/auth/login` → salva token no `localStorage` → fecha modal
+- Ao montar: GET `/auth/tenant` valida o subdomínio antes de exibir o formulário
+  - `null` → "Verificando..."
+  - `false` → "Gabinete não encontrado" (sem campos de login)
+  - `true` → formulário normal
+- Ao entrar: POST `/auth/login` → salva token no `localStorage` + `setUser(data.user)` → fecha modal
 - Ao sair: POST `/auth/logout` → remove token → reabre modal
-- `LoginModalContext` expõe: `open`, `setOpen`, `loggedIn`, `setLoggedIn`, `user`, `logout`
+- `LoginModalContext` expõe: `open`, `setOpen`, `loggedIn`, `setLoggedIn`, `user`, `setUser`, `logout`
+- `/auth/me` retorna o objeto do usuário diretamente (sem wrapper) → `setUser(res.data)`
 
 ---
 
@@ -216,12 +220,13 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 
 - **URL:** `http://mapadovoto-api.test` (via Herd symlink)
 - **Laravel:** 12.53.0 | **PHP:** 8.4 | **PostgreSQL:** 17.7
-- **Banco:** `cm_politico` | **Usuário:** `clickmaps_politico`
+- **Banco:** `cm_politico` | **Usuário:** `mapadovoto`
 
 ### Rotas da API
 
 | Método | Endpoint | Auth | Middleware | Descrição |
 |--------|----------|------|------------|-----------|
+| GET | `/api/auth/tenant` | pública | `tenant` | Valida se o subdomínio corresponde a um tenant ativo; retorna 200 ou 404 |
 | POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
 | POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
 | GET | `/api/auth/me` | Bearer | — | Retorna usuário autenticado + people |
@@ -233,22 +238,22 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 
 ### Schemas e Tabelas
 
-**Schema `gabinete_clickmaps`** — auth, tenants, usuários da plataforma:
+**Schema `gabinete_master`** — auth, tenants, usuários da plataforma:
 
 | Tabela | Descrição |
 |--------|-----------|
-| `gabinete_clickmaps.tenants` | Gabinetes (id, name, slug unique, schema unique, active) — slug identifica o tenant pelo subdomínio |
-| `gabinete_clickmaps.type_people` | Tipos de pessoa (id, name) — seeds: Admin, Político, Equipe, Eleitor |
-| `gabinete_clickmaps.people` | Usuários da plataforma (id, type_people_id nullable FK, name, active) |
-| `gabinete_clickmaps.users` | Acesso (id, people_id, email, password, active) |
-| `gabinete_clickmaps.people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
-| `gabinete_clickmaps.split_candidacies` | Candidato do split direito (id, people_candidacy_id, candidacy_id, order, active) |
-| `gabinete_clickmaps.personal_access_tokens` | Tokens Sanctum customizados (inclui campo `schema`) |
-| `gabinete_clickmaps.permission_actions` | Ações de permissão por módulo (people, attendances, map, restrictions) |
-| `gabinete_clickmaps.permissions` | Permissões por people (people_id, permission_action_id, allowed) |
-| `gabinete_clickmaps.attendances` | Atendimentos (people_id, title, description, address, lat, lng, status, opened_at, resolved_at) |
-| `gabinete_clickmaps.attendance_history` | Histórico de status dos atendimentos |
-| `gabinete_clickmaps.cache` / `gabinete_clickmaps.jobs` | Infraestrutura Laravel |
+| `gabinete_master.tenants` | Gabinetes (id, name, slug unique, schema unique, active) — slug identifica o tenant pelo subdomínio |
+| `gabinete_master.type_people` | Tipos de pessoa (id, name) — seeds: Admin, Político, Equipe, Eleitor |
+| `gabinete_master.people` | Usuários da plataforma (id, type_people_id nullable FK, name, active) |
+| `gabinete_master.users` | Acesso (id, people_id, email, password, active) |
+| `gabinete_master.people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
+| `gabinete_master.split_candidacies` | Candidato do split direito (id, people_candidacy_id, candidacy_id, order, active) |
+| `gabinete_master.personal_access_tokens` | Tokens Sanctum customizados (inclui campo `schema`) |
+| `gabinete_master.permission_actions` | Ações de permissão por módulo (people, attendances, map, restrictions) |
+| `gabinete_master.permissions` | Permissões por people (people_id, permission_action_id, allowed) |
+| `gabinete_master.attendances` | Atendimentos (people_id, title, description, address, lat, lng, status, opened_at, resolved_at) |
+| `gabinete_master.attendance_history` | Histórico de status dos atendimentos |
+| `gabinete_master.cache` / `gabinete_master.jobs` | Infraestrutura Laravel |
 
 **Schema `maps`** — dados eleitorais TSE:
 
@@ -272,14 +277,14 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 
 Todos os models têm `$table` explícito com schema qualificado.
 
-- `People` (`gabinete_clickmaps.people`) — sem SoftDeletes, sem uuid; campo `role` (admin/user); relacionamento `peopleCandidacies()`
-- `User` (`gabinete_clickmaps.users`) → `belongsTo(People)`, `HasApiTokens`
-- `PersonalAccessToken` (`gabinete_clickmaps.personal_access_tokens`) — model customizado registrado via `Sanctum::usePersonalAccessTokenModel()` no `AppServiceProvider`
+- `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; campo `role` (admin/user); relacionamento `peopleCandidacies()`
+- `User` (`gabinete_master.users`) → `belongsTo(People)`, `HasApiTokens`
+- `PersonalAccessToken` (`gabinete_master.personal_access_tokens`) — model customizado registrado via `Sanctum::usePersonalAccessTokenModel()` no `AppServiceProvider`
 - `Party` (`maps.parties`) — sem SoftDeletes, sem uuid; campos `color_bg`, `color_text`, `color_gradient`
 - `Candidate` (`maps.candidates`) — sem SoftDeletes, sem uuid, sem sq_candidato; campos: `gender_id`, `name`, `cpf`, `photo_url`; relacionamentos `gender()` e `candidacies()`
 - `Candidacy` (`maps.candidacies`) → `belongsTo(Candidate)`, `belongsTo(Party)`, `belongsTo(City)`, `belongsTo(State)`
-- `PeopleCandidacy` (`gabinete_clickmaps.people_candidacies`) → `belongsTo(People)`, `belongsTo(Candidacy)`
-- `SplitCandidacy` (`gabinete_clickmaps.split_candidacies`)
+- `PeopleCandidacy` (`gabinete_master.people_candidacies`) → `belongsTo(People)`, `belongsTo(Candidacy)`
+- `SplitCandidacy` (`gabinete_master.split_candidacies`)
 - `City` (`maps.cities`), `State` (`maps.states`), `Country` (`maps.countries`), `Zone` (`maps.zones`), `Section` (`maps.sections`), `VotingLocation` (`maps.voting_locations`), `Vote` (`maps.votes`), `Gender` (`maps.genders`)
 
 ### Seeders
@@ -293,16 +298,17 @@ Todos os models têm `$table` explícito com schema qualificado.
 
 `app/Http/Middleware/TenantMiddleware.php` — identifica o gabinete pelo subdomínio:
 1. Extrai subdomínio de `$request->getHost()` (ex: `netobota` de `netobota.mapadovoto.com`)
-2. Busca em `gabinete_clickmaps.tenants` por `slug` + `active=true` + `deleted_at IS NULL`
+2. Busca em `gabinete_master.tenants` por `slug` + `active=true` + `deleted_at IS NULL`
 3. Retorna 404 se subdomínio ausente ou tenant não encontrado
-4. Armazena tenant em `$request->attributes` e executa `SET search_path TO {tenant.schema},maps,public`
-5. Registrado via alias `'tenant'` em `bootstrap/app.php`
+4. Armazena tenant apenas em `$request->attributes->set('tenant', $tenant)` — sem `$request->merge()`
+5. Executa `SET search_path TO {tenant.schema},maps,public`
+6. Registrado via alias `'tenant'` em `bootstrap/app.php`
 
 ### Migrations (numeração atual)
 
 | Range | Schema | Conteúdo |
 |-------|--------|----------|
-| `000001`–`000052` | `gabinete_clickmaps` | schema, tenants, PAT, cache, jobs, type_people, people, users, permission_actions, permissions, people_candidacies, split_candidacies, attendances, attendance_history |
+| `000001`–`000052` | `gabinete_master` | schema, tenants, PAT, cache, jobs, type_people, people, users, permission_actions, permissions, people_candidacies, split_candidacies, attendances, attendance_history |
 | `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes, tse_votacao_secao (2008–2024) |
 
 ### Arquivos chave
@@ -321,12 +327,12 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/database/migrations/` | migrations 2026_03_13_* numeradas 000001–000052 (gabinete) e 000101–000121 (maps) |
 | `api/database/seeders/` | DatabaseSeeder, PartySeeder, CandidacySeeder, PeopleCandidacySeeder |
 | `api/config/cors.php` | CORS — `allowed_origins: ['*']` |
-| `api/config/database.php` | `search_path: 'gabinete_clickmaps,maps,public'` |
+| `api/config/database.php` | `search_path: 'gabinete_master,maps,public'` |
 
 ### Frontend → Backend
 
-- `maps/.env` → `VITE_API_URL=http://mapadovoto-api.test/api`
-- `maps/src/lib/api.ts` → axios com interceptor Bearer token (localStorage)
+- `maps/.env` → `VITE_API_URL=http://mapadovoto-api.test/api` (usado como fallback)
+- `maps/src/lib/api.ts` → baseURL dinâmica: extrai subdomínio de `window.location.hostname` e monta `http://{subdomain}.mapadovoto-api.test/api`; fallback para `VITE_API_URL` quando não há subdomínio; interceptor Bearer token (localStorage)
 
 ---
 
@@ -347,7 +353,7 @@ https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 
 ### Polígonos por Cargo
 
-Lógica em `clickmaps-map.tsx` via `MUNICIPAL_ROLES` e `STATE_ROLES`:
+Lógica em `mapa-do-voto-map.tsx` via `MUNICIPAL_ROLES` e `STATE_ROLES`:
 
 **Cargos municipais** (PREFEITO, PREFEITA, VEREADOR, VEREADORA, etc):
 - Busca GeoJSON via tbrugz: `https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-{ibge_estado}-mun.json`
@@ -365,10 +371,10 @@ Lógica em `clickmaps-map.tsx` via `MUNICIPAL_ROLES` e `STATE_ROLES`:
 - Legenda do heatmap (gradiente vertical) exibida no canto inferior direito quando `showCities && maxVotes > 0`
 - Ao limpar cidade na sidebar: `clearCityHighlight` reseta highlight e volta ao fitBounds do estado
 
-**UF → código IBGE estado** (mapeamento em `UF_TO_IBGE` no clickmaps-map.tsx):
+**UF → código IBGE estado** (mapeamento em `UF_TO_IBGE` no mapa-do-voto-map.tsx):
 - SP=35, RJ=33, MG=31, etc.
 
-### Layers do mapa (clickmaps-map.tsx)
+### Layers do mapa (mapa-do-voto-map.tsx)
 - `brazilLayerRef` — contorno do Brasil (sem candidato)
 - `polygonLayerRef` — polígono do estado ou município do candidato
 - `citiesLayerRef` — municípios do estado (quando "Exibir Cidades" marcado)
@@ -415,7 +421,7 @@ Estado `isSplit` em `src/pages/home/page.tsx`. Botão `Columns2` na Toolbar.
 
 **Sincronização entre mapas:**
 - `mapRef1` + `mapRef2` via `useRef<L.Map | null>(null)`
-- Prop `syncRef` no `ClickMapsMap` — propaga `move`/`zoom` via `setView`
+- Prop `syncRef` no `MapaDoVotoMap` — propaga `move`/`zoom` via `setView`
 - Flag `isSyncing` (useRef) evita loop infinito
 
 **Ao ativar:** `invalidateSize()` + `fitBounds()` nos dois mapas após 100ms
@@ -457,7 +463,7 @@ const fitToCity = useCallback(() => {
 
 ## Status TSE
 
-Mapeamento em `clickmaps-map.tsx` e `sidebar.tsx` via `STATUS_MAP` / `STATUS_COLORS` + `resolveStatus(raw)`:
+Mapeamento em `mapa-do-voto-map.tsx` e `sidebar.tsx` via `STATUS_MAP` / `STATUS_COLORS` + `resolveStatus(raw)`:
 
 | Status TSE | Label exibido | Cor |
 |---|---|---|

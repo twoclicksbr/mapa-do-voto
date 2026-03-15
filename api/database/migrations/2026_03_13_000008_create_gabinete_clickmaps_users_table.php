@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -10,11 +10,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('SET search_path TO gabinete_clickmaps');
+        DB::statement('SET search_path TO gabinete_master');
 
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('people_id')->constrained('gabinete_clickmaps.people');
+            $table->foreignId('people_id')->constrained('gabinete_master.people');
             $table->string('email')->unique();
             $table->string('password');
             $table->boolean('active')->default(true);
@@ -22,11 +22,11 @@ return new class extends Migration
             $table->softDeletes();
         });
 
-        $peopleId = DB::table('gabinete_clickmaps.people')
+        $peopleId = DB::table('gabinete_master.people')
             ->where('name', 'Alex Alves de Almeida')
             ->value('id');
 
-        DB::table('gabinete_clickmaps.users')->insert([
+        DB::table('gabinete_master.users')->insert([
             'people_id'  => $peopleId,
             'email'      => 'alex@mapadovoto.com',
             'password'   => Hash::make('Alex1985@'),
@@ -35,13 +35,13 @@ return new class extends Migration
             'updated_at' => now(),
         ]);
 
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 
     public function down(): void
     {
-        DB::statement('SET search_path TO gabinete_clickmaps');
+        DB::statement('SET search_path TO gabinete_master');
         Schema::dropIfExists('users');
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 };

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('SET search_path TO gabinete_clickmaps');
+        DB::statement('SET search_path TO gabinete_master');
 
         Schema::create('cache', function (Blueprint $table) {
             $table->string('key')->primary();
@@ -17,13 +17,13 @@ return new class extends Migration
             $table->integer('expiration');
         });
 
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 
     public function down(): void
     {
-        DB::statement('SET search_path TO gabinete_clickmaps');
+        DB::statement('SET search_path TO gabinete_master');
         Schema::dropIfExists('cache');
-        DB::statement('SET search_path TO gabinete_clickmaps,maps,public');
+        DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 };

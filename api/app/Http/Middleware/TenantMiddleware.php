@@ -19,7 +19,7 @@ class TenantMiddleware
             return response()->json(['message' => 'Tenant not found.'], 404);
         }
 
-        $tenant = DB::table('gabinete_clickmaps.tenants')
+        $tenant = DB::table('gabinete_master.tenants')
             ->where('slug', $subdomain)
             ->where('active', true)
             ->whereNull('deleted_at')
@@ -29,7 +29,6 @@ class TenantMiddleware
             return response()->json(['message' => 'Tenant not found.'], 404);
         }
 
-        $request->merge(['tenant' => $tenant]);
         $request->attributes->set('tenant', $tenant);
 
         DB::statement("SET search_path TO {$tenant->schema},maps,public");

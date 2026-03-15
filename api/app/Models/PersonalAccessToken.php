@@ -6,5 +6,5 @@ use Laravel\Sanctum\PersonalAccessToken as SanctumPersonalAccessToken;
 
 class PersonalAccessToken extends SanctumPersonalAccessToken
 {
-    protected $table = 'gabinete_clickmaps.personal_access_tokens';
+    protected $table = 'gabinete_master.personal_access_tokens';
 }

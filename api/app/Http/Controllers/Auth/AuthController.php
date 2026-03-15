@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    public function tenant(Request $request)
+    {
+        return response()->json(['tenant' => $request->attributes->get('tenant')]);
+    }
+
     public function login(Request $request)
     {
         $request->validate([

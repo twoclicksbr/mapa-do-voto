@@ -1,6 +1,5 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage, AvatarIndicator, AvatarStatus } from "@/components/ui/avatar";
-import { toAbsoluteUrl } from "@/lib/helpers";
 import { Clock, Target, Users, Building2, User, Settings, Shield, Moon, Sun, Zap, Download, ExternalLink, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "next-themes";
@@ -8,7 +7,7 @@ import { useLoginModal } from "@/components/auth/login-modal-context";
 
 export function UserDropdownMenu() {
   const { theme, setTheme } = useTheme();
-  const { logout } = useLoginModal();
+  const { logout, user } = useLoginModal();
 
   const toggleTheme = () => {
     setTheme(theme === "light" ? "dark" : "light");
@@ -18,8 +17,8 @@ export function UserDropdownMenu() {
     <DropdownMenu>
 			<DropdownMenuTrigger className="cursor-pointer">
 				<Avatar className="size-7">
-					<AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} alt="@reui" />
-					<AvatarFallback>CH</AvatarFallback>
+					<AvatarImage src={user?.people?.avatar_url ?? ''} />
+					<AvatarFallback>{user?.people?.name?.charAt(0) ?? '?'}</AvatarFallback>
 					<AvatarIndicator className="-end-2 -top-2">
 						<AvatarStatus variant="online" className="size-2.5" />
 					</AvatarIndicator>
@@ -29,16 +28,15 @@ export function UserDropdownMenu() {
 				{/* User Information Section */}
 				<div className="flex items-center gap-3 px-3 py-2">
 					<Avatar>
-						<AvatarImage src={toAbsoluteUrl('/media/avatars/300-2.png')} alt="@reui" />
-						<AvatarFallback>CH</AvatarFallback>
+						<AvatarImage src={user?.people?.avatar_url ?? ''} />
+						<AvatarFallback>{user?.people?.name?.charAt(0) ?? '?'}</AvatarFallback>
 						<AvatarIndicator className="-end-1.5 -top-1.5">
 							<AvatarStatus variant="online" className="size-2.5" />
 						</AvatarIndicator>
 					</Avatar>
 					<div className="flex flex-col items-start">
-						<span className="text-sm font-semibold text-foreground">Chris Harris</span>
-						<span className="text-xs text-muted-foreground">Senior Developer</span>
-						<Badge variant="success" appearance="outline" size="sm" className="mt-1">Pro Plan</Badge>
+						<span className="text-sm font-semibold text-foreground">{user?.people?.name ?? '—'}</span>
+						<span className="text-xs text-muted-foreground">{user?.email ?? '—'}</span>
 					</div>
 				</div>
 				

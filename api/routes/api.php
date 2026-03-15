@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/ping', fn () => ['status' => 'ok']);
 Route::get('/states/{uf}/geometry', [StateController::class, 'geometry']);
 
+Route::middleware('tenant')->get('/auth/tenant', [AuthController::class, 'tenant']);
 Route::middleware('tenant')->post('/auth/login', [AuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {

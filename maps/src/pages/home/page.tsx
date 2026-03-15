@@ -5,7 +5,7 @@ import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
 import { Columns2 } from "lucide-react";
-import { ClickMapsMap } from "@/components/map/clickmaps-map";
+import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -85,7 +85,7 @@ export function HomePage() {
 
       <div className="rounded-lg overflow-hidden flex-1 min-h-0 flex flex-row">
         <div className={isSplit ? "w-1/2 h-full" : "w-full h-full"}>
-          <ClickMapsMap
+          <MapaDoVotoMap
             mapRef={mapRef1}
             syncRef={isSplit ? mapRef2 : undefined}
             onCityBoundsReady={setCityBounds}
@@ -94,7 +94,7 @@ export function HomePage() {
         </div>
         {isSplit && (
           <div className="w-1/2 h-full border-l border-border">
-            <ClickMapsMap
+            <MapaDoVotoMap
               key="map2"
               mapRef={mapRef2}
               syncRef={mapRef1}

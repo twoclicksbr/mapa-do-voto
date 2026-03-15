@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class People extends Model
 {
-    protected $table = 'gabinete_clickmaps.people';
+    protected $table = 'gabinete_master.people';
 
     protected $fillable = [
         'name',
