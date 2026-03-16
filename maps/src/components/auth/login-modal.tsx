@@ -10,7 +10,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { MapPin } from 'lucide-react';
 import { useLoginModal } from './login-modal-context';
 import api from '@/lib/api';
 
@@ -51,12 +50,8 @@ export function LoginModal() {
     <Dialog open={open}>
       <DialogContent showCloseButton={false}>
         <div className="flex items-center justify-center gap-2 mb-4">
-          <div className="size-8 rounded-lg flex items-center justify-center shrink-0 bg-[#E63946]">
-            <MapPin className="size-4 text-white" />
-          </div>
-          <span className="text-2xl text-foreground">
-            <span className="font-normal">Mapa</span><span className="font-bold">do Voto</span>
-          </span>
+          <img src="/media/logo/logo.svg" alt="Mapa do Voto" className="w-8 h-8" />
+          <span className="text-xl"><strong>Mapa</strong>do<strong>Voto</strong></span>
         </div>
 
         {tenantValid === null && (
@@ -65,12 +60,17 @@ export function LoginModal() {
 
         {tenantValid === false && (
           <>
-            <DialogHeader>
-              <DialogTitle>Gabinete não encontrado</DialogTitle>
-              <DialogDescription>
+            <DialogHeader className="mt-4 mb-4">
+              <DialogTitle className="text-center mb-2">Gabinete não encontrado</DialogTitle>
+              <DialogDescription className="text-center">
                 O endereço acessado não corresponde a nenhum gabinete cadastrado. Verifique o link e tente novamente.
               </DialogDescription>
             </DialogHeader>
+            <div className="text-center mt-3">
+              <a href="#" className="text-sm text-gray-500 hover:text-gray-700">
+                Crie sua conta!
+              </a>
+            </div>
           </>
         )}
 

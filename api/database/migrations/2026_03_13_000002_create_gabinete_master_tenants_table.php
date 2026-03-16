@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('slug')->unique();
             $table->string('schema')->unique();
             $table->boolean('active')->default(true);
+            $table->date('valid_until');
             $table->timestamps();
             $table->softDeletes();
         });
@@ -25,9 +26,10 @@ return new class extends Migration
             'name'       => 'Mapa do Voto',
             'slug'       => 'mapadovoto',
             'schema'     => 'gabinete_master',
-            'active'     => true,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'active'      => true,
+            'valid_until' => '2026-06-24',
+            'created_at'  => now(),
+            'updated_at'  => now(),
         ]);
 
         DB::statement('SET search_path TO gabinete_master,maps,public');

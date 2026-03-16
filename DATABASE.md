@@ -30,12 +30,13 @@ Cadastro dos gabinetes (clientes da plataforma). Cada tenant corresponde a um su
 | `slug` | varchar | NOT NULL | Subdomínio de acesso (ex: `netobota`) — **unique** |
 | `schema` | varchar | NOT NULL | Nome do schema PostgreSQL do tenant (ex: `gabinete_netobota`) — **unique** |
 | `active` | boolean | NOT NULL | Se o tenant está ativo (default: `true`) |
+| `valid_until` | date | NOT NULL | Data de validade do contrato |
 | `created_at` | timestamp | NULL | — |
 | `updated_at` | timestamp | NULL | — |
 | `deleted_at` | timestamp | NULL | Soft delete |
 
 **Índices:** `slug` unique, `schema` unique
-**Seed:** `{ name: 'Mapa do Voto', slug: 'mapadovoto', schema: 'gabinete_master' }`
+**Seed:** `{ name: 'Mapa do Voto', slug: 'mapadovoto', schema: 'gabinete_master', valid_until: '2026-06-24' }`
 
 ---
 

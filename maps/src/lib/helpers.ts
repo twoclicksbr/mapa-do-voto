@@ -104,6 +104,12 @@ export function formatDate(input: Date | string | number): string {
   });
 }
 
+export function formatRecordCount(n: number): string {
+  if (n === 0) return 'Não encontrei nenhum registro';
+  if (n === 1) return 'Encontrei 1 registro';
+  return `Encontrei ${n.toLocaleString('pt-BR')} registros`;
+}
+
 export function formatDateTime(input: Date | string | number): string {
   const date = new Date(input);
   return date.toLocaleString('en-US', {

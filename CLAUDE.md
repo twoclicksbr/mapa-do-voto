@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 15/03/2026 -->
+<!-- Atualizado em: 16/03/2026 -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
@@ -180,14 +180,17 @@ C:\Herd\mapa-do-voto\
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/home/page.tsx` | Página principal com mapa + estado `isSplit` |
+| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). |
 | `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch + heatmap + botões flutuantes |
 | `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — input uppercase, vice-prefeito/vice-governador excluídos |
 | `src/components/mapa-do-voto/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
 | `src/components/map/active-candidate-context.tsx` | Contexto global: activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, mapClickedCity (inclui city_id), focusCityOnMap, clearCityHighlight |
-| `src/components/auth/login-modal.tsx` | Modal de login automático |
+| `src/components/auth/login-modal.tsx` | Modal de login automático; usa logo SVG `/media/logo/logo.svg`; exibe link "Crie sua conta!" quando gabinete não encontrado |
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
+| `src/components/layout/active-tab-context.tsx` | Contexto `ActiveTabProvider`/`useActiveTab` — persiste aba ativa no `localStorage` (chave `mapadovoto:activeTab`); default: `overview` |
+| `src/components/gabinetes/gabinetes-data-grid.tsx` | Data grid de tenants: colunas ID, Nome, Subdomínio (link externo), Validade (badge com alerta vencimento), Status, Ações (editar/excluir); suporte a seleção múltipla e drag-and-drop |
 | `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
+| `src/lib/helpers.ts` | Utilitários: `formatDate`, `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
 | `src/lib/party-colors.ts` | Cores + hex dos 30 partidos |
 | `src/lib/leaflet-icon-fix.ts` | Fix ícone Leaflet no Vite |
 | `src/routing/app-routing-setup.tsx` | Rotas |
@@ -196,9 +199,19 @@ C:\Herd\mapa-do-voto\
 
 Ícone `MapPin` vermelho (#E63946) + "Mapa"(normal) + "do Voto"(bold), text-xl. Exibido no `header.tsx` (mobile) e no `sidebar-header.tsx` foi removido.
 
+### Abas da Toolbar
+
+Abas: **Gabinetes** (ícone `Building2`, só visível quando `isMaster`), **Mapa**, **Atendimentos**, **Agenda**, **Alianças**, **Finanças**. Aba ativa persiste via `ActiveTabProvider` no `localStorage`.
+
+Quando `isMaster`: exibe dropdown "Gabinete: Master" na toolbar que lista todos os tenants e redireciona para `{slug}.{baseDomain}` ao clicar.
+
 ### Navbar (desktop — canto superior direito)
 
-Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fullscreen), **UserDropdownMenu**. Botões antigos removidos: `MessageSquareCode`, `Pin`, `Reports`, `Add`.
+Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fullscreen), **UserDropdownMenu**. Botão **Columns2** (split view) visível apenas quando `isMaster`. Botões antigos removidos: `MessageSquareCode`, `Pin`, `Reports`, `Add`.
+
+### UserDropdownMenu
+
+Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista tenants via `GET /api/tenants`), Meu Perfil, Preferências, Segurança, toggle Modo Dark/Light, Sair. Remove itens genéricos do template Metronic.
 
 ### Modal de Login
 
@@ -226,6 +239,7 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 
 | Método | Endpoint | Auth | Middleware | Descrição |
 |--------|----------|------|------------|-----------|
+| GET | `/api/tenants` | pública | — | Lista todos os tenants ativos (id, name, slug, active, valid_until) |
 | GET | `/api/auth/tenant` | pública | `tenant` | Valida se o subdomínio corresponde a um tenant ativo; retorna 200 ou 404 |
 | POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
 | POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
@@ -242,7 +256,7 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 
 | Tabela | Descrição |
 |--------|-----------|
-| `gabinete_master.tenants` | Gabinetes (id, name, slug unique, schema unique, active) — slug identifica o tenant pelo subdomínio |
+| `gabinete_master.tenants` | Gabinetes (id, name, slug unique, schema unique, active, valid_until) — slug identifica o tenant pelo subdomínio |
 | `gabinete_master.type_people` | Tipos de pessoa (id, name) — seeds: Admin, Político, Equipe, Eleitor |
 | `gabinete_master.people` | Usuários da plataforma (id, type_people_id nullable FK, name, active) |
 | `gabinete_master.users` | Acesso (id, people_id, email, password, active) |
@@ -277,6 +291,7 @@ Botões atuais: **Eye/EyeOff** (toggle `showCard`), **Maximize/Minimize** (fulls
 
 Todos os models têm `$table` explícito com schema qualificado.
 
+- `Tenant` (`gabinete_master.tenants`) — com SoftDeletes; campos `name`, `slug`, `schema`, `active`, `valid_until`; cast `valid_until` → `date`
 - `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; campo `role` (admin/user); relacionamento `peopleCandidacies()`
 - `User` (`gabinete_master.users`) → `belongsTo(People)`, `HasApiTokens`
 - `PersonalAccessToken` (`gabinete_master.personal_access_tokens`) — model customizado registrado via `Sanctum::usePersonalAccessTokenModel()` no `AppServiceProvider`
@@ -319,6 +334,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/bootstrap/app.php` | Registro do alias `tenant` → `TenantMiddleware` |
 | `api/app/Http/Middleware/TenantMiddleware.php` | Middleware de identificação de tenant por subdomínio |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
+| `api/app/Http/Controllers/TenantController.php` | `index` — lista tenants ativos (GET /api/tenants) |
 | `api/app/Http/Controllers/CandidateController.php` | search + stats + cities (com schema explícito `maps.*`) |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |

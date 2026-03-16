@@ -5,10 +5,12 @@ use App\Http\Controllers\CandidateController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\Map\MapStatsController;
 use App\Http\Controllers\StateController;
+use App\Http\Controllers\TenantController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn () => ['status' => 'ok']);
 Route::get('/states/{uf}/geometry', [StateController::class, 'geometry']);
+Route::get('/tenants', [TenantController::class, 'index']);
 
 Route::middleware('tenant')->get('/auth/tenant', [AuthController::class, 'tenant']);
 Route::middleware('tenant')->post('/auth/login', [AuthController::class, 'login']);

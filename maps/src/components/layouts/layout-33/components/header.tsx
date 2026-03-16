@@ -13,7 +13,6 @@ import { SidebarContent } from './sidebar-content';
 import { Link, useLocation } from 'react-router';
 import { ToolbarActions } from './toolbar';
 import { Navbar } from './navbar';
-
 export function Header() {
   const { isMobile } = useLayout();
   const { pathname } = useLocation();
@@ -54,7 +53,7 @@ export function Header() {
               </SheetBody>
             </SheetContent>
           </Sheet>
-        </div >
+        </div>
         {isMobile && (
           <ToolbarActions>
             <Navbar />
