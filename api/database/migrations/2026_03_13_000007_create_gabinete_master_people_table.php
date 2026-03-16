@@ -13,6 +13,7 @@ return new class extends Migration
 
         Schema::create('people', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('tenant_id')->nullable()->constrained('gabinete_master.tenants');
             $table->foreignId('type_people_id')->nullable()->constrained('gabinete_master.type_people');
             $table->string('name');
             $table->boolean('active')->default(true);
@@ -25,6 +26,7 @@ return new class extends Migration
             ->value('id');
 
         DB::table('gabinete_master.people')->insert([
+            'tenant_id'      => 1,
             'type_people_id' => $typePeopleId,
             'name'           => 'Alex Alves de Almeida',
             'active'         => true,

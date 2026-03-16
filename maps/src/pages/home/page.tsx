@@ -22,6 +22,8 @@ import api from "@/lib/api";
 import { formatRecordCount } from "@/lib/helpers";
 import { useActiveTab } from "@/components/layout/active-tab-context";
 import { GabinetesDataGrid } from "@/components/gabinetes/gabinetes-data-grid";
+import { GabinetCreateModal } from "@/components/gabinetes/gabinete-create-modal";
+import { GabinetEditModal } from "@/components/gabinetes/gabinete-edit-modal";
 
 function getTenantName(): string {
   const parts = window.location.hostname.split('.');
@@ -55,6 +57,8 @@ export function HomePage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantsLoading, setTenantsLoading] = useState(true);
   const [tenantsSelected, setTenantsSelected] = useState(0);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
 
   useEffect(() => {
     if (!isMaster) return;
@@ -103,6 +107,18 @@ export function HomePage() {
   return (
     <div className="container-fluid flex flex-col h-full">
       <LoginModal />
+      <GabinetCreateModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onCreated={(tenant) => { setTenants((prev) => [...prev, tenant]); setEditingTenant(tenant); }}
+        existingSlugs={tenants.map((t) => t.slug)}
+      />
+      <GabinetEditModal
+        tenant={editingTenant}
+        onClose={() => setEditingTenant(null)}
+        onUpdated={(updated) => setTenants((prev) => prev.map((t) => t.id === updated.id ? updated : t))}
+        existingSlugs={tenants.map((t) => t.slug)}
+      />
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
         <Toolbar>
           <div className="flex items-center gap-3">
@@ -169,7 +185,7 @@ export function HomePage() {
             <div className="rounded-lg overflow-hidden h-full border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><Building2 className="size-5 text-muted-foreground" />Gabinetes <Badge variant="secondary" size="md">{formatRecordCount(tenants.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><Building2 className="size-5 text-muted-foreground" />Gabinetes <Badge variant="success" appearance="light" size="md">{formatRecordCount(tenants.length)}</Badge></h2>
                   <p className="text-sm text-muted-foreground">Gerencie os gabinetes da plataforma</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -200,7 +216,7 @@ export function HomePage() {
                         <Search className="size-4 mr-2" />
                         Pesquisar
                       </Button>
-                      <Button variant="primary" size="sm">
+                      <Button variant="primary" size="sm" onClick={() => setCreateModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
                         Novo Registro
                       </Button>
@@ -209,7 +225,7 @@ export function HomePage() {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-6">
-                <GabinetesDataGrid tenants={tenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} />
+                <GabinetesDataGrid tenants={tenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} onEdit={setEditingTenant} />
               </div>
               <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
                 <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>

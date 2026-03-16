@@ -38,9 +38,10 @@ interface GabinetesDataGridProps {
   tenants: Tenant[];
   isLoading: boolean;
   onSelectionChange?: (count: number) => void;
+  onEdit?: (tenant: Tenant) => void;
 }
 
-export function GabinetesDataGrid({ tenants, isLoading, onSelectionChange }: GabinetesDataGridProps) {
+export function GabinetesDataGrid({ tenants, isLoading, onSelectionChange, onEdit }: GabinetesDataGridProps) {
   const [data, setData] = useState<Tenant[]>(tenants);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -135,8 +136,10 @@ export function GabinetesDataGrid({ tenants, isLoading, onSelectionChange }: Gab
         header: ({ column }) => (
           <DataGridColumnHeader title="Nome" column={column} />
         ),
-        cell: (info) => (
-          <span className="font-medium text-foreground">{info.getValue() as string}</span>
+        cell: ({ row }) => (
+          <button onClick={() => onEdit?.(row.original)} className="font-medium text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 transition-colors text-left">
+            {row.original.name}
+          </button>
         ),
         meta: { skeleton: <Skeleton className="h-5 w-40" /> },
         enableSorting: true,
@@ -218,11 +221,11 @@ export function GabinetesDataGrid({ tenants, isLoading, onSelectionChange }: Gab
       {
         id: "actions",
         header: () => <span className="text-muted-foreground text-sm w-full block text-right">Ações</span>,
-        cell: () => (
+        cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700">
+                <Button variant="outline" size="icon" className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700" onClick={() => onEdit?.(row.original)}>
                   <Pencil className="size-4" />
                 </Button>
               </TooltipTrigger>
@@ -243,7 +246,7 @@ export function GabinetesDataGrid({ tenants, isLoading, onSelectionChange }: Gab
         enableHiding: false,
       },
     ],
-    []
+    [onEdit]
   );
 
   const table = useReactTable({

@@ -42,7 +42,7 @@ interface ApiResult {
 interface CandidateSearchProps {
   onSelect: (candidate: Candidate) => void;
   onClear?: () => void;
-  variant?: 'map' | 'sidebar';
+  variant?: 'map' | 'sidebar' | 'modal';
 }
 
 function displayName(c: Candidate): string {
@@ -56,7 +56,8 @@ const roleMap: Record<string, string> = {
   'DEPUTADA FEDERAL': 'DEP. FEDERAL',
 };
 
-function formatRole(role: string): string {
+function formatRole(role: string | undefined | null): string {
+  if (!role) return '';
   return roleMap[role.toUpperCase()] ?? role;
 }
 
@@ -102,15 +103,22 @@ function PartyBadgeAbsolute({ party }: { party: string }) {
   );
 }
 
-function CandidateInfo({ c, hideBadge }: { c: Candidate; hideBadge?: boolean }) {
+function CandidateInfo({ c, hideBadge, hideDetails }: { c: Candidate; hideBadge?: boolean; hideDetails?: boolean }) {
+  if (hideDetails) {
+    return (
+      <div className="min-w-0 overflow-hidden flex-1 w-0">
+        <span className="font-bold text-sm text-gray-900 truncate block">{displayName(c)}</span>
+      </div>
+    );
+  }
+
   const r = c.role?.toUpperCase() ?? '';
   const isNational  = nationalRoles.includes(r);
   const isMunicipal = municipalRoles.includes(r);
 
+  const num = c.ballot_number ? `Nº ${c.ballot_number}` : null;
   let line2: string;
   let line3: string | null = null;
-
-  const num = c.ballot_number ? `Nº ${c.ballot_number}` : null;
 
   if (isNational) {
     line2 = [formatRole(c.role), c.year, num].filter(Boolean).join(' · ');
@@ -145,7 +153,7 @@ function CandidateAvatar({ candidate, size = 48 }: { candidate: Candidate; size?
     );
   }
   const initial = (displayName(candidate)?.[0] ?? '?').toUpperCase();
-  const colors = getPartyColors(candidate.party);
+  const colors = candidate.party ? getPartyColors(candidate.party) : { gradient: null, hex: '#6b7280' };
   const bgStyle = colors.gradient
     ? { background: colors.gradient }
     : { backgroundColor: colors.hex };
@@ -273,7 +281,7 @@ export function CandidateSearch({ onSelect, onClear, variant }: CandidateSearchP
     setOpen(false);
     setQuery('');
     setResults([]);
-    if (variant === 'sidebar') {
+    if (variant === 'sidebar' || variant === 'modal') {
       setSelected(candidate);
       setIsEditing(false);
     }
@@ -283,17 +291,17 @@ export function CandidateSearch({ onSelect, onClear, variant }: CandidateSearchP
   const showDropdown = open && query.length >= 2;
 
   return (
-    <div ref={containerRef} className={variant === 'sidebar' ? 'relative w-full' : 'absolute top-4 left-4 z-[1000] w-64'}>
-      {variant === 'sidebar' && selected && !isEditing ? (
+    <div ref={containerRef} className={(variant === 'sidebar' || variant === 'modal') ? 'relative w-full' : 'absolute top-4 left-4 z-[1000] w-64'}>
+      {(variant === 'sidebar' || variant === 'modal') && selected && !isEditing ? (
         <div className="relative w-full" style={{ overflow: 'visible' }}>
-          <PartyBadgeAbsolute party={selected.party} />
+          {selected.party && <PartyBadgeAbsolute party={selected.party} />}
           <div
             className="border border-gray-200 rounded-lg px-3 py-2 bg-white cursor-pointer w-full overflow-hidden"
             onClick={() => { setQuery(displayName(selected)); setOpen(false); setIsEditing(true); }}
           >
             <div className="flex gap-3 items-center w-full overflow-hidden">
               <CandidateAvatar candidate={selected} size={48} />
-              <CandidateInfo c={selected} hideBadge />
+              <CandidateInfo c={selected} hideBadge hideDetails={variant === 'modal'} />
             </div>
           </div>
           <button
@@ -315,11 +323,11 @@ export function CandidateSearch({ onSelect, onClear, variant }: CandidateSearchP
               placeholder="Buscar candidato..."
               className="w-full font-semibold text-sm outline-none placeholder:text-gray-400 placeholder:font-semibold bg-transparent uppercase"
             />
-            <div className="text-sm text-gray-500">Digite nome ou partido</div>
+            <div className="text-sm text-gray-500">Digite o nome</div>
           </div>
 
           {showDropdown && (
-            <div className="mt-1 bg-white border border-gray-200 rounded-xl shadow-md overflow-hidden">
+            <div className={`bg-white border border-gray-200 rounded-xl shadow-md overflow-hidden ${variant === 'modal' ? 'absolute top-full left-0 right-0 z-50 mt-1' : 'mt-1'}`}>
               {loading ? (
                 <div className="px-3 py-2 text-xs text-gray-400">Buscando...</div>
               ) : results.length === 0 ? (
@@ -328,11 +336,11 @@ export function CandidateSearch({ onSelect, onClear, variant }: CandidateSearchP
                 results.map((candidate) => (
                   <button
                     key={candidate.id}
-                    onClick={() => handleSelect(candidate)}
+                    onMouseDown={(e) => { e.preventDefault(); handleSelect(candidate); }}
                     className="w-full flex gap-3 items-start px-3 py-2 text-left hover:bg-gray-50 transition-colors"
                   >
                     <CandidateAvatar candidate={candidate} size={40} />
-                    <CandidateInfo c={candidate} />
+                    <CandidateInfo c={candidate} hideDetails={variant === 'modal'} />
                   </button>
                 ))
               )}

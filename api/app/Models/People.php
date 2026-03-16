@@ -10,10 +10,10 @@ class People extends Model
     protected $table = 'gabinete_master.people';
 
     protected $fillable = [
+        'tenant_id',
+        'type_people_id',
         'name',
-        'avatar_url',
         'active',
-        'role',
     ];
 
     public function peopleCandidacies(): HasMany

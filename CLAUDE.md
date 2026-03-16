@@ -182,13 +182,15 @@ C:\Herd\mapa-do-voto\
 |---------|-----------|
 | `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). |
 | `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch + heatmap + botões flutuantes |
-| `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — input uppercase, vice-prefeito/vice-governador excluídos |
+| `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — variants: `map`, `sidebar`, `modal`; no modal busca apenas id/name/photo_url sem party/role; dropdown com `onMouseDown`+`preventDefault` para funcionar dentro de Radix Dialog |
 | `src/components/mapa-do-voto/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
 | `src/components/map/active-candidate-context.tsx` | Contexto global: activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, mapClickedCity (inclui city_id), focusCityOnMap, clearCityHighlight |
 | `src/components/auth/login-modal.tsx` | Modal de login automático; usa logo SVG `/media/logo/logo.svg`; exibe link "Crie sua conta!" quando gabinete não encontrado |
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
 | `src/components/layout/active-tab-context.tsx` | Contexto `ActiveTabProvider`/`useActiveTab` — persiste aba ativa no `localStorage` (chave `mapadovoto:activeTab`); default: `overview` |
-| `src/components/gabinetes/gabinetes-data-grid.tsx` | Data grid de tenants: colunas ID, Nome, Subdomínio (link externo), Validade (badge com alerta vencimento), Status, Ações (editar/excluir); suporte a seleção múltipla e drag-and-drop |
+| `src/components/gabinetes/gabinetes-data-grid.tsx` | Data grid de tenants: colunas ID, Nome (clicável → `onEdit`), Subdomínio (link externo), Validade (badge com alerta vencimento), Status, Ações (editar/excluir); prop `onEdit` |
+| `src/components/gabinetes/gabinete-create-modal.tsx` | Modal de criação de gabinete com 2 steps: Step 1 "Em breve", Step 2 Candidato (`CandidateSearch variant=modal`) + Subdomínio; auto-preenche slug pelo ballot_name |
+| `src/components/gabinetes/gabinete-edit-modal.tsx` | Modal de edição de tenant |
 | `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
 | `src/lib/helpers.ts` | Utilitários: `formatDate`, `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
 | `src/lib/party-colors.ts` | Cores + hex dos 30 partidos |
@@ -240,11 +242,16 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | Método | Endpoint | Auth | Middleware | Descrição |
 |--------|----------|------|------------|-----------|
 | GET | `/api/tenants` | pública | — | Lista todos os tenants ativos (id, name, slug, active, valid_until) |
+| POST | `/api/tenants` | Bearer | — | Cria novo tenant: valida slug único, cria schema PostgreSQL |
+| PUT | `/api/tenants/{id}` | Bearer | — | Atualiza tenant (name, slug, active, valid_until) |
+| GET | `/api/tenants/{id}/person` | Bearer | — | Retorna person do tenant + lista de type_people |
+| POST | `/api/tenants/{id}/person` | Bearer | — | Cria person vinculada ao tenant |
 | GET | `/api/auth/tenant` | pública | `tenant` | Valida se o subdomínio corresponde a um tenant ativo; retorna 200 ou 404 |
 | POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
 | POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
 | GET | `/api/auth/me` | Bearer | — | Retorna usuário autenticado + people |
-| GET | `/api/candidates/search?q=` | Bearer | — | Busca candidatos com unaccent; admin vê todos, user vê apenas seus vinculados |
+| GET | `/api/candidates/search?q=` | **pública** | — | Busca em `maps.candidates` por nome (retorna id, name, photo_url) — sem candidaturas, sem auth |
+| GET | `/api/candidates` | Bearer | — | Lista candidaturas; master vê todas, user vê apenas as vinculadas via people_candidacies |
 | GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | — | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE |
 | GET | `/api/candidacies/{id}/cities` | Bearer | — | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) |
 | GET | `/api/cities/search?q=&state_id=` | Bearer | — | Busca cidades com unaccent, filtro state_id, limit 10 |
@@ -258,7 +265,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 |--------|-----------|
 | `gabinete_master.tenants` | Gabinetes (id, name, slug unique, schema unique, active, valid_until) — slug identifica o tenant pelo subdomínio |
 | `gabinete_master.type_people` | Tipos de pessoa (id, name) — seeds: Admin, Político, Equipe, Eleitor |
-| `gabinete_master.people` | Usuários da plataforma (id, type_people_id nullable FK, name, active) |
+| `gabinete_master.people` | Usuários da plataforma (id, tenant_id nullable FK, type_people_id nullable FK, name, active) |
 | `gabinete_master.users` | Acesso (id, people_id, email, password, active) |
 | `gabinete_master.people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
 | `gabinete_master.split_candidacies` | Candidato do split direito (id, people_candidacy_id, candidacy_id, order, active) |
@@ -292,7 +299,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 Todos os models têm `$table` explícito com schema qualificado.
 
 - `Tenant` (`gabinete_master.tenants`) — com SoftDeletes; campos `name`, `slug`, `schema`, `active`, `valid_until`; cast `valid_until` → `date`
-- `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; campo `role` (admin/user); relacionamento `peopleCandidacies()`
+- `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; `$fillable`: `tenant_id`, `type_people_id`, `name`, `active`; relacionamento `peopleCandidacies()`
 - `User` (`gabinete_master.users`) → `belongsTo(People)`, `HasApiTokens`
 - `PersonalAccessToken` (`gabinete_master.personal_access_tokens`) — model customizado registrado via `Sanctum::usePersonalAccessTokenModel()` no `AppServiceProvider`
 - `Party` (`maps.parties`) — sem SoftDeletes, sem uuid; campos `color_bg`, `color_text`, `color_gradient`
@@ -334,8 +341,8 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/bootstrap/app.php` | Registro do alias `tenant` → `TenantMiddleware` |
 | `api/app/Http/Middleware/TenantMiddleware.php` | Middleware de identificação de tenant por subdomínio |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
-| `api/app/Http/Controllers/TenantController.php` | `index` — lista tenants ativos (GET /api/tenants) |
-| `api/app/Http/Controllers/CandidateController.php` | search + stats + cities (com schema explícito `maps.*`) |
+| `api/app/Http/Controllers/TenantController.php` | `index`, `store`, `update`, `person`, `storePerson` |
+| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search` (busca pública em maps.candidates), `stats`, `cities` |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, PersonalAccessToken, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |

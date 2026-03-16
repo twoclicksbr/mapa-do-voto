@@ -60,6 +60,7 @@ Pessoas cadastradas na plataforma. Representa qualquer usuário humano: admins, 
 | Coluna | Tipo | Nullable | Descrição |
 |---|---|---|---|
 | `id` | bigint | NOT NULL | PK autoincrement |
+| `tenant_id` | bigint | NULL | FK → `tenants.id` — gabinete ao qual a pessoa pertence |
 | `type_people_id` | bigint | NULL | FK → `type_people.id` — tipo do perfil |
 | `name` | varchar | NOT NULL | Nome completo |
 | `active` | boolean | NOT NULL | Se está ativo (default: `true`) |
@@ -74,7 +75,7 @@ Pessoas cadastradas na plataforma. Representa qualquer usuário humano: admins, 
 - `hasMany` → `permissions`
 - `hasMany` → `attendances`
 
-**Seed:** Alex Alves de Almeida (Admin)
+**Seed:** Alex Alves de Almeida (Admin, tenant_id: 1)
 
 ---
 
@@ -555,6 +556,7 @@ gabinete_master
 ├── tenants
 ├── type_people ──────────────────────┐
 ├── people ←─── type_people_id ───────┘
+│   ←─── tenant_id (tenants)
 │   ├── users ←─── people_id
 │   ├── permissions ←─── people_id ──── permission_actions
 │   ├── attendances ←─── people_id
