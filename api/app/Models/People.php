@@ -14,7 +14,12 @@ class People extends Model
         'tenant_id',
         'type_people_id',
         'name',
+        'birth_date',
         'active',
+    ];
+
+    protected $casts = [
+        'birth_date' => 'date:Y-m-d',
     ];
 
     public function typePeople(): BelongsTo

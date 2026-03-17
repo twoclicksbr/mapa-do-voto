@@ -348,7 +348,7 @@ function DataGridTableEmpty() {
   return (
     <tr>
       <td colSpan={totalColumns} className="text-center text-muted-foreground py-6">
-        {props.emptyMessage || 'No data available'}
+        {props.emptyMessage || 'Nenhum registro encontrado'}
       </td>
     </tr>
   );

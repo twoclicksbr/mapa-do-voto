@@ -96,10 +96,12 @@ export function timeAgo(date: Date | string): string {
 }
 
 export function formatDate(input: Date | string | number): string {
-  const date = new Date(input);
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
+  const date = typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)
+    ? new Date(input + 'T00:00:00')
+    : new Date(input);
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
     year: 'numeric',
   });
 }

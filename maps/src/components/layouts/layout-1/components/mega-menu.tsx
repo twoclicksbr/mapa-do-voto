@@ -1,146 +1,155 @@
-import { Link, useLocation } from 'react-router-dom';
-import { MENU_MEGA } from '@/config/layout-1.config';
+import { useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { Building2, ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { MENU_MEGA } from '@/config/app-mega-menu.config';
 import { cn } from '@/lib/utils';
-import { useMenu } from '@/hooks/use-menu';
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from '@/components/ui/navigation-menu';
-import { MegaMenuSubAccount } from '@/components/layouts/layout-1/shared/mega-menu/mega-menu-sub-account';
-import { MegaMenuSubAuth } from '@/components/layouts/layout-1/shared/mega-menu/mega-menu-sub-auth';
-import { MegaMenuSubNetwork } from '@/components/layouts/layout-1/shared/mega-menu/mega-menu-sub-network';
-import { MegaMenuSubProfiles } from '@/components/layouts/layout-1/shared/mega-menu/mega-menu-sub-profiles';
-import { MegaMenuSubStore } from '@/components/layouts/layout-1/shared/mega-menu/mega-menu-sub-store';
+import { useActiveTab } from '@/components/layout/active-tab-context';
+import { MenuItem } from '@/config/types';
 
-export function MegaMenu() {
-  const { pathname } = useLocation();
-  const { isActive, hasActiveChild } = useMenu(pathname);
-  const homeItem = MENU_MEGA[0];
-  const publicProfilesItem = MENU_MEGA[1];
-  const myAccountItem = MENU_MEGA[2];
-  const networkItem = MENU_MEGA[3];
-  const authItem = MENU_MEGA[4];
-  const storeItem = MENU_MEGA[5];
+interface MegaMenuProps {
+  onNavigate?: (section: string) => void;
+}
 
-  const linkClass = `
-    text-sm text-secondary-foreground font-medium 
-    hover:text-primary hover:bg-transparent 
-    focus:text-primary focus:bg-transparent 
-    data-[active=true]:text-primary data-[active=true]:bg-transparent 
-    data-[state=open]:text-primary data-[state=open]:bg-transparent
-  `;
+function PanelItem({ item, onNavigate }: { item: MenuItem; onNavigate?: (section: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasChildren = item.children && item.children.length > 0;
+
+  const handleMouseEnter = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    closeTimer.current = setTimeout(() => setOpen(false), 100);
+  };
+
+  if (hasChildren) {
+    return (
+      <div
+        className="relative"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <button className={cn(
+          'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer',
+          open
+            ? 'bg-accent text-primary'
+            : 'text-secondary-foreground hover:bg-accent hover:text-primary'
+        )}>
+          <span>{item.title}</span>
+          <ChevronRight className="size-3.5 text-muted-foreground" />
+        </button>
+        {open && (
+          <div className="absolute left-full top-0 ml-1 bg-popover border border-border rounded-xl shadow-lg p-2 min-w-[180px] z-50 flex flex-col gap-0.5">
+            {item.children!.map((sub) => (
+              <PanelItem key={sub.title} item={sub} onNavigate={onNavigate} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return item.section ? (
+    <button
+      onClick={() => onNavigate?.(item.section!)}
+      className="w-full text-left flex items-center justify-between px-3 py-2 rounded-md text-sm text-secondary-foreground font-medium hover:bg-accent hover:text-primary transition-colors"
+    >
+      {item.title}
+    </button>
+  ) : (
+    <Link
+      to={item.path ?? '#'}
+      className="flex items-center justify-between px-3 py-2 rounded-md text-sm text-secondary-foreground font-medium hover:bg-accent hover:text-primary transition-colors"
+    >
+      {item.title}
+    </Link>
+  );
+}
+
+export function MegaMenu({ onNavigate }: MegaMenuProps) {
+  const { setActiveTab } = useActiveTab();
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const linkClass = 'text-sm text-secondary-foreground font-medium hover:text-primary transition-colors';
+
+  const handleMouseEnter = (index: number) => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setOpenIndex(index);
+  };
+
+  const handleMouseLeave = () => {
+    closeTimer.current = setTimeout(() => setOpenIndex(null), 150);
+  };
 
   return (
-    <NavigationMenu>
-      <NavigationMenuList className="gap-0">
-        {/* Home Item */}
-        <NavigationMenuItem>
-          <NavigationMenuTrigger
-            className={cn(linkClass)}
-            data-active={isActive(homeItem.path) || undefined}
-          >
-            {homeItem.title}
-          </NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="flex flex-col w-40 p-1">
-              <li>
-                <NavigationMenuLink asChild>
-                  <Link to="#" className="block px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
-                    Item 1
-                  </Link>
-                </NavigationMenuLink>
-              </li>
-              <li>
-                <NavigationMenuLink asChild>
-                  <Link to="#" className="block px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
-                    Item 2
-                  </Link>
-                </NavigationMenuLink>
-              </li>
-              <li>
-                <NavigationMenuLink asChild>
-                  <Link to="#" className="block px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
-                    Item 3
-                  </Link>
-                </NavigationMenuLink>
-              </li>
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
+    <nav className="flex items-center gap-1">
+      {MENU_MEGA.map((item, index) => {
+        const hasChildren = item.children && item.children.length > 0;
+        const isGabinetes = item.title === 'Gabinetes';
+        const isPessoas = item.title === 'Pessoas';
 
-        {/* Public Profiles Item */}
-        <NavigationMenuItem>
-          <NavigationMenuTrigger
-            className={cn(linkClass)}
-            data-active={
-              hasActiveChild(publicProfilesItem.children) || undefined
-            }
-          >
-            {publicProfilesItem.title}
-          </NavigationMenuTrigger>
-          <NavigationMenuContent className="p-0">
-            <MegaMenuSubProfiles items={MENU_MEGA} />
-          </NavigationMenuContent>
-        </NavigationMenuItem>
+        if (isGabinetes) {
+          return (
+            <button
+              key={item.title}
+              className={cn(linkClass, 'flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent cursor-pointer')}
+              onClick={() => onNavigate ? onNavigate('gabinetes') : setActiveTab('gabinetes')}
+            >
+              <Building2 className="size-4" />
+              {item.title}
+            </button>
+          );
+        }
 
-        {/* My Account Item */}
-        <NavigationMenuItem>
-          <NavigationMenuTrigger
-            className={cn(linkClass)}
-            data-active={hasActiveChild(myAccountItem.children) || undefined}
-          >
-            {myAccountItem.title}
-          </NavigationMenuTrigger>
-          <NavigationMenuContent className="p-0">
-            <MegaMenuSubAccount items={MENU_MEGA} />
-          </NavigationMenuContent>
-        </NavigationMenuItem>
+        if (isPessoas) {
+          return (
+            <button
+              key={item.title}
+              className={cn(linkClass, 'flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent cursor-pointer')}
+              onClick={() => onNavigate ? onNavigate('pessoas') : setActiveTab('pessoas')}
+            >
+              <Users className="size-4" />
+              {item.title}
+            </button>
+          );
+        }
 
-        {/* Network Item */}
-        <NavigationMenuItem>
-          <NavigationMenuTrigger
-            className={cn(linkClass)}
-            data-active={
-              hasActiveChild(networkItem.children || []) || undefined
-            }
-          >
-            {networkItem.title}
-          </NavigationMenuTrigger>
-          <NavigationMenuContent className="p-0">
-            <MegaMenuSubNetwork items={MENU_MEGA} />
-          </NavigationMenuContent>
-        </NavigationMenuItem>
+        if (hasChildren) {
+          return (
+            <div
+              key={item.title}
+              className="relative"
+              onMouseEnter={() => handleMouseEnter(index)}
+              onMouseLeave={handleMouseLeave}
+            >
+              <button className={cn(linkClass, 'flex items-center gap-1 px-3 py-1.5 rounded-md hover:bg-accent cursor-pointer')}>
+                {item.title}
+                <ChevronDown className={cn('size-3.5 transition-transform', openIndex === index && 'rotate-180')} />
+              </button>
+              {openIndex === index && (
+                <div className="absolute top-full left-0 mt-1 bg-popover border border-border rounded-xl shadow-lg p-2 min-w-[200px] z-50 flex flex-col gap-0.5">
+                  {item.children!.map((child) => (
+                    <PanelItem key={child.title} item={child} onNavigate={onNavigate} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
 
-        {/* Store Item */}
-        <NavigationMenuItem>
-          <NavigationMenuTrigger
-            className={cn(linkClass)}
-            data-active={hasActiveChild(storeItem.children || []) || undefined}
+        return (
+          <Link
+            key={item.title}
+            to={item.path ?? '#'}
+            className={cn(linkClass, 'px-3 py-1.5 rounded-md hover:bg-accent')}
           >
-            {storeItem.title}
-          </NavigationMenuTrigger>
-          <NavigationMenuContent className="p-0">
-            <MegaMenuSubStore items={MENU_MEGA} />
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-
-        {/* Authentication Item */}
-        <NavigationMenuItem>
-          <NavigationMenuTrigger
-            className={cn(linkClass)}
-            data-active={hasActiveChild(authItem.children) || undefined}
-          >
-            {authItem.title}
-          </NavigationMenuTrigger>
-          <NavigationMenuContent className="p-0">
-            <MegaMenuSubAuth items={MENU_MEGA} />
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-      </NavigationMenuList>
-    </NavigationMenu>
+            {item.title}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

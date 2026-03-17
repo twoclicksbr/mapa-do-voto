@@ -10,6 +10,10 @@
 - NÃO fazer git add/commit/push sem ser solicitado
 - Implementar SOMENTE o que for pedido na tarefa
 - Ao final de cada tarefa, gerar um resumo compacto em um único bloco de código para copiar com um clique
+- **PROIBIDO** executar qualquer comando que destrua o banco inteiro: `migrate:refresh`, `migrate:reset`, `migrate:fresh`, `db:wipe`. A senha é `Alex1985@`. Solicitar a senha em **qualquer** uma das situações abaixo:
+  - O usuário pedir para **executar** um desses comandos
+  - O usuário pedir para **gerar** um desses comandos (ex: "me manda o comando")
+  - O Claude achar que deve rodar um desses comandos por conta própria
 
 ## Regras do Chat (claude.ai)
 
@@ -180,7 +184,7 @@ C:\Herd\mapa-do-voto\
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). |
+| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças, Configurações. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Aba Configurações exibe `AppMegaMenu` com seções: Pessoas (DataGrid + Modal), Tipos de Pessoa, Tipos de Contato, Tipos de Endereço, Tipos de Documento. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). |
 | `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch + heatmap + botões flutuantes |
 | `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — variants: `map`, `sidebar`, `modal`; no modal busca apenas id/name/photo_url sem party/role; dropdown com `onMouseDown`+`preventDefault` para funcionar dentro de Radix Dialog |
 | `src/components/mapa-do-voto/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
@@ -192,8 +196,14 @@ C:\Herd\mapa-do-voto\
 | `src/components/gabinetes/gabinete-create-modal.tsx` | Modal de criação de gabinete com 2 steps: Step 1 "Em breve", Step 2 Candidato (`CandidateSearch variant=modal`) + Subdomínio; auto-preenche slug pelo ballot_name |
 | `src/components/gabinetes/gabinete-edit-modal.tsx` | Modal de edição de tenant |
 | `src/components/common/app-mega-menu.tsx` | Wrapper reutilizável do MegaMenu do Layout 1 — usado nas abas Gabinetes e Configurações |
+| `src/components/people/people-data-grid.tsx` | DataGrid de pessoas: colunas ID, Nome (clicável), Aniversário (com ícone `PartyPopper` pulsante no dia), Tipo, Status, Ações |
+| `src/components/people/people-modal.tsx` | Modal de pessoas: Create (small) + Detail (large 2 painéis). Aba Endereços: layout 2 colunas — esquerda campos com ViaCEP + geocoding Nominatim, direita mapa Leaflet com pin SVG e `flyTo` automático |
+| `src/components/type-people/` | CRUD de tipos de pessoa (DataGrid + Modal) |
+| `src/components/type-contacts/` | CRUD de tipos de contato (DataGrid + Modal) |
+| `src/components/type-addresses/` | CRUD de tipos de endereço (DataGrid + Modal) |
+| `src/components/type-documents/` | CRUD de tipos de documento (DataGrid + Modal) |
 | `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
-| `src/lib/helpers.ts` | Utilitários: `formatDate`, `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
+| `src/lib/helpers.ts` | Utilitários: `formatDate` (fix timezone — strings `YYYY-MM-DD` parseadas com `T00:00:00` para evitar desvio UTC), `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
 | `src/lib/party-colors.ts` | Cores + hex dos 30 partidos |
 | `src/lib/leaflet-icon-fix.ts` | Fix ícone Leaflet no Vite |
 | `src/routing/app-routing-setup.tsx` | Rotas |
@@ -253,6 +263,38 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | POST | `/api/type-people` | Bearer | — | Cria tipo de pessoa |
 | PUT | `/api/type-people/{id}` | Bearer | — | Atualiza tipo de pessoa; reordena automaticamente se order duplicado |
 | DELETE | `/api/type-people/{id}` | Bearer | — | Soft delete do tipo de pessoa |
+| GET | `/api/type-contacts` | Bearer | — | Lista tipos de contato |
+| POST | `/api/type-contacts` | Bearer | — | Cria tipo de contato |
+| PUT | `/api/type-contacts/{id}` | Bearer | — | Atualiza tipo de contato |
+| DELETE | `/api/type-contacts/{id}` | Bearer | — | Soft delete do tipo de contato |
+| GET | `/api/type-addresses` | Bearer | — | Lista tipos de endereço |
+| POST | `/api/type-addresses` | Bearer | — | Cria tipo de endereço |
+| PUT | `/api/type-addresses/{id}` | Bearer | — | Atualiza tipo de endereço |
+| DELETE | `/api/type-addresses/{id}` | Bearer | — | Soft delete do tipo de endereço |
+| GET | `/api/type-documents` | Bearer | — | Lista tipos de documento |
+| POST | `/api/type-documents` | Bearer | — | Cria tipo de documento |
+| PUT | `/api/type-documents/{id}` | Bearer | — | Atualiza tipo de documento |
+| DELETE | `/api/type-documents/{id}` | Bearer | — | Soft delete do tipo de documento |
+| GET | `/api/people` | Bearer | — | Lista pessoas do tenant ordenadas por nome |
+| POST | `/api/people` | Bearer | — | Cria pessoa |
+| PUT | `/api/people/{id}` | Bearer | — | Atualiza pessoa (name, birth_date, type_people_id, active) |
+| DELETE | `/api/people/{id}` | Bearer | — | Exclui pessoa |
+| GET | `/api/people/{id}/contacts` | Bearer | — | Lista contatos da pessoa |
+| POST | `/api/people/{id}/contacts` | Bearer | — | Adiciona contato |
+| PUT | `/api/people/{id}/contacts/{cid}` | Bearer | — | Atualiza contato |
+| DELETE | `/api/people/{id}/contacts/{cid}` | Bearer | — | Remove contato |
+| GET | `/api/people/{id}/addresses` | Bearer | — | Lista endereços da pessoa |
+| POST | `/api/people/{id}/addresses` | Bearer | — | Adiciona endereço (campos ViaCEP + lat/lng) |
+| PUT | `/api/people/{id}/addresses/{aid}` | Bearer | — | Atualiza endereço (inclui geocoding lat/lng) |
+| DELETE | `/api/people/{id}/addresses/{aid}` | Bearer | — | Remove endereço |
+| GET | `/api/people/{id}/documents` | Bearer | — | Lista documentos da pessoa |
+| POST | `/api/people/{id}/documents` | Bearer | — | Adiciona documento |
+| PUT | `/api/people/{id}/documents/{did}` | Bearer | — | Atualiza documento |
+| DELETE | `/api/people/{id}/documents/{did}` | Bearer | — | Remove documento |
+| GET | `/api/people/{id}/notes` | Bearer | — | Lista notas da pessoa |
+| POST | `/api/people/{id}/notes` | Bearer | — | Adiciona nota |
+| PUT | `/api/people/{id}/notes/{nid}` | Bearer | — | Atualiza nota |
+| DELETE | `/api/people/{id}/notes/{nid}` | Bearer | — | Remove nota |
 | GET | `/api/auth/tenant` | pública | `tenant` | Valida se o subdomínio corresponde a um tenant ativo; retorna 200 ou 404 |
 | POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
 | POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
@@ -272,7 +314,15 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 |--------|-----------|
 | `gabinete_master.tenants` | Gabinetes (id, name, slug unique, schema unique, active, valid_until) — slug identifica o tenant pelo subdomínio |
 | `gabinete_master.type_people` | Tipos de pessoa (id, name, order, active, deleted_at) — seeds: Admin(1), Político(2), Equipe(3), Eleitor(4) |
-| `gabinete_master.people` | Usuários da plataforma (id, tenant_id nullable FK, type_people_id nullable FK, name, active) |
+| `gabinete_master.people` | Usuários da plataforma (id, tenant_id nullable FK, type_people_id nullable FK, name, birth_date nullable, active) |
+| `gabinete_master.type_contacts` | Tipos de contato (id, name, mask nullable, order, active, deleted_at) |
+| `gabinete_master.type_addresses` | Tipos de endereço (id, name, order, active, deleted_at) |
+| `gabinete_master.type_documents` | Tipos de documento (id, name, mask nullable, order, active, deleted_at) |
+| `gabinete_master.contacts` | Contatos polimórficos (modulo, record_id, type_contact_id, value, order, active) |
+| `gabinete_master.addresses` | Endereços polimórficos (modulo, record_id, type_address_id, cep, logradouro, numero, complemento, bairro, cidade, uf, ibge, lat, lng, order, active) |
+| `gabinete_master.documents` | Documentos polimórficos (modulo, record_id, type_document_id, value, validity nullable, order, active) |
+| `gabinete_master.notes` | Notas polimórficas (modulo, record_id, value, order, active) |
+| `gabinete_master.files` | Arquivos polimórficos (modulo, record_id, ...) |
 | `gabinete_master.users` | Acesso (id, people_id, email, password, active) |
 | `gabinete_master.people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
 | `gabinete_master.split_candidacies` | Candidato do split direito (id, people_candidacy_id, candidacy_id, order, active) |
@@ -307,7 +357,14 @@ Todos os models têm `$table` explícito com schema qualificado.
 
 - `Tenant` (`gabinete_master.tenants`) — com SoftDeletes; campos `name`, `slug`, `schema`, `active`, `valid_until`; cast `valid_until` → `date`
 - `TypePeople` (`gabinete_master.type_people`) — com SoftDeletes; `$fillable`: `name`, `order`, `active`; evento `creating`: auto `max+1` se order vazio, reordena se duplicado; evento `updating`: reordena se order alterado; relacionamento `people()`
-- `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; `$fillable`: `tenant_id`, `type_people_id`, `name`, `active`; relacionamentos `typePeople()` e `peopleCandidacies()`
+- `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; `$fillable`: `tenant_id`, `type_people_id`, `name`, `birth_date`, `active`; cast `birth_date` → `date:Y-m-d`; relacionamentos `typePeople()` e `peopleCandidacies()`
+- `TypeContact` (`gabinete_master.type_contacts`) — com SoftDeletes; campos `name`, `mask`, `order`, `active`
+- `TypeAddress` (`gabinete_master.type_addresses`) — com SoftDeletes; campos `name`, `order`, `active`
+- `TypeDocument` (`gabinete_master.type_documents`) — com SoftDeletes; campos `name`, `mask`, `order`, `active`
+- `Contact` (`gabinete_master.contacts`) — polimórfico por `modulo`+`record_id`; `$fillable`: `modulo`, `record_id`, `type_contact_id`, `value`, `order`, `active`
+- `Address` (`gabinete_master.addresses`) — polimórfico; `$fillable`: `modulo`, `record_id`, `type_address_id`, `cep`, `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf`, `ibge`, `lat`, `lng`, `order`, `active`
+- `Document` (`gabinete_master.documents`) — polimórfico; `$fillable`: `modulo`, `record_id`, `type_document_id`, `value`, `validity`, `order`, `active`
+- `Note` (`gabinete_master.notes`) — polimórfico; `$fillable`: `modulo`, `record_id`, `value`, `order`, `active`
 - `User` (`gabinete_master.users`) → `belongsTo(People)`, `HasApiTokens`
 - `PersonalAccessToken` (`gabinete_master.personal_access_tokens`) — model customizado registrado via `Sanctum::usePersonalAccessTokenModel()` no `AppServiceProvider`
 - `Party` (`maps.parties`) — sem SoftDeletes, sem uuid; campos `color_bg`, `color_text`, `color_gradient`
@@ -339,6 +396,8 @@ Todos os models têm `$table` explícito com schema qualificado.
 | Range | Schema | Conteúdo |
 |-------|--------|----------|
 | `000001`–`000052` | `gabinete_master` | schema, tenants, PAT, cache, jobs, type_people, people, users, permission_actions, permissions, people_candidacies, split_candidacies, attendances, attendance_history |
+| `000053`–`000060` | `gabinete_master` | type_contacts, type_addresses, type_documents, contacts, addresses (campos ViaCEP + lat/lng), documents, notes, files |
+| `000061` | `gabinete_master` | add birth_date na tabela people |
 | `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes, tse_votacao_secao (2008–2024) |
 
 ### Arquivos chave
@@ -351,7 +410,16 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
 | `api/app/Http/Controllers/TenantController.php` | `index`, `store`, `update`, `person`, `storePerson` |
 | `api/app/Http/Controllers/TypePeopleController.php` | `index`, `store`, `update`, `destroy` |
-| `api/app/Http/Requests/TypePeopleRequest.php` | Validação: name unique, order min:1, active |
+| `api/app/Http/Requests/TypePeopleRequest.php` | Validação: name unique (sem schema qualificado), order min:1, active |
+| `api/app/Http/Controllers/PeopleController.php` | `index`, `store`, `update`, `destroy` — retorna birth_date, type_people |
+| `api/app/Http/Requests/PeopleRequest.php` | Validação: name required, birth_date nullable date, type_people_id nullable exists, active boolean |
+| `api/app/Http/Controllers/PersonContactController.php` | CRUD de contatos polimórficos de uma pessoa |
+| `api/app/Http/Controllers/PersonAddressController.php` | CRUD de endereços polimórficos — campos ViaCEP + lat/lng |
+| `api/app/Http/Controllers/PersonDocumentController.php` | CRUD de documentos polimórficos |
+| `api/app/Http/Controllers/PersonNoteController.php` | CRUD de notas polimórficas |
+| `api/app/Http/Controllers/TypeContactController.php` | `index`, `store`, `update`, `destroy` |
+| `api/app/Http/Controllers/TypeAddressController.php` | `index`, `store`, `update`, `destroy` |
+| `api/app/Http/Controllers/TypeDocumentController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search` (busca pública em maps.candidates), `stats`, `cities` |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |

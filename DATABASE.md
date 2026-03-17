@@ -5,6 +5,29 @@
 
 ---
 
+## ⚠️ Comandos Proibidos
+
+Os comandos abaixo afetam o banco **inteiro** e são **PROIBIDOS** — nunca executar sem autorização explícita:
+
+| Comando | Efeito |
+|---|---|
+| `php artisan migrate:refresh` | `down()` em todas as migrations + `up()` em todas (recria tudo) |
+| `php artisan migrate:reset` | `down()` em todas as migrations (apaga tudo, sem recriar) |
+| `php artisan migrate:fresh` | DROP em todas as tabelas + `up()` em todas |
+| `php artisan db:wipe` | DROP em todas as tabelas, views e types |
+
+A senha é `Alex1985@`. Solicitar a senha em **qualquer** uma das situações abaixo:
+- O usuário pedir para **executar** um desses comandos
+- O usuário pedir para **gerar** um desses comandos (ex: "me manda o comando")
+- O Claude achar que deve rodar um desses comandos por conta própria
+
+Para rodar uma migration isolada, usar sempre:
+```bash
+php artisan migrate --path=database/migrations/{arquivo}.php
+```
+
+---
+
 ## Visão Geral
 
 O banco é dividido em dois schemas:
@@ -66,6 +89,7 @@ Pessoas cadastradas na plataforma. Representa qualquer usuário humano: admins, 
 | `tenant_id` | bigint | NULL | FK → `tenants.id` — gabinete ao qual a pessoa pertence |
 | `type_people_id` | bigint | NULL | FK → `type_people.id` — tipo do perfil |
 | `name` | varchar | NOT NULL | Nome completo |
+| `birth_date` | date | NULL | Data de nascimento |
 | `active` | boolean | NOT NULL | Se está ativo (default: `true`) |
 | `created_at` | timestamp | NULL | — |
 | `updated_at` | timestamp | NULL | — |
@@ -250,6 +274,129 @@ Histórico de mudanças de status de um atendimento.
 
 **Relacionamentos:**
 - `belongsTo` → `attendances`
+
+---
+
+### `gabinete_master.type_contacts`
+Tipos de contato configuráveis (Celular, E-mail, WhatsApp, etc).
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome do tipo |
+| `mask` | varchar | NULL | Máscara de formatação (ex: `(99) 99999-9999`) |
+| `order` | integer | NOT NULL | Ordem de exibição |
+| `active` | boolean | NOT NULL | default: `true` |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+---
+
+### `gabinete_master.type_addresses`
+Tipos de endereço configuráveis (Residencial, Comercial, etc).
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome do tipo |
+| `order` | integer | NOT NULL | Ordem de exibição |
+| `active` | boolean | NOT NULL | default: `true` |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+---
+
+### `gabinete_master.type_documents`
+Tipos de documento configuráveis (CPF, RG, CNH, etc).
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome do tipo |
+| `mask` | varchar | NULL | Máscara de formatação (ex: `999.999.999-99`) |
+| `order` | integer | NOT NULL | Ordem de exibição |
+| `active` | boolean | NOT NULL | default: `true` |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+---
+
+### `gabinete_master.contacts`
+Contatos polimórficos — associados a qualquer módulo via `modulo` + `record_id`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `modulo` | varchar | NOT NULL | Módulo dono (ex: `people`) |
+| `record_id` | bigint | NOT NULL | ID do registro no módulo |
+| `type_contact_id` | bigint | NOT NULL | FK → `type_contacts.id` |
+| `value` | varchar | NOT NULL | Valor do contato |
+| `order` | integer | NOT NULL | default: `0` |
+| `active` | boolean | NOT NULL | default: `true` |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Índice:** `(modulo, record_id)`
+
+---
+
+### `gabinete_master.addresses`
+Endereços polimórficos com campos ViaCEP + coordenadas geográficas.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `modulo` | varchar | NOT NULL | Módulo dono (ex: `people`) |
+| `record_id` | bigint | NOT NULL | ID do registro no módulo |
+| `type_address_id` | bigint | NOT NULL | FK → `type_addresses.id` |
+| `cep` | varchar(9) | NULL | CEP formatado (ex: `12302-300`) |
+| `logradouro` | varchar | NULL | Rua/Av/etc |
+| `numero` | varchar(20) | NULL | Número do imóvel |
+| `complemento` | varchar | NULL | Complemento (Apto, Sala, etc) |
+| `bairro` | varchar | NULL | Bairro |
+| `cidade` | varchar | NULL | Cidade |
+| `uf` | char(2) | NULL | Estado (sigla) |
+| `ibge` | varchar(7) | NULL | Código IBGE do município |
+| `lat` | decimal(10,7) | NULL | Latitude — preenchida via Nominatim/OpenStreetMap |
+| `lng` | decimal(10,7) | NULL | Longitude — preenchida via Nominatim/OpenStreetMap |
+| `order` | integer | NOT NULL | default: `0` |
+| `active` | boolean | NOT NULL | default: `true` |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Índice:** `(modulo, record_id)`
+**Geocoding:** coordenadas obtidas via `https://nominatim.openstreetmap.org/search` após preenchimento do CEP (ViaCEP)
+
+---
+
+### `gabinete_master.documents`
+Documentos polimórficos (CPF, RG, CNH, Título de Eleitor, etc).
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `modulo` | varchar | NOT NULL | Módulo dono (ex: `people`) |
+| `record_id` | bigint | NOT NULL | ID do registro no módulo |
+| `type_document_id` | bigint | NOT NULL | FK → `type_documents.id` |
+| `value` | varchar | NOT NULL | Número do documento |
+| `validity` | date | NULL | Data de validade |
+| `order` | integer | NOT NULL | default: `0` |
+| `active` | boolean | NOT NULL | default: `true` |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Índice:** `(modulo, record_id)`
+
+---
+
+### `gabinete_master.notes`
+Notas polimórficas de texto livre.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `modulo` | varchar | NOT NULL | Módulo dono (ex: `people`) |
+| `record_id` | bigint | NOT NULL | ID do registro no módulo |
+| `value` | text | NOT NULL | Conteúdo da nota |
+| `order` | integer | NOT NULL | default: `0` |
+| `active` | boolean | NOT NULL | default: `true` |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Índice:** `(modulo, record_id)`
 
 ---
 

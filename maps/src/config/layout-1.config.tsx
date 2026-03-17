@@ -248,7 +248,7 @@ export const MENU_SIDEBAR: MenuConfig = [
 ];
 
 export const MENU_MEGA: MenuConfig = [
-  { title: 'Home', path: '/layout-1' },
+  { title: 'Cadastros', path: '/layout-1' },
   {
     title: 'Profiles',
     children: [

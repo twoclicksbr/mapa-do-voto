@@ -48,7 +48,7 @@ import {
 import { type MenuConfig } from './types';
 
 export const MENU_MEGA_MOBILE: MenuConfig = [
-  { title: 'Home', path: '/layout-9' },
+  { title: 'Cadastros', path: '/layout-9' },
   {
     title: 'Profiles',
     children: [
@@ -487,7 +487,7 @@ export const MENU_MEGA_MOBILE: MenuConfig = [
 ];
 
 export const MENU_MEGA: MenuConfig = [
-  { title: 'Home', path: '/layout-9' },
+  { title: 'Cadastros', path: '/layout-9' },
   {
     title: 'Profiles',
     children: [
