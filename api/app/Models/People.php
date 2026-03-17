@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class People extends Model
@@ -15,6 +16,11 @@ class People extends Model
         'name',
         'active',
     ];
+
+    public function typePeople(): BelongsTo
+    {
+        return $this->belongsTo(TypePeople::class, 'type_people_id');
+    }
 
     public function peopleCandidacies(): HasMany
     {

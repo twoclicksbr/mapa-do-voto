@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\People;
 use App\Models\Tenant;
+use App\Models\TypePeople;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -68,7 +69,7 @@ class TenantController extends Controller
             ->whereNull('deleted_at')
             ->first(['id', 'type_people_id', 'name', 'active']);
 
-        $typePeople = DB::table('gabinete_master.type_people')->get(['id', 'name']);
+        $typePeople = TypePeople::where('active', true)->orderBy('order')->get(['id', 'name']);
 
         return response()->json([
             'person'      => $person,
@@ -86,7 +87,7 @@ class TenantController extends Controller
             'active'         => 'boolean',
         ]);
 
-        $typeExists = DB::table('gabinete_master.type_people')->where('id', $validated['type_people_id'])->exists();
+        $typeExists = TypePeople::where('id', $validated['type_people_id'])->where('active', true)->exists();
         if (!$typeExists) {
             return response()->json(['errors' => ['type_people_id' => ['Tipo inválido.']]], 422);
         }

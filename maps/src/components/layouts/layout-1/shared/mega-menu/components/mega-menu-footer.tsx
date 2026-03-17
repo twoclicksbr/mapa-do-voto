@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { NavigationMenuLink } from '@/components/ui/navigation-menu';
 
 const MegaMenuFooter = () => {
   return (
@@ -13,13 +12,11 @@ const MegaMenuFooter = () => {
           Take your docs to the next level of Metronic
         </div>
       </div>
-      <NavigationMenuLink>
-        <Button variant="mono" asChild>
-          <Link to="https://keenthemes.com/metronic" target="_blank">
-            Read Documentation
-          </Link>
-        </Button>
-      </NavigationMenuLink>
+      <Button variant="mono" asChild>
+        <Link to="https://keenthemes.com/metronic" target="_blank">
+          Read Documentation
+        </Link>
+      </Button>
     </div>
   );
 };

@@ -47,10 +47,13 @@ Tipos de pessoa da plataforma. Lookup table com os perfis disponíveis.
 |---|---|---|---|
 | `id` | bigint | NOT NULL | PK autoincrement |
 | `name` | varchar | NOT NULL | Nome do tipo (Admin, Político, Equipe, Eleitor) |
+| `order` | integer | NOT NULL | Ordem de exibição (default: 0) — auto max+1 no insert; reordena automaticamente se duplicado |
+| `active` | boolean | NOT NULL | Se está ativo (default: `true`) |
 | `created_at` | timestamp | NULL | — |
 | `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
 
-**Seeds:** Admin, Político, Equipe, Eleitor
+**Seeds:** Admin (order 1), Político (order 2), Equipe (order 3), Eleitor (order 4)
 
 ---
 

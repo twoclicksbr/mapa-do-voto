@@ -39,15 +39,37 @@ export function MegaMenu() {
       <NavigationMenuList className="gap-0">
         {/* Home Item */}
         <NavigationMenuItem>
-          <NavigationMenuLink asChild>
-            <Link
-              to={homeItem.path || '/'}
-              className={cn(linkClass)}
-              data-active={isActive(homeItem.path) || undefined}
-            >
-              {homeItem.title}
-            </Link>
-          </NavigationMenuLink>
+          <NavigationMenuTrigger
+            className={cn(linkClass)}
+            data-active={isActive(homeItem.path) || undefined}
+          >
+            {homeItem.title}
+          </NavigationMenuTrigger>
+          <NavigationMenuContent>
+            <ul className="flex flex-col w-40 p-1">
+              <li>
+                <NavigationMenuLink asChild>
+                  <Link to="#" className="block px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
+                    Item 1
+                  </Link>
+                </NavigationMenuLink>
+              </li>
+              <li>
+                <NavigationMenuLink asChild>
+                  <Link to="#" className="block px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
+                    Item 2
+                  </Link>
+                </NavigationMenuLink>
+              </li>
+              <li>
+                <NavigationMenuLink asChild>
+                  <Link to="#" className="block px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
+                    Item 3
+                  </Link>
+                </NavigationMenuLink>
+              </li>
+            </ul>
+          </NavigationMenuContent>
         </NavigationMenuItem>
 
         {/* Public Profiles Item */}

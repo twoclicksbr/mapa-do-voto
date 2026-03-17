@@ -13,17 +13,20 @@ return new class extends Migration
 
         Schema::create('type_people', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->notNull();
+            $table->string('name');
+            $table->integer('order')->default(0);
+            $table->boolean('active')->default(true);
             $table->timestamps();
+            $table->softDeletes();
         });
 
         $now = now();
 
         DB::table('gabinete_master.type_people')->insert([
-            ['name' => 'Admin',    'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Político', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Equipe',   'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Eleitor',  'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Admin',    'order' => 1, 'active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Político', 'order' => 2, 'active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Equipe',   'order' => 3, 'active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Eleitor',  'order' => 4, 'active' => true, 'created_at' => $now, 'updated_at' => $now],
         ]);
 
         DB::statement('SET search_path TO gabinete_master,maps,public');

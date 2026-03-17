@@ -4,7 +4,7 @@ import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
-import { Columns2, ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building2 } from "lucide-react";
+import { Columns2, ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building2, Settings } from "lucide-react";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -24,6 +24,7 @@ import { useActiveTab } from "@/components/layout/active-tab-context";
 import { GabinetesDataGrid } from "@/components/gabinetes/gabinetes-data-grid";
 import { GabinetCreateModal } from "@/components/gabinetes/gabinete-create-modal";
 import { GabinetEditModal } from "@/components/gabinetes/gabinete-edit-modal";
+import { AppMegaMenu } from "@/components/common/app-mega-menu";
 
 function getTenantName(): string {
   const parts = window.location.hostname.split('.');
@@ -153,12 +154,12 @@ export function HomePage() {
                   </span>
                 )}
                 <TabsList size="xs">
-                  {isMaster && <TabsTrigger value="gabinetes"><Building2 className="size-3.5" />Gabinetes</TabsTrigger>}
                   <TabsTrigger value="overview">Mapa</TabsTrigger>
                   <TabsTrigger value="activity">Atendimentos</TabsTrigger>
                   <TabsTrigger value="metrics">Agenda</TabsTrigger>
                   <TabsTrigger value="reports">Alianças</TabsTrigger>
                   <TabsTrigger value="alerts">Finanças</TabsTrigger>
+                  <TabsTrigger value="settings"><Settings className="size-3.5" />Configurações</TabsTrigger>
                 </TabsList>
               </div>
             </ToolbarHeading>
@@ -182,6 +183,7 @@ export function HomePage() {
 
         {isMaster && (
           <TabsContent value="gabinetes" className="flex-1 min-h-0 mt-0">
+            <AppMegaMenu />
             <div className="rounded-lg overflow-hidden h-full border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
@@ -281,6 +283,13 @@ export function HomePage() {
         <TabsContent value="alerts" className="flex-1 min-h-0 mt-0">
           <div className="rounded-lg overflow-hidden h-full flex items-center justify-center border border-border">
             <p className="text-muted-foreground">Finanças — em breve</p>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="settings" className="flex-1 min-h-0 mt-0">
+          <AppMegaMenu />
+          <div className="rounded-lg overflow-hidden h-full flex items-center justify-center border border-border">
+            <p className="text-muted-foreground">Configurações — em breve</p>
           </div>
         </TabsContent>
       </Tabs>

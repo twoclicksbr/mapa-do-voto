@@ -191,6 +191,7 @@ C:\Herd\mapa-do-voto\
 | `src/components/gabinetes/gabinetes-data-grid.tsx` | Data grid de tenants: colunas ID, Nome (clicável → `onEdit`), Subdomínio (link externo), Validade (badge com alerta vencimento), Status, Ações (editar/excluir); prop `onEdit` |
 | `src/components/gabinetes/gabinete-create-modal.tsx` | Modal de criação de gabinete com 2 steps: Step 1 "Em breve", Step 2 Candidato (`CandidateSearch variant=modal`) + Subdomínio; auto-preenche slug pelo ballot_name |
 | `src/components/gabinetes/gabinete-edit-modal.tsx` | Modal de edição de tenant |
+| `src/components/common/app-mega-menu.tsx` | Wrapper reutilizável do MegaMenu do Layout 1 — usado nas abas Gabinetes e Configurações |
 | `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
 | `src/lib/helpers.ts` | Utilitários: `formatDate`, `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
 | `src/lib/party-colors.ts` | Cores + hex dos 30 partidos |
@@ -203,7 +204,9 @@ C:\Herd\mapa-do-voto\
 
 ### Abas da Toolbar
 
-Abas: **Gabinetes** (ícone `Building2`, só visível quando `isMaster`), **Mapa**, **Atendimentos**, **Agenda**, **Alianças**, **Finanças**. Aba ativa persiste via `ActiveTabProvider` no `localStorage`.
+Abas: **Mapa**, **Atendimentos**, **Agenda**, **Alianças**, **Finanças**, **Configurações** (ícone `Settings`, visível para todos). Aba **Gabinetes** (`isMaster`) existe como `TabsContent` mas não tem `TabsTrigger` — acesso via lógica interna. Aba ativa persiste via `ActiveTabProvider` no `localStorage`.
+
+Abas **Gabinetes** e **Configurações** exibem `<AppMegaMenu />` (NavigationMenu do Layout 1) acima do conteúdo.
 
 Quando `isMaster`: exibe dropdown "Gabinete: Master" na toolbar que lista todos os tenants e redireciona para `{slug}.{baseDomain}` ao clicar.
 
@@ -246,6 +249,10 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | PUT | `/api/tenants/{id}` | Bearer | — | Atualiza tenant (name, slug, active, valid_until) |
 | GET | `/api/tenants/{id}/person` | Bearer | — | Retorna person do tenant + lista de type_people |
 | POST | `/api/tenants/{id}/person` | Bearer | — | Cria person vinculada ao tenant |
+| GET | `/api/type-people` | Bearer | — | Lista tipos de pessoa ativos ordenados por order |
+| POST | `/api/type-people` | Bearer | — | Cria tipo de pessoa |
+| PUT | `/api/type-people/{id}` | Bearer | — | Atualiza tipo de pessoa; reordena automaticamente se order duplicado |
+| DELETE | `/api/type-people/{id}` | Bearer | — | Soft delete do tipo de pessoa |
 | GET | `/api/auth/tenant` | pública | `tenant` | Valida se o subdomínio corresponde a um tenant ativo; retorna 200 ou 404 |
 | POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
 | POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
@@ -264,7 +271,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | Tabela | Descrição |
 |--------|-----------|
 | `gabinete_master.tenants` | Gabinetes (id, name, slug unique, schema unique, active, valid_until) — slug identifica o tenant pelo subdomínio |
-| `gabinete_master.type_people` | Tipos de pessoa (id, name) — seeds: Admin, Político, Equipe, Eleitor |
+| `gabinete_master.type_people` | Tipos de pessoa (id, name, order, active, deleted_at) — seeds: Admin(1), Político(2), Equipe(3), Eleitor(4) |
 | `gabinete_master.people` | Usuários da plataforma (id, tenant_id nullable FK, type_people_id nullable FK, name, active) |
 | `gabinete_master.users` | Acesso (id, people_id, email, password, active) |
 | `gabinete_master.people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
@@ -299,7 +306,8 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 Todos os models têm `$table` explícito com schema qualificado.
 
 - `Tenant` (`gabinete_master.tenants`) — com SoftDeletes; campos `name`, `slug`, `schema`, `active`, `valid_until`; cast `valid_until` → `date`
-- `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; `$fillable`: `tenant_id`, `type_people_id`, `name`, `active`; relacionamento `peopleCandidacies()`
+- `TypePeople` (`gabinete_master.type_people`) — com SoftDeletes; `$fillable`: `name`, `order`, `active`; evento `creating`: auto `max+1` se order vazio, reordena se duplicado; evento `updating`: reordena se order alterado; relacionamento `people()`
+- `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; `$fillable`: `tenant_id`, `type_people_id`, `name`, `active`; relacionamentos `typePeople()` e `peopleCandidacies()`
 - `User` (`gabinete_master.users`) → `belongsTo(People)`, `HasApiTokens`
 - `PersonalAccessToken` (`gabinete_master.personal_access_tokens`) — model customizado registrado via `Sanctum::usePersonalAccessTokenModel()` no `AppServiceProvider`
 - `Party` (`maps.parties`) — sem SoftDeletes, sem uuid; campos `color_bg`, `color_text`, `color_gradient`
@@ -342,6 +350,8 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Middleware/TenantMiddleware.php` | Middleware de identificação de tenant por subdomínio |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me |
 | `api/app/Http/Controllers/TenantController.php` | `index`, `store`, `update`, `person`, `storePerson` |
+| `api/app/Http/Controllers/TypePeopleController.php` | `index`, `store`, `update`, `destroy` |
+| `api/app/Http/Requests/TypePeopleRequest.php` | Validação: name unique, order min:1, active |
 | `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search` (busca pública em maps.candidates), `stats`, `cities` |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
