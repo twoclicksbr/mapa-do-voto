@@ -14,6 +14,10 @@ use App\Http\Controllers\PersonContactController;
 use App\Http\Controllers\PersonAddressController;
 use App\Http\Controllers\PersonDocumentController;
 use App\Http\Controllers\PersonNoteController;
+use App\Http\Controllers\PersonFileController;
+use App\Http\Controllers\PeopleAvatarController;
+use App\Http\Controllers\PeopleUserController;
+use App\Http\Controllers\PersonPermissionController;
 use App\Http\Controllers\TypePeopleController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +35,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/people', [PeopleController::class, 'store']);
     Route::put('/people/{id}', [PeopleController::class, 'update']);
     Route::delete('/people/{id}', [PeopleController::class, 'destroy']);
+    Route::post('/people/{id}/avatar', [PeopleAvatarController::class, 'store']);
+    Route::delete('/people/{id}/avatar', [PeopleAvatarController::class, 'destroy']);
+    Route::get('/people/{personId}/permissions', [PersonPermissionController::class, 'index']);
+    Route::put('/people/{personId}/permissions/{actionId}', [PersonPermissionController::class, 'update']);
+    Route::get('/people/{personId}/user', [PeopleUserController::class, 'show']);
+    Route::post('/people/{personId}/user', [PeopleUserController::class, 'store']);
+    Route::put('/people/{personId}/user', [PeopleUserController::class, 'update']);
     Route::get('/people/{personId}/contacts', [PersonContactController::class, 'index']);
     Route::post('/people/{personId}/contacts', [PersonContactController::class, 'store']);
     Route::put('/people/{personId}/contacts/{id}', [PersonContactController::class, 'update']);
@@ -47,6 +58,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/people/{personId}/notes', [PersonNoteController::class, 'store']);
     Route::put('/people/{personId}/notes/{id}', [PersonNoteController::class, 'update']);
     Route::delete('/people/{personId}/notes/{id}', [PersonNoteController::class, 'destroy']);
+    Route::get('/people/{personId}/files', [PersonFileController::class, 'index']);
+    Route::post('/people/{personId}/files', [PersonFileController::class, 'store']);
+    Route::get('/people/{personId}/files/{id}/download', [PersonFileController::class, 'download']);
+    Route::delete('/people/{personId}/files/{id}', [PersonFileController::class, 'destroy']);
     Route::get('/type-people', [TypePeopleController::class, 'index']);
     Route::post('/type-people', [TypePeopleController::class, 'store']);
     Route::put('/type-people/{id}', [TypePeopleController::class, 'update']);

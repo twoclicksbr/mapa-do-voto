@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 
@@ -34,14 +34,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { User, Pencil, Trash2, Plus, X, Check, FileText, MapPin, Phone, StickyNote, LocateFixed } from "lucide-react";
+import { User, Pencil, Trash2, Plus, X, Check, FileText, MapPin, Phone, StickyNote, LocateFixed, Camera, Loader2, Minus, ShieldCheck, Folder } from "lucide-react";
+import { useTree } from "@headless-tree/react";
+import { hotkeysCoreFeature, syncDataLoaderFeature } from "@headless-tree/core";
+import { Tree, TreeItem, TreeItemLabel } from "@/components/reui/tree";
+import { Checkbox } from "@/components/ui/checkbox";
 import api from "@/lib/api";
 import { formatDate } from "@/lib/helpers";
+import { useLoginModal } from "@/components/auth/login-modal-context";
 import { Person } from "./people-data-grid";
 import { TypePeople } from "@/components/type-people/type-people-data-grid";
 import { TypeContact } from "@/components/type-contacts/type-contacts-data-grid";
 import { TypeAddress } from "@/components/type-addresses/type-addresses-data-grid";
 import { TypeDocument } from "@/components/type-documents/type-documents-data-grid";
+import { PeopleFilesTab } from "./people-files-tab";
+import { BirthDatePicker } from "./birth-date-picker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,6 +95,19 @@ interface NoteItem {
   order: number;
   active: boolean;
   created_at: string;
+}
+
+interface PersonUser {
+  id: number;
+  email: string;
+}
+
+interface PermissionItem {
+  id: number;
+  module: string;
+  action: string;
+  description: string | null;
+  allowed: boolean;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -181,11 +201,10 @@ function CreatePersonModal({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cp-birth-date">Data de Nascimento</Label>
-              <Input
+              <BirthDatePicker
                 id="cp-birth-date"
-                type="date"
                 value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
+                onChange={setBirthDate}
               />
               {errors.birth_date && <p className="text-xs text-destructive">{errors.birth_date}</p>}
             </div>
@@ -275,9 +294,10 @@ function ContactsTab({
     if (!newTypeId || !newValue.trim()) return;
     setSaving(true);
     try {
+      const rawValue = mask ? newValue.replace(/\D/g, "") : newValue.trim();
       const res = await api.post<ContactItem>(`/people/${personId}/contacts`, {
         type_contact_id: Number(newTypeId),
-        value: newValue.trim(),
+        value: rawValue,
       });
       onChange([...contacts, res.data]);
       setAdding(false);
@@ -303,7 +323,9 @@ function ContactsTab({
           <Badge variant="secondary" appearance="light" className="shrink-0 min-w-[90px] justify-center">
             {c.type_contact?.name ?? "—"}
           </Badge>
-          <span className="flex-1 text-sm font-medium">{c.value}</span>
+          <span className="flex-1 text-sm font-medium">
+            {c.type_contact?.mask ? applyMask(c.value, c.type_contact.mask) : c.value}
+          </span>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -312,7 +334,7 @@ function ContactsTab({
                 className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                 onClick={() => handleDelete(c.id)}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3.5 [&_svg]:size-2.5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Excluir</TooltipContent>
@@ -341,15 +363,15 @@ function ContactsTab({
             autoFocus
           />
           <Button size="icon" variant="primary" className="size-8" onClick={handleAdd} disabled={saving || !newTypeId || !newValue.trim()}>
-            <Check className="size-3.5" />
+            <Check className="size-3.5 [&_svg]:size-2.5" />
           </Button>
           <Button size="icon" variant="ghost" className="size-8" onClick={() => { setAdding(false); setNewTypeId(""); setNewValue(""); }}>
-            <X className="size-3.5" />
+            <X className="size-3.5 [&_svg]:size-2.5" />
           </Button>
         </div>
       ) : (
         <Button variant="outline" size="sm" className="w-full" onClick={() => setAdding(true)}>
-          <Plus className="size-3.5" /> Adicionar contato
+          <Plus className="size-3.5 [&_svg]:size-2.5" /> Adicionar contato
         </Button>
       )}
     </div>
@@ -377,18 +399,74 @@ const EMPTY_FORM: AddressForm = {
   bairro: "", cidade: "", uf: "", ibge: "", lat: null, lng: null,
 };
 
-function MapFlyTo({ lat, lng }: { lat: number | null; lng: number | null }) {
+function MapController({
+  points,
+  focus,
+}: {
+  points: [number, number][];
+  focus: [number, number] | null;
+}) {
   const map = useMap();
+
+  // Ao mudar o foco (seleção/edição) → flyTo
   useEffect(() => {
-    if (lat !== null && lng !== null) {
-      map.flyTo([lat, lng], 16, { duration: 1 });
+    if (focus) {
+      map.flyTo(focus, 16, { duration: 1 });
     }
-  }, [lat, lng, map]);
+  }, [focus, map]);
+
+  // Ao montar (ou quando os pontos mudam sem foco) → fitBounds em todos
+  useEffect(() => {
+    if (focus) return;
+    if (points.length === 0) {
+      map.setView([-14.235, -51.925], 4);
+    } else if (points.length === 1) {
+      map.setView(points[0], 14);
+    } else {
+      map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
+    }
+  }, [points, map]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return null;
 }
 
-function AddressMap({ lat, lng }: { lat: number | null; lng: number | null }) {
-  const hasCoords = lat !== null && lng !== null;
+function MapControls() {
+  const map = useMap();
+
+  return (
+    <div className="leaflet-bottom leaflet-right">
+      <div className="leaflet-control flex flex-col items-center gap-1.5 mb-3 mr-3">
+        <div className="flex flex-col bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <button
+            onClick={() => map.zoomIn()}
+            className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            <Plus size={16} />
+          </button>
+          <div className="h-px bg-gray-200 mx-2" />
+          <button
+            onClick={() => map.zoomOut()}
+            className="w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            <Minus size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddressMap({
+  addresses,
+  focus,
+  onSelect,
+}: {
+  addresses: AddressItem[];
+  focus: [number, number] | null;
+  onSelect: (address: AddressItem) => void;
+}) {
+  const withCoords = addresses.filter((a) => a.lat !== null && a.lng !== null);
+  const points = withCoords.map((a) => [a.lat!, a.lng!] as [number, number]);
 
   return (
     <div className="w-full h-full min-h-0 rounded-lg overflow-hidden border border-border">
@@ -400,8 +478,16 @@ function AddressMap({ lat, lng }: { lat: number | null; lng: number | null }) {
         attributionControl={false}
       >
         <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
-        <MapFlyTo lat={lat} lng={lng} />
-        {hasCoords && <Marker position={[lat!, lng!]} icon={PIN_ICON} />}
+        <MapController points={points} focus={focus} />
+        <MapControls />
+        {withCoords.map((a) => (
+          <Marker
+            key={a.id}
+            position={[a.lat!, a.lng!]}
+            icon={PIN_ICON}
+            eventHandlers={{ click: () => onSelect(a) }}
+          />
+        ))}
       </MapContainer>
     </div>
   );
@@ -581,8 +667,10 @@ function AddressesTab({
     [a.logradouro, a.numero, a.bairro, a.cidade, a.uf].filter(Boolean).join(", ") || "Endereço incompleto";
 
   // mapa preview: usa selected ou form em andamento
-  const mapLat = adding ? form.lat : selected?.lat ?? null;
-  const mapLng = adding ? form.lng : selected?.lng ?? null;
+  const focusLat = adding ? form.lat : selected?.lat ?? null;
+  const focusLng = adding ? form.lng : selected?.lng ?? null;
+  const mapFocus: [number, number] | null =
+    focusLat !== null && focusLng !== null ? [focusLat, focusLng] : null;
 
   return (
     <div className="flex h-full">
@@ -652,16 +740,16 @@ function AddressesTab({
             <AddressFormPanel form={form} onChange={updateForm} onCepBlur={() => fetchCep(form.cep)} cepLoading={cepLoading} />
             <div className="flex gap-2 pt-1">
               <Button size="sm" variant="primary" className="flex-1" onClick={handleAdd} disabled={saving || !form.typeId}>
-                <Check className="size-3.5" /> {saving ? "Salvando..." : "Salvar"}
+                <Check className="size-3.5 [&_svg]:size-2.5" /> {saving ? "Salvando..." : "Salvar"}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setForm(EMPTY_FORM); }}>
-                <X className="size-3.5" />
+                <X className="size-3.5 [&_svg]:size-2.5" />
               </Button>
             </div>
           </div>
         ) : (
           <Button variant="outline" size="sm" className="w-full" onClick={() => setAdding(true)}>
-            <Plus className="size-3.5" /> Adicionar endereço
+            <Plus className="size-3.5 [&_svg]:size-2.5" /> Adicionar endereço
           </Button>
         )}
 
@@ -672,7 +760,7 @@ function AddressesTab({
 
       {/* ── Coluna direita 2/3 — mapa ── */}
       <div className="flex-1 min-w-0 p-4">
-        <AddressMap lat={mapLat} lng={mapLng} />
+        <AddressMap addresses={addresses} focus={mapFocus} onSelect={(a) => setSelected(selected?.id === a.id ? null : a)} />
       </div>
     </div>
   );
@@ -757,7 +845,7 @@ function DocumentsTab({
                 className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                 onClick={() => handleDelete(d.id)}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3.5 [&_svg]:size-2.5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Excluir</TooltipContent>
@@ -792,16 +880,16 @@ function DocumentsTab({
               onChange={(e) => setNewValidity(e.target.value)}
             />
             <Button size="icon" variant="primary" className="size-8" onClick={handleAdd} disabled={saving || !newTypeId || !newValue.trim()}>
-              <Check className="size-3.5" />
+              <Check className="size-3.5 [&_svg]:size-2.5" />
             </Button>
             <Button size="icon" variant="ghost" className="size-8" onClick={() => { setAdding(false); setNewTypeId(""); setNewValue(""); setNewValidity(""); }}>
-              <X className="size-3.5" />
+              <X className="size-3.5 [&_svg]:size-2.5" />
             </Button>
           </div>
         </div>
       ) : (
         <Button variant="outline" size="sm" className="w-full" onClick={() => setAdding(true)}>
-          <Plus className="size-3.5" /> Adicionar documento
+          <Plus className="size-3.5 [&_svg]:size-2.5" /> Adicionar documento
         </Button>
       )}
     </div>
@@ -860,7 +948,7 @@ function NotesTab({
                 className="size-7 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
                 onClick={() => handleDelete(n.id)}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3.5 [&_svg]:size-2.5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Excluir</TooltipContent>
@@ -882,16 +970,170 @@ function NotesTab({
               Cancelar
             </Button>
             <Button size="sm" variant="primary" onClick={handleAdd} disabled={saving || !newValue.trim()}>
-              <Check className="size-3.5" /> Salvar nota
+              <Check className="size-3.5 [&_svg]:size-2.5" /> Salvar nota
             </Button>
           </div>
         </div>
       ) : (
         <Button variant="outline" size="sm" className="w-full" onClick={() => setAdding(true)}>
-          <Plus className="size-3.5" /> Adicionar nota
+          <Plus className="size-3.5 [&_svg]:size-2.5" /> Adicionar nota
         </Button>
       )}
     </div>
+  );
+}
+
+// ─── Tab: Restrições ──────────────────────────────────────────────────────────
+
+const MODULE_LABELS: Record<string, string> = {
+  people:       "Pessoas",
+  attendances:  "Atendimentos",
+  map:          "Mapa",
+  restrictions: "Restrições",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  view:   "Visualizar",
+  create: "Criar",
+  update: "Editar",
+  delete: "Excluir",
+};
+
+const TREE_INDENT = 24;
+
+function RestrictionsTab({
+  personId,
+  permissions,
+  onChange,
+}: {
+  personId: number;
+  permissions: PermissionItem[];
+  onChange: (items: PermissionItem[]) => void;
+}) {
+  const [toggling, setToggling] = useState<number | null>(null);
+  const [togglingGroup, setTogglingGroup] = useState<string | null>(null);
+
+  const modules = [...new Set(permissions.map((p) => p.module))];
+
+  const treeItems: Record<string, { name: string; children?: string[] }> = {
+    root: { name: "Todas as Permissões", children: modules },
+    ...Object.fromEntries(
+      modules.map((mod) => [
+        mod,
+        {
+          name: MODULE_LABELS[mod] ?? mod,
+          children: permissions.filter((p) => p.module === mod).map((p) => `${p.module}-${p.action}`),
+        },
+      ])
+    ),
+    ...Object.fromEntries(
+      permissions.map((p) => [`${p.module}-${p.action}`, { name: ACTION_LABELS[p.action] ?? p.action }])
+    ),
+  };
+
+  const checked = new Set(permissions.filter((p) => p.allowed).map((p) => `${p.module}-${p.action}`));
+
+  const handleToggle = async (leafKey: string, allowed: boolean) => {
+    const perm = permissions.find((p) => `${p.module}-${p.action}` === leafKey);
+    if (!perm) return;
+    setToggling(perm.id);
+    try {
+      await api.put(`/people/${personId}/permissions/${perm.id}`, { allowed });
+      onChange(permissions.map((p) => (p.id === perm.id ? { ...p, allowed } : p)));
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  const handleGroupToggle = async (mod: string, allowed: boolean) => {
+    const group = permissions.filter((p) => p.module === mod);
+    setTogglingGroup(mod);
+    try {
+      await Promise.all(
+        group.map((perm) => api.put(`/people/${personId}/permissions/${perm.id}`, { allowed }))
+      );
+      onChange(permissions.map((p) => (p.module === mod ? { ...p, allowed } : p)));
+    } finally {
+      setTogglingGroup(null);
+    }
+  };
+
+  const groupState = (mod: string): boolean | "indeterminate" => {
+    const group = permissions.filter((p) => p.module === mod);
+    const allowedCount = group.filter((p) => p.allowed).length;
+    if (allowedCount === 0) return false;
+    if (allowedCount === group.length) return true;
+    return "indeterminate";
+  };
+
+  type TreeNode = { name: string; children?: string[] };
+
+  const tree = useTree<TreeNode>({
+    initialState: { expandedItems: modules },
+    indent: TREE_INDENT,
+    rootItemId: "root",
+    getItemName: (item) => item.getItemData().name,
+    isItemFolder: (item) => (item.getItemData()?.children?.length ?? 0) > 0,
+    dataLoader: {
+      getItem: (itemId) => treeItems[itemId],
+      getChildren: (itemId) => treeItems[itemId]?.children ?? [],
+    },
+    features: [syncDataLoaderFeature, hotkeysCoreFeature],
+  });
+
+  if (permissions.length === 0) {
+    return <p className="text-sm text-muted-foreground py-4 text-center">Carregando...</p>;
+  }
+
+  return (
+    <Tree indent={TREE_INDENT} tree={tree} toggleIconType="plus-minus">
+      {tree.getItems().map((item) => {
+        const id = item.getId();
+        const isLeaf = !item.isFolder();
+        const perm = isLeaf ? permissions.find((p) => `${p.module}-${p.action}` === id) : undefined;
+
+        const isModule = item.isFolder() && id !== "root";
+
+        return (
+          <TreeItem key={id} item={item}>
+            <TreeItemLabel className="not-in-data-[folder=true]:ps-5">
+              <span className="flex items-center gap-2">
+                {isLeaf && (
+                  <Checkbox
+                    checked={checked.has(id)}
+                    onCheckedChange={(v) => handleToggle(id, !!v)}
+                    className="size-3.5 [&_svg]:size-2.5"
+                    disabled={toggling === perm?.id}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
+                {isModule && (
+                  <Checkbox
+                    checked={groupState(id)}
+                    onCheckedChange={(v) => handleGroupToggle(id, !!v)}
+                    className="size-3.5 [&_svg]:size-2.5"
+                    disabled={togglingGroup === id}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
+                <span
+                  className={(isLeaf || isModule) ? "cursor-pointer select-none" : undefined}
+                  onClick={
+                    isLeaf
+                      ? (e) => { e.stopPropagation(); handleToggle(id, !checked.has(id)); }
+                      : isModule
+                      ? (e) => { e.stopPropagation(); handleGroupToggle(id, groupState(id) !== true); }
+                      : undefined
+                  }
+                >
+                  {item.getItemName()}
+                </span>
+              </span>
+            </TreeItemLabel>
+          </TreeItem>
+        );
+      })}
+    </Tree>
   );
 }
 
@@ -925,11 +1167,67 @@ function PersonDetailModal({
   const [active, setActive] = useState(person.active);
   const [saving, setSaving] = useState(false);
 
+  const { user, setUser } = useLoginModal();
+
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [avatarLightbox, setAvatarLightbox] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      const res = await api.post<{ photo_original: string; photo_md: string; photo_sm: string }>(
+        `/people/${currentPerson.id}/avatar`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      const updated = { ...currentPerson, ...res.data };
+      setCurrentPerson(updated);
+      onSaved(updated);
+      if (user?.people?.id === currentPerson.id) {
+        setUser({ ...user, people: { ...user.people, ...res.data } });
+      }
+    } catch (err) {
+      console.error("Erro ao fazer upload do avatar:", err);
+      alert("Erro ao fazer upload. Verifique o console.");
+    } finally {
+      setAvatarLoading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    setAvatarLoading(true);
+    try {
+      await api.delete(`/people/${currentPerson.id}/avatar`);
+      const updated = { ...currentPerson, photo_original: null, photo_md: null, photo_sm: null, photo_path: null };
+      setCurrentPerson(updated);
+      onSaved(updated);
+      if (user?.people?.id === currentPerson.id) {
+        setUser({ ...user, people: { ...user.people, photo_sm: null, photo_md: null, photo_original: null } });
+      }
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
+
   const [contacts, setContacts] = useState<ContactItem[]>([]);
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [tabsLoading, setTabsLoading] = useState(true);
+
+  const [permissions, setPermissions] = useState<PermissionItem[]>([]);
+  const [personUser, setPersonUser] = useState<PersonUser | null>(null);
+  const [userFormMode, setUserFormMode] = useState<"idle" | "create" | "edit">("idle");
+  const [userEmail, setUserEmail] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  const [userPasswordConfirm, setUserPasswordConfirm] = useState("");
+  const [userSaving, setUserSaving] = useState(false);
 
   const [currentPerson, setCurrentPerson] = useState<Person>(person);
 
@@ -942,19 +1240,56 @@ function PersonDetailModal({
     setActive(person.active);
     setEditMode(false);
     setTabsLoading(true);
+    setPersonUser(null);
+    setUserFormMode("idle");
+    setPermissions([]);
 
     Promise.all([
       api.get<ContactItem[]>(`/people/${person.id}/contacts`),
       api.get<AddressItem[]>(`/people/${person.id}/addresses`),
       api.get<DocumentItem[]>(`/people/${person.id}/documents`),
       api.get<NoteItem[]>(`/people/${person.id}/notes`),
-    ]).then(([c, a, d, n]) => {
+      api.get<PersonUser | null>(`/people/${person.id}/user`),
+      api.get<PermissionItem[]>(`/people/${person.id}/permissions`),
+    ]).then(([c, a, d, n, u, p]) => {
       setContacts(c.data);
       setAddresses(a.data);
       setDocuments(d.data);
       setNotes(n.data);
+      setPersonUser(u.data);
+      setPermissions(p.data);
     }).finally(() => setTabsLoading(false));
   }, [open, person]);
+
+  const handleUserSave = async () => {
+    setUserSaving(true);
+    try {
+      if (userFormMode === "create") {
+        const res = await api.post<PersonUser>(`/people/${currentPerson.id}/user`, {
+          email: userEmail,
+          password: userPassword,
+          password_confirmation: userPasswordConfirm,
+        });
+        setPersonUser(res.data);
+      } else {
+        const body: Record<string, string> = { email: userEmail };
+        if (userPassword) {
+          body.password = userPassword;
+          body.password_confirmation = userPasswordConfirm;
+        }
+        const res = await api.put<PersonUser>(`/people/${currentPerson.id}/user`, body);
+        setPersonUser(res.data);
+      }
+      setUserFormMode("idle");
+      setUserPassword("");
+      setUserPasswordConfirm("");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg ?? "Erro ao salvar usuário.");
+    } finally {
+      setUserSaving(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1013,7 +1348,7 @@ function PersonDetailModal({
             </Button>
             {!editMode ? (
               <Button variant="primary" size="sm" onClick={() => setEditMode(true)}>
-                <Pencil className="size-3.5" /> Editar Detalhes
+                <Pencil className="size-3.5 [&_svg]:size-2.5" /> Editar Detalhes
               </Button>
             ) : (
               <Button variant="ghost" size="sm" onClick={() => setEditMode(false)}>
@@ -1029,10 +1364,92 @@ function PersonDetailModal({
           {/* ── Left panel ── */}
           <div className="w-64 shrink-0 border-r border-border flex flex-col overflow-y-auto">
             {/* Avatar */}
-            <div className="p-5 flex flex-col items-center gap-4 border-b border-border">
-              <div className="size-24 rounded-full bg-muted flex items-center justify-center">
-                <User className="size-10 text-muted-foreground" />
+            <div className="p-5 flex flex-col items-center gap-3 border-b border-border">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (avatarLoading) return;
+                    if (currentPerson.photo_original) setAvatarLightbox(true);
+                    else avatarInputRef.current?.click();
+                  }}
+                  className="size-24 rounded-full bg-muted flex items-center justify-center overflow-hidden relative"
+                >
+                  {currentPerson.photo_md ? (
+                    <img src={currentPerson.photo_md} alt={currentPerson.name} className="size-full object-cover" />
+                  ) : (
+                    <User className="size-10 text-muted-foreground" />
+                  )}
+                  <div className={`absolute inset-0 bg-black/40 rounded-full transition-opacity flex items-center justify-center ${avatarLoading ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                    {avatarLoading ? (
+                      <Loader2 className="size-5 text-white animate-spin" />
+                    ) : (
+                      <Camera className="size-5 text-white" />
+                    )}
+                  </div>
+                </button>
+                {currentPerson.photo_md && !avatarLoading && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={handleAvatarRemove}
+                        className="absolute -top-0.5 -right-0.5 size-5 rounded-full bg-destructive text-white flex items-center justify-center hover:bg-destructive/80 transition-colors"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remover foto</TooltipContent>
+                  </Tooltip>
+                )}
               </div>
+
+              {/* Lightbox do avatar */}
+              {avatarLightbox && currentPerson.photo_original && (
+                <div
+                  className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
+                  onClick={() => setAvatarLightbox(false)}
+                >
+                  <div className="relative flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
+                    <img
+                      src={currentPerson.photo_original}
+                      alt={currentPerson.name}
+                      className="max-w-[80vw] max-h-[75vh] object-contain rounded-xl shadow-2xl"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+                        onClick={() => { setAvatarLightbox(false); avatarInputRef.current?.click(); }}
+                      >
+                        <Camera className="size-3.5 [&_svg]:size-2.5" /> Alterar foto
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+                        onClick={() => { setAvatarLightbox(false); handleAvatarRemove(); }}
+                      >
+                        <X className="size-3.5 [&_svg]:size-2.5" /> Remover foto
+                      </Button>
+                    </div>
+                    <button
+                      onClick={() => setAvatarLightbox(false)}
+                      className="absolute -top-3 -right-3 size-8 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
               <p className="text-sm font-semibold text-center leading-snug">{currentPerson.name}</p>
             </div>
 
@@ -1052,12 +1469,11 @@ function PersonDetailModal({
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="ep-birth-date" className="text-xs">Data de Nascimento</Label>
-                    <Input
+                    <BirthDatePicker
                       id="ep-birth-date"
-                      type="date"
                       value={birthDate}
-                      onChange={(e) => setBirthDate(e.target.value)}
-                      className="h-8 text-sm"
+                      onChange={setBirthDate}
+                      inputSize="sm"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1080,9 +1496,14 @@ function PersonDetailModal({
                       <Switch checked={active} onCheckedChange={setActive} />
                     </div>
                   </div>
-                  <Button type="submit" variant="primary" size="sm" className="w-full" disabled={saving || !name.trim()}>
-                    {saving ? "Salvando..." : "Salvar"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => setEditMode(false)} disabled={saving}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" variant="primary" size="sm" className="flex-1" disabled={saving || !name.trim()}>
+                      {saving ? "Salvando..." : "Salvar"}
+                    </Button>
+                  </div>
                 </form>
               ) : (
                 <div className="space-y-3">
@@ -1107,21 +1528,66 @@ function PersonDetailModal({
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-border/50">
-                    <span className="text-xs text-muted-foreground">Contatos</span>
-                    <span className="text-xs font-medium">{contacts.length}</span>
+                    <span className="text-xs text-muted-foreground">Usuário</span>
+                    <div className="flex items-center gap-1.5">
+                      {personUser ? (
+                        <>
+                          <span className="text-xs font-medium truncate max-w-[110px]" title={personUser.email}>{personUser.email}</span>
+                          <button
+                            type="button"
+                            onClick={() => { setUserEmail(personUser.email); setUserPassword(""); setUserPasswordConfirm(""); setUserFormMode("edit"); }}
+                            className="p-0.5 text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            <Pencil className="size-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xs text-muted-foreground">—</span>
+                          <button
+                            type="button"
+                            onClick={() => { setUserEmail(""); setUserPassword(""); setUserPasswordConfirm(""); setUserFormMode("create"); }}
+                            className="p-0.5 text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            <Plus className="size-3" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-border/50">
-                    <span className="text-xs text-muted-foreground">Endereços</span>
-                    <span className="text-xs font-medium">{addresses.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-border/50">
-                    <span className="text-xs text-muted-foreground">Documentos</span>
-                    <span className="text-xs font-medium">{documents.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-xs text-muted-foreground">Notas</span>
-                    <span className="text-xs font-medium">{notes.length}</span>
-                  </div>
+                  {userFormMode !== "idle" && (
+                    <div className="mt-1 p-3 rounded-lg bg-muted/50 space-y-2.5">
+                      <p className="text-xs font-semibold">{userFormMode === "create" ? "Criar acesso" : "Editar acesso"}</p>
+                      <div className="space-y-1">
+                        <Label className="text-xs">E-mail</Label>
+                        <Input value={userEmail} onChange={(e) => setUserEmail(e.target.value)} className="h-7 text-xs" autoFocus />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{userFormMode === "create" ? "Senha" : "Nova senha"}</Label>
+                        <Input
+                          type="password"
+                          value={userPassword}
+                          onChange={(e) => setUserPassword(e.target.value)}
+                          className="h-7 text-xs"
+                          placeholder={userFormMode === "edit" ? "Deixe em branco para manter" : ""}
+                        />
+                      </div>
+                      {(userFormMode === "create" || userPassword) && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Confirmar senha</Label>
+                          <Input type="password" value={userPasswordConfirm} onChange={(e) => setUserPasswordConfirm(e.target.value)} className="h-7 text-xs" />
+                        </div>
+                      )}
+                      <div className="flex gap-1.5 pt-1">
+                        <Button type="button" size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => setUserFormMode("idle")} disabled={userSaving}>
+                          Cancelar
+                        </Button>
+                        <Button type="button" size="sm" variant="primary" className="flex-1 h-7 text-xs" onClick={handleUserSave} disabled={userSaving}>
+                          {userSaving ? <Loader2 className="size-3 animate-spin" /> : "Salvar"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1159,6 +1625,14 @@ function PersonDetailModal({
                     {notes.length > 0 && (
                       <Badge variant="secondary" appearance="light" size="sm">{notes.length}</Badge>
                     )}
+                  </TabsTrigger>
+                  <TabsTrigger value="restrictions">
+                    <ShieldCheck />
+                    Restrições
+                  </TabsTrigger>
+                  <TabsTrigger value="files">
+                    <Folder />
+                    Arquivos
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -1200,6 +1674,16 @@ function PersonDetailModal({
                         notes={notes}
                         onChange={setNotes}
                       />
+                    </TabsContent>
+                    <TabsContent value="restrictions" className="p-5 mt-0 flex-1 overflow-y-auto">
+                      <RestrictionsTab
+                        personId={currentPerson.id}
+                        permissions={permissions}
+                        onChange={setPermissions}
+                      />
+                    </TabsContent>
+                    <TabsContent value="files" className="p-5 mt-0 flex-1 overflow-y-auto">
+                      <PeopleFilesTab personId={currentPerson.id} />
                     </TabsContent>
                   </>
                 )}

@@ -39,7 +39,7 @@ export function UserDropdownMenu() {
     <DropdownMenu>
 		<DropdownMenuTrigger className="cursor-pointer">
 			<Avatar className="size-7">
-				<AvatarImage src={user?.people?.avatar_url ?? ''} />
+				<AvatarImage src={user?.people?.photo_sm ?? undefined} />
 				<AvatarFallback>{user?.people?.name?.charAt(0) ?? '?'}</AvatarFallback>
 				<AvatarIndicator className="-end-2 -top-2">
 					<AvatarStatus variant="online" className="size-2.5" />
@@ -50,7 +50,7 @@ export function UserDropdownMenu() {
 			{/* User Information Section */}
 			<div className="flex items-center gap-3 px-3 py-2">
 				<Avatar>
-					<AvatarImage src={user?.people?.avatar_url ?? ''} />
+					<AvatarImage src={user?.people?.photo_sm ?? undefined} />
 					<AvatarFallback>{user?.people?.name?.charAt(0) ?? '?'}</AvatarFallback>
 					<AvatarIndicator className="-end-1.5 -top-1.5">
 						<AvatarStatus variant="online" className="size-2.5" />

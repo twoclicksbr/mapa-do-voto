@@ -7,7 +7,9 @@ interface UserData {
   people?: {
     id: number;
     name: string;
-    avatar_url: string | null;
+    photo_sm: string | null;
+    photo_md: string | null;
+    photo_original: string | null;
     active: boolean;
   };
 }

@@ -15,6 +15,7 @@ class People extends Model
         'type_people_id',
         'name',
         'birth_date',
+        'photo_path',
         'active',
     ];
 

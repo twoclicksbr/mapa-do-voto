@@ -8,6 +8,7 @@ import { MenuItem } from '@/config/types';
 
 interface MegaMenuProps {
   onNavigate?: (section: string) => void;
+  activeSection?: string;
 }
 
 function PanelItem({ item, onNavigate }: { item: MenuItem; onNavigate?: (section: string) => void }) {
@@ -68,12 +69,19 @@ function PanelItem({ item, onNavigate }: { item: MenuItem; onNavigate?: (section
   );
 }
 
-export function MegaMenu({ onNavigate }: MegaMenuProps) {
+export function MegaMenu({ onNavigate, activeSection }: MegaMenuProps) {
   const { setActiveTab } = useActiveTab();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const linkClass = 'text-sm text-secondary-foreground font-medium hover:text-primary transition-colors';
+  const linkClass = 'text-sm font-medium transition-colors';
+
+  const isChildActive = (item: (typeof MENU_MEGA)[0]): boolean => {
+    if (!activeSection) return false;
+    const checkChildren = (children: typeof item.children): boolean =>
+      !!children?.some((c) => c.section === activeSection || checkChildren(c.children));
+    return checkChildren(item.children);
+  };
 
   const handleMouseEnter = (index: number) => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -92,10 +100,13 @@ export function MegaMenu({ onNavigate }: MegaMenuProps) {
         const isPessoas = item.title === 'Pessoas';
 
         if (isGabinetes) {
+          const isActive = activeSection === 'gabinetes';
           return (
             <button
               key={item.title}
-              className={cn(linkClass, 'flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent cursor-pointer')}
+              className={cn(linkClass, 'flex items-center gap-1.5 px-3 py-1.5 rounded-md cursor-pointer',
+                isActive ? 'bg-accent text-primary' : 'text-secondary-foreground hover:bg-accent hover:text-primary'
+              )}
               onClick={() => onNavigate ? onNavigate('gabinetes') : setActiveTab('gabinetes')}
             >
               <Building2 className="size-4" />
@@ -105,10 +116,13 @@ export function MegaMenu({ onNavigate }: MegaMenuProps) {
         }
 
         if (isPessoas) {
+          const isActive = activeSection === 'pessoas';
           return (
             <button
               key={item.title}
-              className={cn(linkClass, 'flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent cursor-pointer')}
+              className={cn(linkClass, 'flex items-center gap-1.5 px-3 py-1.5 rounded-md cursor-pointer',
+                isActive ? 'bg-accent text-primary' : 'text-secondary-foreground hover:bg-accent hover:text-primary'
+              )}
               onClick={() => onNavigate ? onNavigate('pessoas') : setActiveTab('pessoas')}
             >
               <Users className="size-4" />
@@ -118,6 +132,7 @@ export function MegaMenu({ onNavigate }: MegaMenuProps) {
         }
 
         if (hasChildren) {
+          const isActive = isChildActive(item);
           return (
             <div
               key={item.title}
@@ -125,7 +140,9 @@ export function MegaMenu({ onNavigate }: MegaMenuProps) {
               onMouseEnter={() => handleMouseEnter(index)}
               onMouseLeave={handleMouseLeave}
             >
-              <button className={cn(linkClass, 'flex items-center gap-1 px-3 py-1.5 rounded-md hover:bg-accent cursor-pointer')}>
+              <button className={cn(linkClass, 'flex items-center gap-1 px-3 py-1.5 rounded-md cursor-pointer',
+                isActive ? 'bg-accent text-primary' : 'text-secondary-foreground hover:bg-accent hover:text-primary'
+              )}>
                 {item.title}
                 <ChevronDown className={cn('size-3.5 transition-transform', openIndex === index && 'rotate-180')} />
               </button>

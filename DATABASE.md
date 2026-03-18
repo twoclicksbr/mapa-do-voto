@@ -1,7 +1,7 @@
 # DATABASE.md — Mapa do Voto
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Gerado em: 15/03/2026
+> Atualizado em: 18/03/2026
 
 ---
 
@@ -90,6 +90,7 @@ Pessoas cadastradas na plataforma. Representa qualquer usuário humano: admins, 
 | `type_people_id` | bigint | NULL | FK → `type_people.id` — tipo do perfil |
 | `name` | varchar | NOT NULL | Nome completo |
 | `birth_date` | date | NULL | Data de nascimento |
+| `photo_path` | varchar | NULL | Caminho relativo no storage (ex: `netobota/avatar/1`) — 3 arquivos: `original.jpg`, `md.jpg`, `sm.jpg` |
 | `active` | boolean | NOT NULL | Se está ativo (default: `true`) |
 | `created_at` | timestamp | NULL | — |
 | `updated_at` | timestamp | NULL | — |
@@ -400,6 +401,27 @@ Notas polimórficas de texto livre.
 
 ---
 
+### `gabinete_master.files`
+Arquivos polimórficos. Armazena arquivos uploadados vinculados a qualquer módulo.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `modulo` | varchar | NOT NULL | Módulo dono (ex: `people`) |
+| `record_id` | bigint | NOT NULL | ID do registro no módulo |
+| `name` | varchar | NOT NULL | Nome original do arquivo |
+| `path` | varchar | NOT NULL | Caminho no storage |
+| `mime_type` | varchar | NULL | Tipo MIME (ex: `application/pdf`) |
+| `size` | bigint | NULL | Tamanho em bytes |
+| `order` | integer | NOT NULL | default: `0` |
+| `active` | boolean | NOT NULL | default: `true` |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Índice:** `(modulo, record_id)`
+**Model:** `PersonFile` — `$table = 'gabinete_master.files'`
+
+---
+
 ### `gabinete_master.cache`
 Cache do framework Laravel. Gerenciado automaticamente.
 
@@ -707,8 +729,10 @@ gabinete_master
 ├── type_people ──────────────────────┐
 ├── people ←─── type_people_id ───────┘
 │   ←─── tenant_id (tenants)
+│   photo_path → storage/{slug}/avatar/{id}/{original|md|sm}.jpg
 │   ├── users ←─── people_id
 │   ├── permissions ←─── people_id ──── permission_actions
+│   ├── files ←─── (modulo=people, record_id)
 │   ├── attendances ←─── people_id
 │   │   └── attendance_history ←─── attendance_id
 │   └── people_candidacies ←─── people_id

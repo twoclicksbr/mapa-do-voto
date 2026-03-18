@@ -72,7 +72,13 @@ export function HomePage() {
   const [tenantsSelected, setTenantsSelected] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
-  const [settingsSection, setSettingsSection] = useState<string>('');
+  const [settingsSection, setSettingsSectionState] = useState<string>(
+    () => localStorage.getItem('mapadovoto:settingsSection') ?? ''
+  );
+  const setSettingsSection = (section: string) => {
+    localStorage.setItem('mapadovoto:settingsSection', section);
+    setSettingsSectionState(section);
+  };
 
   const [typePeople, setTypePeople] = useState<TypePeople[]>([]);
   const [typePeopleLoading, setTypePeopleLoading] = useState(false);
@@ -545,7 +551,7 @@ export function HomePage() {
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 min-h-0 mt-0 flex flex-col">
-          <AppMegaMenu onNavigate={setSettingsSection} />
+          <AppMegaMenu onNavigate={setSettingsSection} activeSection={settingsSection} />
           {settingsSection === 'type-people' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">

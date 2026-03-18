@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\PeopleAvatarController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -31,7 +32,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user'  => $user,
+            'user'  => $this->formatUser($user),
         ]);
     }
 
@@ -44,6 +45,19 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        return response()->json($request->user()->load('people'));
+        $user = $request->user()->load('people');
+        return response()->json($this->formatUser($user));
+    }
+
+    private function formatUser(User $user): array
+    {
+        $data = $user->toArray();
+        if ($user->people) {
+            $data['people'] = array_merge(
+                $user->people->toArray(),
+                PeopleAvatarController::avatarUrls($user->people->photo_path)
+            );
+        }
+        return $data;
     }
 }

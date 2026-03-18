@@ -22,7 +22,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2, PartyPopper } from "lucide-react";
+import { Pencil, Trash2, PartyPopper, User, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDate } from "@/lib/helpers";
@@ -31,6 +31,10 @@ export interface Person {
   id: number;
   name: string;
   birth_date?: string | null;
+  photo_path?: string | null;
+  photo_original?: string | null;
+  photo_md?: string | null;
+  photo_sm?: string | null;
   type_people_id: number | null;
   type_people?: { id: number; name: string } | null;
   active: boolean;
@@ -46,6 +50,7 @@ interface PeopleDataGridProps {
 
 export function PeopleDataGrid({ people, isLoading, onSelectionChange, onEdit, onDelete }: PeopleDataGridProps) {
   const [data, setData] = useState<Person[]>(people);
+  const [lightbox, setLightbox] = useState<{ src: string; name: string } | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
   const [columnOrder, setColumnOrder] = useState<string[]>(["drag", "select", "id", "name", "birth_date", "type_people", "active", "actions"]);
@@ -128,12 +133,29 @@ export function PeopleDataGrid({ people, isLoading, onSelectionChange, onEdit, o
         id: "name",
         header: ({ column }) => <DataGridColumnHeader title="Nome" column={column} />,
         cell: ({ row }) => (
-          <button
-            onClick={() => onEdit?.(row.original)}
-            className="font-medium text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 transition-colors text-left"
-          >
-            {row.original.name}
-          </button>
+          <div className="flex items-center gap-2.5">
+            <div
+              className={`size-7 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden ${row.original.photo_original ? "cursor-zoom-in" : ""}`}
+              onClick={(e) => {
+                if (row.original.photo_original) {
+                  e.stopPropagation();
+                  setLightbox({ src: row.original.photo_original, name: row.original.name });
+                }
+              }}
+            >
+              {row.original.photo_sm ? (
+                <img src={row.original.photo_sm} alt={row.original.name} className="size-full object-cover" />
+              ) : (
+                <User className="size-3.5 text-muted-foreground" />
+              )}
+            </div>
+            <button
+              onClick={() => onEdit?.(row.original)}
+              className="font-medium text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 transition-colors text-left"
+            >
+              {row.original.name}
+            </button>
+          </div>
         ),
         meta: { skeleton: <Skeleton className="h-5 w-40" /> },
         enableSorting: true,
@@ -249,6 +271,27 @@ export function PeopleDataGrid({ people, isLoading, onSelectionChange, onEdit, o
   });
 
   return (
+    <>
+    {lightbox && (
+      <div
+        className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
+        onClick={() => setLightbox(null)}
+      >
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <img
+            src={lightbox.src}
+            alt={lightbox.name}
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
+          />
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute -top-3 -right-3 size-8 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
+    )}
     <DataGrid
       table={table}
       recordCount={data?.length || 0}
@@ -266,5 +309,6 @@ export function PeopleDataGrid({ people, isLoading, onSelectionChange, onEdit, o
         <DataGridPagination rowsPerPageLabel="Registros por página" info=" " />
       </div>
     </DataGrid>
+    </>
   );
 }
