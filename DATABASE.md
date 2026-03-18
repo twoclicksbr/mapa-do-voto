@@ -1,4 +1,5 @@
 # DATABASE.md — Mapa do Voto
+<!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
 > Atualizado em: 18/03/2026

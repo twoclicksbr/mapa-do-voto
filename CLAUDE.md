@@ -1,5 +1,6 @@
 ﻿# CLAUDE.md — Mapa do Voto
 <!-- Atualizado em: 18/03/2026 -->
+<!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
 
