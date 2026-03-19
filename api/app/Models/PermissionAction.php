@@ -11,5 +11,5 @@ class PermissionAction extends Model
 
     protected $table = 'gabinete_master.permission_actions';
 
-    protected $fillable = ['module', 'action', 'description'];
+    protected $fillable = ['module', 'name_module', 'action', 'name_action', 'description', 'order'];
 }

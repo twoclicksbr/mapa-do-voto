@@ -4,6 +4,7 @@ export const MENU_MEGA: MenuConfig = [
   {
     title: 'Cadastros',
     children: [
+      { title: 'Permissões', section: 'permission-actions' },
       {
         title: 'Pessoas',
         children: [

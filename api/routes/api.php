@@ -19,6 +19,7 @@ use App\Http\Controllers\PeopleAvatarController;
 use App\Http\Controllers\PeopleUserController;
 use App\Http\Controllers\PersonPermissionController;
 use App\Http\Controllers\TypePeopleController;
+use App\Http\Controllers\PermissionActionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn () => ['status' => 'ok']);
@@ -61,6 +62,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/people/{personId}/files', [PersonFileController::class, 'store']);
     Route::get('/people/{personId}/files/{id}/download', [PersonFileController::class, 'download']);
     Route::delete('/people/{personId}/files/{id}', [PersonFileController::class, 'destroy']);
+    Route::get('/permission-actions', [PermissionActionController::class, 'index']);
+    Route::post('/permission-actions', [PermissionActionController::class, 'store']);
+    Route::put('/permission-actions/reorder', [PermissionActionController::class, 'reorder']);
+    Route::put('/permission-actions/{id}', [PermissionActionController::class, 'update']);
+    Route::delete('/permission-actions/{id}', [PermissionActionController::class, 'destroy']);
     Route::get('/type-people', [TypePeopleController::class, 'index']);
     Route::post('/type-people', [TypePeopleController::class, 'store']);
     Route::put('/type-people/{id}', [TypePeopleController::class, 'update']);

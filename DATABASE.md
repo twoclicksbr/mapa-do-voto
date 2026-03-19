@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 18/03/2026
+> Atualizado em: 19/03/2026
 
 ---
 
@@ -158,21 +158,33 @@ Catálogo de ações possíveis por módulo. Define o que pode ser permitido ou 
 | Coluna | Tipo | Nullable | Descrição |
 |---|---|---|---|
 | `id` | bigint | NOT NULL | PK autoincrement |
-| `module` | varchar | NOT NULL | Módulo (people, attendances, map, restrictions) |
-| `action` | varchar | NOT NULL | Ação (view, create, update, delete) |
+| `module` | varchar | NOT NULL | Chave do módulo (ex: `people`, `attendances`, `map`, `restrictions`) |
+| `name_module` | varchar | NULL | Nome legível do módulo em PT-BR (ex: `Pessoas`, `Atendimentos`) — adicionado em `000064` |
+| `action` | varchar | NOT NULL | Chave da ação (ex: `view`, `create`, `update`, `delete`) |
+| `name_action` | varchar | NULL | Nome legível da ação em PT-BR (ex: `Visualizar`, `Criar`) — adicionado em `000064` |
 | `description` | varchar | NULL | Descrição opcional |
+| `order` | integer | NULL | Ordem de exibição (default: 0) — adicionado em `000063`; populado via ROW_NUMBER() |
 | `created_at` | timestamp | NULL | — |
 | `updated_at` | timestamp | NULL | — |
 | `deleted_at` | timestamp | NULL | Soft delete |
 
 **Seeds (13 registros):**
 
-| module | action |
-|---|---|
-| people | view, create, update, delete |
-| attendances | view, create, update, delete |
-| map | view |
-| restrictions | view, create, update, delete |
+| module | name_module | action | name_action |
+|---|---|---|---|
+| people | Pessoas | view | Visualizar |
+| people | Pessoas | create | Criar |
+| people | Pessoas | update | Editar |
+| people | Pessoas | delete | Excluir |
+| attendances | Atendimentos | view | Visualizar |
+| attendances | Atendimentos | create | Criar |
+| attendances | Atendimentos | update | Editar |
+| attendances | Atendimentos | delete | Excluir |
+| map | Mapa | view | Visualizar |
+| restrictions | Restrições | view | Visualizar |
+| restrictions | Restrições | create | Criar |
+| restrictions | Restrições | update | Editar |
+| restrictions | Restrições | delete | Excluir |
 
 ---
 

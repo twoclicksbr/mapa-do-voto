@@ -35,10 +35,10 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { User, Pencil, Trash2, Plus, X, Check, FileText, MapPin, Phone, StickyNote, LocateFixed, Camera, Loader2, Minus, ShieldCheck, Folder } from "lucide-react";
-import { useTree } from "@headless-tree/react";
-import { hotkeysCoreFeature, syncDataLoaderFeature } from "@headless-tree/core";
-import { Tree, TreeItem, TreeItemLabel } from "@/components/reui/tree";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Frame, FrameHeader, FramePanel, FrameTitle } from "@/components/reui/frame";
+import { Field, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field";
 import api from "@/lib/api";
 import { formatDate } from "@/lib/helpers";
 import { useLoginModal } from "@/components/auth/login-modal-context";
@@ -105,7 +105,9 @@ interface PersonUser {
 interface PermissionItem {
   id: number;
   module: string;
+  name_module: string | null;
   action: string;
+  name_action: string | null;
   description: string | null;
   allowed: boolean;
 }
@@ -985,22 +987,6 @@ function NotesTab({
 
 // ─── Tab: Restrições ──────────────────────────────────────────────────────────
 
-const MODULE_LABELS: Record<string, string> = {
-  people:       "Pessoas",
-  attendances:  "Atendimentos",
-  map:          "Mapa",
-  restrictions: "Restrições",
-};
-
-const ACTION_LABELS: Record<string, string> = {
-  view:   "Visualizar",
-  create: "Criar",
-  update: "Editar",
-  delete: "Excluir",
-};
-
-const TREE_INDENT = 24;
-
 function RestrictionsTab({
   personId,
   permissions,
@@ -1015,27 +1001,7 @@ function RestrictionsTab({
 
   const modules = [...new Set(permissions.map((p) => p.module))];
 
-  const treeItems: Record<string, { name: string; children?: string[] }> = {
-    root: { name: "Todas as Permissões", children: modules },
-    ...Object.fromEntries(
-      modules.map((mod) => [
-        mod,
-        {
-          name: MODULE_LABELS[mod] ?? mod,
-          children: permissions.filter((p) => p.module === mod).map((p) => `${p.module}-${p.action}`),
-        },
-      ])
-    ),
-    ...Object.fromEntries(
-      permissions.map((p) => [`${p.module}-${p.action}`, { name: ACTION_LABELS[p.action] ?? p.action }])
-    ),
-  };
-
-  const checked = new Set(permissions.filter((p) => p.allowed).map((p) => `${p.module}-${p.action}`));
-
-  const handleToggle = async (leafKey: string, allowed: boolean) => {
-    const perm = permissions.find((p) => `${p.module}-${p.action}` === leafKey);
-    if (!perm) return;
+  const handleToggle = async (perm: PermissionItem, allowed: boolean) => {
     setToggling(perm.id);
     try {
       await api.put(`/people/${personId}/permissions/${perm.id}`, { allowed });
@@ -1066,74 +1032,55 @@ function RestrictionsTab({
     return "indeterminate";
   };
 
-  type TreeNode = { name: string; children?: string[] };
-
-  const tree = useTree<TreeNode>({
-    initialState: { expandedItems: modules },
-    indent: TREE_INDENT,
-    rootItemId: "root",
-    getItemName: (item) => item.getItemData().name,
-    isItemFolder: (item) => (item.getItemData()?.children?.length ?? 0) > 0,
-    dataLoader: {
-      getItem: (itemId) => treeItems[itemId],
-      getChildren: (itemId) => treeItems[itemId]?.children ?? [],
-    },
-    features: [syncDataLoaderFeature, hotkeysCoreFeature],
-  });
-
   if (permissions.length === 0) {
     return <p className="text-sm text-muted-foreground py-4 text-center">Carregando...</p>;
   }
 
   return (
-    <Tree indent={TREE_INDENT} tree={tree} toggleIconType="plus-minus">
-      {tree.getItems().map((item) => {
-        const id = item.getId();
-        const isLeaf = !item.isFolder();
-        const perm = isLeaf ? permissions.find((p) => `${p.module}-${p.action}` === id) : undefined;
-
-        const isModule = item.isFolder() && id !== "root";
+    <div className="grid grid-cols-3 gap-4 items-start">
+      {modules.map((mod) => {
+        const actions = permissions.filter((p) => p.module === mod);
+        const moduleName = actions[0]?.name_module ?? mod;
+        const state = groupState(mod);
 
         return (
-          <TreeItem key={id} item={item}>
-            <TreeItemLabel className="not-in-data-[folder=true]:ps-5">
-              <span className="flex items-center gap-2">
-                {isLeaf && (
-                  <Checkbox
-                    checked={checked.has(id)}
-                    onCheckedChange={(v) => handleToggle(id, !!v)}
-                    className="size-3.5 [&_svg]:size-2.5"
-                    disabled={toggling === perm?.id}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                )}
-                {isModule && (
-                  <Checkbox
-                    checked={groupState(id)}
-                    onCheckedChange={(v) => handleGroupToggle(id, !!v)}
-                    className="size-3.5 [&_svg]:size-2.5"
-                    disabled={togglingGroup === id}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                )}
-                <span
-                  className={(isLeaf || isModule) ? "cursor-pointer select-none" : undefined}
-                  onClick={
-                    isLeaf
-                      ? (e) => { e.stopPropagation(); handleToggle(id, !checked.has(id)); }
-                      : isModule
-                      ? (e) => { e.stopPropagation(); handleGroupToggle(id, groupState(id) !== true); }
-                      : undefined
-                  }
-                >
-                  {item.getItemName()}
-                </span>
-              </span>
-            </TreeItemLabel>
-          </TreeItem>
+          <Frame key={mod} spacing="sm">
+            <FrameHeader className="flex items-center gap-2 px-3 py-2.5">
+              <Checkbox
+                checked={state}
+                onCheckedChange={(v) => handleGroupToggle(mod, !!v)}
+                disabled={togglingGroup === mod}
+              />
+              <FrameTitle
+                className="cursor-pointer select-none text-sm font-semibold"
+                onClick={() => handleGroupToggle(mod, state !== true)}
+              >
+                {moduleName}
+              </FrameTitle>
+            </FrameHeader>
+            <FramePanel className="overflow-hidden p-0!">
+              <FieldGroup className="gap-0">
+                {actions.map((perm, idx) => (
+                  <>
+                    {idx > 0 && <Separator key={`sep-${perm.id}`} />}
+                    <Field key={perm.id}>
+                      <FieldLabel className="px-3 py-2.5 cursor-pointer">
+                        <Checkbox
+                          checked={perm.allowed}
+                          onCheckedChange={(v) => handleToggle(perm, !!v)}
+                          disabled={toggling === perm.id}
+                        />
+                        <FieldTitle>{perm.name_action ?? perm.action}</FieldTitle>
+                      </FieldLabel>
+                    </Field>
+                  </>
+                ))}
+              </FieldGroup>
+            </FramePanel>
+          </Frame>
         );
       })}
-    </Tree>
+    </div>
   );
 }
 

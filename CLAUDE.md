@@ -1,8 +1,14 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 18/03/2026 -->
+<!-- Atualizado em: 19/03/2026 -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
+
+---
+
+## Leitura obrigatória
+
+Sempre ler `DATABASE.md` ao iniciar uma nova conversa.
 
 ---
 
@@ -185,7 +191,7 @@ C:\Herd\mapa-do-voto\
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças, Configurações. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Aba Configurações exibe `AppMegaMenu` com seções: Pessoas (DataGrid + Modal), Tipos de Pessoa, Tipos de Contato, Tipos de Endereço, Tipos de Documento. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). |
+| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças, Configurações. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Aba Configurações exibe `AppMegaMenu` com seções: Permissões (DataGrid + Modal com DnD), Pessoas (DataGrid + Modal), Tipos de Pessoa, Tipos de Contato, Tipos de Endereço, Tipos de Documento. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). |
 | `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch + heatmap + botões flutuantes |
 | `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — variants: `map`, `sidebar`, `modal`; no modal busca apenas id/name/photo_url sem party/role; dropdown com `onMouseDown`+`preventDefault` para funcionar dentro de Radix Dialog |
 | `src/components/mapa-do-voto/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
@@ -198,12 +204,15 @@ C:\Herd\mapa-do-voto\
 | `src/components/gabinetes/gabinete-edit-modal.tsx` | Modal de edição de tenant |
 | `src/components/common/app-mega-menu.tsx` | Wrapper reutilizável do MegaMenu do Layout 1 — props: `onNavigate`, `activeSection` (destaca o botão do módulo ativo) |
 | `src/components/people/people-data-grid.tsx` | DataGrid de pessoas: colunas ID, Avatar, Nome (clicável), Aniversário (com ícone `PartyPopper` pulsante no dia), Tipo, Status, Ações |
-| `src/components/people/people-modal.tsx` | Modal de pessoas: Create (small) + Detail (large 2 painéis). Abas: Geral, Contatos, Endereços, Documentos, Notas, Arquivos, Usuário, Permissões. Aba Endereços: layout 2 colunas com ViaCEP + mapa Leaflet. Campo Data de Nascimento usa `BirthDatePicker` |
+| `src/components/people/people-modal.tsx` | Modal de pessoas: Create (small) + Detail (large 2 painéis). Abas: Geral, Contatos, Endereços, Documentos, Notas, Arquivos, Usuário, Permissões. Aba Endereços: layout 2 colunas com ViaCEP + mapa Leaflet. Campo Data de Nascimento usa `BirthDatePicker`. Aba Permissões: grid 3 colunas de Frame cards (um por módulo) com Checkbox de grupo + Checkbox por ação; usa `name_module`/`name_action` vindos da API |
 | `src/components/people/birth-date-picker.tsx` | Date picker customizado baseado no `@reui/p-calendar-26` — Popover + Calendar com navegação mês/ano, locale ptBR, formato DD/MM/YYYY, range 1920–hoje |
+| `src/components/permission-actions/permission-actions-data-grid.tsx` | DataGrid de permission_actions: agrupado por módulo com expand/collapse, DnD (`@dnd-kit`) para reordenar módulos e ações dentro de módulos; persistência via `PUT /permission-actions/reorder` |
+| `src/components/permission-actions/permission-actions-modal.tsx` | Modal de criação/edição de permission_action: campos module (chave), name_module, action (chave), name_action, description |
 | `src/components/type-people/` | CRUD de tipos de pessoa (DataGrid + Modal) |
 | `src/components/type-contacts/` | CRUD de tipos de contato (DataGrid + Modal) |
 | `src/components/type-addresses/` | CRUD de tipos de endereço (DataGrid + Modal) |
 | `src/components/type-documents/` | CRUD de tipos de documento (DataGrid + Modal) |
+| `src/components/ui/field.tsx` | Componentes de formulário semânticos: `Field`, `FieldLabel`, `FieldTitle`, `FieldGroup`, `FieldContent`, `FieldDescription`, `FieldError`, `FieldSeparator`, `FieldSet`, `FieldLegend` — baseados em `@radix-ui/react-label` |
 | `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
 | `src/lib/helpers.ts` | Utilitários: `formatDate` (fix timezone — strings `YYYY-MM-DD` parseadas com `T00:00:00` para evitar desvio UTC), `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
 | `src/lib/party-colors.ts` | Cores + hex dos 30 partidos |
@@ -306,8 +315,13 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | GET | `/api/people/{id}/user` | Bearer | — | Retorna usuário vinculado à pessoa (id, email) ou null |
 | POST | `/api/people/{id}/user` | Bearer | — | Cria usuário para a pessoa (email + password + confirmed) |
 | PUT | `/api/people/{id}/user` | Bearer | — | Atualiza email e/ou senha do usuário |
-| GET | `/api/people/{id}/permissions` | Bearer | — | Lista todas as permission_actions com `allowed` da pessoa (default true se sem registro) |
+| GET | `/api/people/{id}/permissions` | Bearer | — | Lista todas as permission_actions (ordenadas por `order`) com `allowed` da pessoa (default true se sem registro); retorna `name_module` e `name_action` |
 | PUT | `/api/people/{id}/permissions/{actionId}` | Bearer | — | Upsert de uma permissão (allowed: bool) |
+| GET | `/api/permission-actions` | Bearer | — | Lista todas as permission_actions ordenadas por `order`, `id` |
+| POST | `/api/permission-actions` | Bearer | — | Cria permission_action (module, name_module, action, name_action, description); order = max+1 automático |
+| PUT | `/api/permission-actions/reorder` | Bearer | — | Reordena em lote: `[{id, order}]` |
+| PUT | `/api/permission-actions/{id}` | Bearer | — | Atualiza permission_action |
+| DELETE | `/api/permission-actions/{id}` | Bearer | — | Soft delete de permission_action |
 | GET | `/api/auth/tenant` | pública | `tenant` | Valida se o subdomínio corresponde a um tenant ativo; retorna 200 ou 404 |
 | POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
 | POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
@@ -340,7 +354,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | `gabinete_master.people_candidacies` | Vínculo people ↔ candidacy (id, people_id, candidacy_id, order, active) |
 | `gabinete_master.split_candidacies` | Candidato do split direito (id, people_candidacy_id, candidacy_id, order, active) |
 | `gabinete_master.personal_access_tokens` | Tokens Sanctum customizados (inclui campo `schema`) |
-| `gabinete_master.permission_actions` | Ações de permissão por módulo (people, attendances, map, restrictions) |
+| `gabinete_master.permission_actions` | Ações de permissão por módulo (id, module, name_module, action, name_action, description, order) |
 | `gabinete_master.permissions` | Permissões por people (people_id, permission_action_id, allowed) |
 | `gabinete_master.attendances` | Atendimentos (people_id, title, description, address, lat, lng, status, opened_at, resolved_at) |
 | `gabinete_master.attendance_history` | Histórico de status dos atendimentos |
@@ -372,7 +386,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 - `TypePeople` (`gabinete_master.type_people`) — com SoftDeletes; `$fillable`: `name`, `order`, `active`; evento `creating`: auto `max+1` se order vazio, reordena se duplicado; evento `updating`: reordena se order alterado; relacionamento `people()`
 - `People` (`gabinete_master.people`) — sem SoftDeletes, sem uuid; `$fillable`: `tenant_id`, `type_people_id`, `name`, `birth_date`, `photo_path`, `active`; cast `birth_date` → `date:Y-m-d`; relacionamentos `typePeople()` e `peopleCandidacies()`
 - `Permission` (`gabinete_master.permissions`) — com SoftDeletes; `$fillable`: `people_id`, `permission_action_id`, `allowed`; cast `allowed` → `boolean`; `belongsTo(PermissionAction)`
-- `PermissionAction` (`gabinete_master.permission_actions`) — com SoftDeletes; campos `module`, `action`, `description`
+- `PermissionAction` (`gabinete_master.permission_actions`) — com SoftDeletes; `$fillable`: `module`, `name_module`, `action`, `name_action`, `description`, `order`
 - `TypeContact` (`gabinete_master.type_contacts`) — com SoftDeletes; campos `name`, `mask`, `order`, `active`
 - `TypeAddress` (`gabinete_master.type_addresses`) — com SoftDeletes; campos `name`, `order`, `active`
 - `TypeDocument` (`gabinete_master.type_documents`) — com SoftDeletes; campos `name`, `mask`, `order`, `active`
@@ -414,6 +428,8 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `000053`–`000060` | `gabinete_master` | type_contacts, type_addresses, type_documents, contacts, addresses (campos ViaCEP + lat/lng), documents, notes, files |
 | `000061` | `gabinete_master` | add birth_date na tabela people |
 | `000062` | `gabinete_master` | add photo_path (nullable string) na tabela people |
+| `000063` | `gabinete_master` | add order (integer nullable default 0) em permission_actions; popula com ROW_NUMBER() ORDER BY module, action |
+| `000064` | `gabinete_master` | add name_module + name_action (varchar nullable) em permission_actions; popula com valores PT-BR para módulos/ações existentes |
 | `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes, tse_votacao_secao (2008–2024) |
 | `000122` | `maps` | índices de performance em `maps.votes`: `(candidacy_id, year, round)`, `(state_id, year, round, vote_type)`, `(city_id, year, round, vote_type)` |
 
@@ -432,7 +448,8 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Requests/PeopleRequest.php` | Validação: name required, birth_date nullable date, type_people_id nullable exists, active boolean |
 | `api/app/Http/Controllers/PeopleAvatarController.php` | `store` (upload avatar → 3 versões jpg via Intervention Image), `destroy` (remove storage); `static avatarUrls(?string)` retorna photo_original/md/sm |
 | `api/app/Http/Controllers/PeopleUserController.php` | `show`, `store`, `update` — gerencia usuário vinculado à pessoa |
-| `api/app/Http/Controllers/PersonPermissionController.php` | `index` (lista actions + allowed), `update` (upsert permissão) |
+| `api/app/Http/Controllers/PersonPermissionController.php` | `index` (lista actions ordenadas por `order`, retorna `name_module`/`name_action` + `allowed`), `update` (upsert permissão) |
+| `api/app/Http/Controllers/PermissionActionController.php` | `index`, `store`, `update`, `destroy`, `reorder` (lote `[{id,order}]`) — CRUD completo de permission_actions |
 | `api/app/Http/Controllers/PersonContactController.php` | CRUD de contatos polimórficos de uma pessoa |
 | `api/app/Http/Controllers/PersonAddressController.php` | CRUD de endereços polimórficos — campos ViaCEP + lat/lng |
 | `api/app/Http/Controllers/PersonDocumentController.php` | CRUD de documentos polimórficos |

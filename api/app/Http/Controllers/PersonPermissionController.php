@@ -17,7 +17,7 @@ class PersonPermissionController extends Controller
     {
         People::findOrFail($personId);
 
-        $actions = PermissionAction::orderBy('module')->orderBy('action')->get();
+        $actions = PermissionAction::orderBy('order')->orderBy('id')->get();
 
         $existing = Permission::where('people_id', $personId)
             ->whereNull('deleted_at')
@@ -26,7 +26,9 @@ class PersonPermissionController extends Controller
         $result = $actions->map(fn($a) => [
             'id'          => $a->id,
             'module'      => $a->module,
+            'name_module' => $a->name_module,
             'action'      => $a->action,
+            'name_action' => $a->name_action,
             'description' => $a->description,
             'allowed'     => $existing->has($a->id) ? (bool) $existing[$a->id] : true,
         ]);

@@ -36,6 +36,8 @@ import { TypeDocumentsDataGrid, TypeDocument } from "@/components/type-documents
 import { TypeDocumentsModal } from "@/components/type-documents/type-documents-modal";
 import { PeopleDataGrid, Person } from "@/components/people/people-data-grid";
 import { PeopleModal } from "@/components/people/people-modal";
+import { PermissionActionsDataGrid, PermissionAction } from "@/components/permission-actions/permission-actions-data-grid";
+import { PermissionActionsModal } from "@/components/permission-actions/permission-actions-modal";
 
 function getTenantName(): string {
   const parts = window.location.hostname.split('.');
@@ -103,6 +105,12 @@ export function HomePage() {
   const [typeDocumentsSelected, setTypeDocumentsSelected] = useState(0);
   const [typeDocumentsModalOpen, setTypeDocumentsModalOpen] = useState(false);
   const [editingTypeDocument, setEditingTypeDocument] = useState<TypeDocument | null>(null);
+
+  const [permissionActions, setPermissionActions] = useState<PermissionAction[]>([]);
+  const [permissionActionsLoading, setPermissionActionsLoading] = useState(false);
+  const [permissionActionsSelected, setPermissionActionsSelected] = useState(0);
+  const [permissionActionsModalOpen, setPermissionActionsModalOpen] = useState(false);
+  const [editingPermissionAction, setEditingPermissionAction] = useState<PermissionAction | null>(null);
 
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -195,6 +203,19 @@ export function HomePage() {
   };
 
   useEffect(() => {
+    if (!isMaster || !loggedIn) return;
+    setPermissionActionsLoading(true);
+    api.get<PermissionAction[]>('/permission-actions')
+      .then(res => setPermissionActions(res.data))
+      .finally(() => setPermissionActionsLoading(false));
+  }, [isMaster, loggedIn]);
+
+  const handlePermissionActionDelete = async (id: number) => {
+    await api.delete(`/permission-actions/${id}`);
+    setPermissionActions(prev => prev.filter(pa => pa.id !== id));
+  };
+
+  useEffect(() => {
     if (!loggedIn) return;
     setPeopleLoading(true);
     api.get<Person[]>('/people')
@@ -257,6 +278,19 @@ export function HomePage() {
         onClose={() => setEditingTenant(null)}
         onUpdated={(updated) => setTenants((prev) => prev.map((t) => t.id === updated.id ? updated : t))}
         existingSlugs={tenants.map((t) => t.slug)}
+      />
+      <PermissionActionsModal
+        open={permissionActionsModalOpen || !!editingPermissionAction}
+        permissionAction={editingPermissionAction}
+        onClose={() => { setPermissionActionsModalOpen(false); setEditingPermissionAction(null); }}
+        onSaved={(saved) => {
+          setPermissionActions(prev => {
+            const idx = prev.findIndex(pa => pa.id === saved.id);
+            return idx >= 0 ? prev.map(pa => pa.id === saved.id ? saved : pa) : [...prev, saved];
+          });
+          setPermissionActionsModalOpen(false);
+          setEditingPermissionAction(null);
+        }}
       />
       <TypePeopleModal
         open={typePeopleModalOpen || !!editingTypePeople}
@@ -866,6 +900,58 @@ export function HomePage() {
               </div>
               <div className="flex-1 overflow-y-auto p-6">
                 <GabinetesDataGrid tenants={tenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} onEdit={setEditingTenant} />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          ) : settingsSection === 'permission-actions' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2">Permissões <Badge variant="success" appearance="light" size="md">{formatRecordCount(permissionActions.length)}</Badge></h2>
+                  <p className="text-sm text-muted-foreground">Gerencie os módulos e ações de permissão da plataforma</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {permissionActionsSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({permissionActionsSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Excluir selecionados</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Confirmar exclusão</Badge></DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => setPermissionActionsModalOpen(true)}>
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <PermissionActionsDataGrid
+                  permissionActions={permissionActions}
+                  isLoading={permissionActionsLoading}
+                  onEdit={(pa) => setEditingPermissionAction(pa)}
+                  onDelete={handlePermissionActionDelete}
+                  onAddToModule={(module) => { setEditingPermissionAction({ id: 0, module, action: '', description: null }); }}
+                />
               </div>
               <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
                 <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
