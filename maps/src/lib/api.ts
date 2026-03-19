@@ -3,9 +3,12 @@ import axios from 'axios'
 const hostname = window.location.hostname
 const parts = hostname.split('.')
 const subdomain = parts.length > 2 ? parts[0] : null
-const apiBase = subdomain
-  ? `http://${subdomain}.mapadovoto-api.test/api`
-  : import.meta.env.VITE_API_URL
+const isProd = !hostname.endsWith('.test') && !hostname.endsWith('localhost')
+const apiBase = isProd
+  ? import.meta.env.VITE_API_URL
+  : subdomain
+    ? `http://${subdomain}.mapadovoto-api.test/api`
+    : import.meta.env.VITE_API_URL
 
 const api = axios.create({
   baseURL: apiBase,

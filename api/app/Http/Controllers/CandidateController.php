@@ -11,6 +11,10 @@ class CandidateController extends Controller
 {
     private function isMaster(Request $request): bool
     {
+        $tenant = $request->attributes->get('tenant');
+        if ($tenant) {
+            return $tenant->slug === 'master';
+        }
         $parts = explode('.', $request->getHost());
         return count($parts) > 1 && $parts[0] === 'master';
     }
@@ -108,6 +112,17 @@ class CandidateController extends Controller
             ", $tokenBindings);
         } else {
             $peopleId = $request->user()->people_id;
+            $candidacyIds = DB::table('gabinete_master.people_candidacies')
+                ->where('people_id', $peopleId)
+                ->where('active', true)
+                ->pluck('candidacy_id')
+                ->all();
+
+            if (empty($candidacyIds)) {
+                return response()->json([]);
+            }
+
+            $inList = implode(',', array_map('intval', $candidacyIds));
             $rows = DB::connection('pgsql_maps')->select("
                 SELECT cy.id, cy.ballot_name AS name, cy.role, cy.year,
                        cy.state_id, s.uf AS state_uf,
@@ -119,14 +134,10 @@ class CandidateController extends Controller
                 JOIN maps.parties p     ON p.id  = cy.party_id
                 LEFT JOIN maps.states s ON s.id  = cy.state_id
                 LEFT JOIN maps.cities c ON c.id  = cy.city_id
-                JOIN gabinete_master.people_candidacies pc
-                    ON pc.candidacy_id = cy.id
-                    AND pc.people_id = ?
-                    AND pc.active = true
-                WHERE {$where}
+                WHERE cy.id IN ({$inList}) AND {$where}
                 ORDER BY cy.year DESC, cy.ballot_name
                 LIMIT 10
-            ", array_merge([$peopleId], $tokenBindings));
+            ", $tokenBindings);
         }
 
         return response()->json(array_map(fn ($row) => [

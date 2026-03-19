@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 19/03/2026
+> Atualizado em: 19/03/2026 (deploy produção + votes SP 2022/2024)
 
 ---
 
@@ -697,9 +697,13 @@ Votos por seção eleitoral. **Tabela particionada por `year` (PARTITION BY RANG
 | `idx_votes_state_year_round_type` | `(state_id, year, round, vote_type)` | Totais do escopo estadual |
 | `idx_votes_city_year_round_type` | `(city_id, year, round, vote_type)` | Totais do escopo municipal + endpoint cities() |
 
-> Criados via `DB::connection('pgsql_maps')` — necessário pois a tabela está no schema `maps`, não no default `pgsql`.
+> ⚠️ **Atenção de arquitetura:** a migration `000112` usa `DB::statement()` (conexão default `pgsql` → `cm_politico`), mas as queries de stats/cities usam `pgsql_maps` (→ `cm_maps`). Em **produção**, a tabela foi criada manualmente em `cm_maps` via SQL direto (não pela migration). Os índices (000122) usam `pgsql_maps` corretamente. Em dev local a migration cria a tabela em `cm_politico`, mas o banco `cm_maps` também tem a tabela (criada pelo import TSE). Não rodar a migration 000112 via artisan em produção.
 
-> Atualmente importados: SP/2022 (18.761.482 linhas) e SP/2024 (9.611.090 linhas). Total: 28.372.572 linhas.
+> **Dados importados em produção (servidor `168.231.64.36`, banco `cm_maps`):**
+> - SP/2022: 18.761.482 linhas (importado via `\copy` BINARY)
+> - SP/2024: 9.611.090 linhas (importado via `\copy` BINARY)
+> - Total: 28.372.572 linhas
+> - Após import: rodar `ANALYZE maps.votes;` para atualizar estatísticas do planner
 
 ---
 

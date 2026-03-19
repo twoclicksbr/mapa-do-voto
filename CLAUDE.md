@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 19/03/2026 -->
+<!-- Atualizado em: 19/03/2026 (deploy produção + votes SP 2022/2024) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -8,7 +8,10 @@
 
 ## Leitura obrigatória
 
-Sempre ler `DATABASE.md` ao iniciar uma nova conversa.
+Sempre ler os dois arquivos abaixo ao iniciar uma nova conversa:
+
+- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md
+- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md
 
 ---
 
@@ -213,7 +216,7 @@ C:\Herd\mapa-do-voto\
 | `src/components/type-addresses/` | CRUD de tipos de endereço (DataGrid + Modal) |
 | `src/components/type-documents/` | CRUD de tipos de documento (DataGrid + Modal) |
 | `src/components/ui/field.tsx` | Componentes de formulário semânticos: `Field`, `FieldLabel`, `FieldTitle`, `FieldGroup`, `FieldContent`, `FieldDescription`, `FieldError`, `FieldSeparator`, `FieldSet`, `FieldLegend` — baseados em `@radix-ui/react-label` |
-| `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s |
+| `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s. Detecta `isProd` pelo hostname: em produção sempre usa `VITE_API_URL`; em dev usa `http://{subdomain}.mapadovoto-api.test/api` |
 | `src/lib/helpers.ts` | Utilitários: `formatDate` (fix timezone — strings `YYYY-MM-DD` parseadas com `T00:00:00` para evitar desvio UTC), `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
 | `src/lib/party-colors.ts` | Cores + hex dos 30 partidos |
 | `src/lib/leaflet-icon-fix.ts` | Fix ícone Leaflet no Vite |
@@ -412,13 +415,15 @@ Todos os models têm `$table` explícito com schema qualificado.
 
 ### TenantMiddleware
 
-`app/Http/Middleware/TenantMiddleware.php` — identifica o gabinete pelo subdomínio:
-1. Extrai subdomínio de `$request->getHost()` (ex: `netobota` de `netobota.mapadovoto.com`)
-2. Busca em `gabinete_master.tenants` por `slug` + `active=true` + `deleted_at IS NULL`
-3. Retorna 404 se subdomínio ausente ou tenant não encontrado
-4. Armazena tenant apenas em `$request->attributes->set('tenant', $tenant)` — sem `$request->merge()`
-5. Executa `SET search_path TO {tenant.schema},maps,public`
-6. Registrado via alias `'tenant'` em `bootstrap/app.php`
+`app/Http/Middleware/TenantMiddleware.php` — identifica o gabinete pelo subdomínio (dois ambientes):
+1. **Dev:** extrai slug do `Host` header (ex: `master` de `master.mapadovoto-api.test`) — funciona pois a API tem subdomínio
+2. **Prod:** API está em `api.mapadovoto.com` → Host dá `api`, não o slug. Fallback: lê o header `Origin` (ex: `https://master.mapadovoto.com`) e extrai o slug
+3. Busca em `gabinete_master.tenants` por `slug` + `active=true` + `deleted_at IS NULL`
+4. Retorna 404 se tenant não encontrado
+5. Armazena tenant em `$request->attributes->set('tenant', $tenant)` — sem `$request->merge()`
+6. Executa `SET search_path TO {tenant.schema},maps,public`
+7. Registrado via alias `'tenant'` em `bootstrap/app.php`
+8. **Obrigatório no grupo auth:** `Route::middleware(['tenant', 'auth:sanctum'])` — sem isso, `$request->attributes->get('tenant')` retorna null nas rotas autenticadas
 
 ### Migrations (numeração atual)
 
@@ -458,7 +463,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/TypeContactController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/TypeAddressController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/TypeDocumentController.php` | `index`, `store`, `update`, `destroy` |
-| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search` (busca pública em maps.candidates), `stats`, `cities` |
+| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search` (busca pública em maps.candidates), `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` (set pelo TenantMiddleware) com fallback por Host. `search()` para não-master: busca `people_candidacies` via query separada na `gabinete_master` e usa `WHERE cy.id IN (...)` — evita cross-database JOIN impossível via `pgsql_maps` |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, PersonalAccessToken, Permission, PermissionAction, PersonFile, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |
