@@ -133,7 +133,7 @@ function CandidateInfo({ c, hideBadge, hideDetails }: { c: Candidate; hideBadge?
     <div className="min-w-0 overflow-hidden flex-1 w-0">
       <div className="flex items-center gap-1 overflow-hidden">
         <span className="font-bold text-sm text-gray-900 truncate block">{displayName(c)}</span>
-        {!hideBadge && <PartyBadge party={c.party} />}
+        {!hideBadge && c.party && <PartyBadge party={c.party} />}
       </div>
       <div className="text-xs text-gray-600 truncate">{line2}</div>
       {line3 && <div className="text-xs text-gray-400 truncate">{line3}</div>}

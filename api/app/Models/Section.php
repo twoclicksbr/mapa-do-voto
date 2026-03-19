@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Section extends Model
 {
+    protected $connection = 'pgsql_maps';
     protected $table = 'maps.sections';
 
     protected $fillable = ['voting_location_id', 'section_number'];

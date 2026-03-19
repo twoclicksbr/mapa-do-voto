@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Zone extends Model
 {
+    protected $connection = 'pgsql_maps';
     protected $table = 'maps.zones';
 
     protected $fillable = ['city_id', 'zone_number', 'geometry'];

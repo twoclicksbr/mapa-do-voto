@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Vote extends Model
 {
+    protected $connection = 'pgsql_maps';
     protected $table = 'maps.votes';
 
     protected $fillable = [

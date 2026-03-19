@@ -17,7 +17,7 @@ class CityController extends Controller
         $q       = $request->input('q');
         $stateId = (int) $request->input('state_id');
 
-        $cities = DB::table('maps.cities')
+        $cities = DB::connection('pgsql_maps')->table('maps.cities')
             ->select('id', 'name', 'ibge_code')
             ->where('state_id', $stateId)
             ->whereRaw("unaccent(name) ILIKE unaccent(?)", ["%{$q}%"])

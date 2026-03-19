@@ -31,7 +31,7 @@ class TenantMiddleware
 
         $request->attributes->set('tenant', $tenant);
 
-        DB::statement("SET search_path TO {$tenant->schema},maps,public");
+        DB::statement("SET search_path TO {$tenant->schema},public");
 
         return $next($request);
     }

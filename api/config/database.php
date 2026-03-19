@@ -94,7 +94,21 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'gabinete_master,maps,public',
+            'search_path' => 'gabinete_master,public',
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
+        ],
+
+        'pgsql_maps' => [
+            'driver' => 'pgsql',
+            'host' => env('DB_MAPS_HOST', '127.0.0.1'),
+            'port' => env('DB_MAPS_PORT', '5432'),
+            'database' => env('DB_MAPS_DATABASE', 'cm_maps'),
+            'username' => env('DB_MAPS_USERNAME', 'root'),
+            'password' => env('DB_MAPS_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'maps,public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 

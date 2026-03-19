@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Country extends Model
 {
+    protected $connection = 'pgsql_maps';
     protected $table = 'maps.countries';
 
     protected $fillable = ['name', 'geometry'];

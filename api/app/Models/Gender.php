@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Gender extends Model
 {
+    protected $connection = 'pgsql_maps';
     protected $table = 'maps.genders';
 
     protected $fillable = ['description'];

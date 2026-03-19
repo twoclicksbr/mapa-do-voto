@@ -678,6 +678,15 @@ Votos por seção eleitoral. **Tabela particionada por `year` (PARTITION BY RANG
 
 **PK composta:** `(id, year)` — exigência do PostgreSQL para tabelas particionadas.
 
+**Índices (migration 000122):**
+| Nome | Colunas | Uso |
+|---|---|---|
+| `idx_votes_candidacy_year_round` | `(candidacy_id, year, round)` | Stats do candidato por turno |
+| `idx_votes_state_year_round_type` | `(state_id, year, round, vote_type)` | Totais do escopo estadual |
+| `idx_votes_city_year_round_type` | `(city_id, year, round, vote_type)` | Totais do escopo municipal + endpoint cities() |
+
+> Criados via `DB::connection('pgsql_maps')` — necessário pois a tabela está no schema `maps`, não no default `pgsql`.
+
 > Atualmente importados: SP/2022 (18.761.482 linhas) e SP/2024 (9.611.090 linhas). Total: 28.372.572 linhas.
 
 ---

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VotingLocation extends Model
 {
+    protected $connection = 'pgsql_maps';
     protected $table = 'maps.voting_locations';
 
     protected $fillable = [

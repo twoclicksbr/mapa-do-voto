@@ -28,9 +28,8 @@ Route::get('/tenants', [TenantController::class, 'index']);
 Route::middleware('tenant')->get('/auth/tenant', [AuthController::class, 'tenant']);
 Route::middleware('tenant')->post('/auth/login', [AuthController::class, 'login']);
 
-Route::get('/candidates/search', [CandidateController::class, 'search']);
-
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/candidates/search', [CandidateController::class, 'search']);
     Route::get('/people', [PeopleController::class, 'index']);
     Route::post('/people', [PeopleController::class, 'store']);
     Route::put('/people/{id}', [PeopleController::class, 'update']);

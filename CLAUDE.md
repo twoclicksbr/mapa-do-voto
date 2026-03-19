@@ -312,10 +312,10 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
 | POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
 | GET | `/api/auth/me` | Bearer | — | Retorna usuário autenticado + people |
-| GET | `/api/candidates/search?q=` | **pública** | — | Busca em `maps.candidates` por nome (retorna id, name, photo_url) — sem candidaturas, sem auth |
+| GET | `/api/candidates/search?q=` | Bearer | — | Busca em `maps.candidacies` por nome/cargo/ano/partido/UF — master: todas as candidacies; outros: apenas `people_candidacies` do user |
 | GET | `/api/candidates` | Bearer | — | Lista candidaturas; master vê todas, user vê apenas as vinculadas via people_candidacies |
-| GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | — | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE |
-| GET | `/api/candidacies/{id}/cities` | Bearer | — | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) |
+| GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | — | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE — query única CTE com partition pruning por year |
+| GET | `/api/candidacies/{id}/cities` | Bearer | — | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) — filtrado por year |
 | GET | `/api/cities/search?q=&state_id=` | Bearer | — | Busca cidades com unaccent, filtro state_id, limit 10 |
 | GET | `/api/states/{uf}/geometry` | pública | — | Retorna geometry GeoJSON do estado (campo geometry da tabela states) |
 
@@ -415,6 +415,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `000061` | `gabinete_master` | add birth_date na tabela people |
 | `000062` | `gabinete_master` | add photo_path (nullable string) na tabela people |
 | `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes, tse_votacao_secao (2008–2024) |
+| `000122` | `maps` | índices de performance em `maps.votes`: `(candidacy_id, year, round)`, `(state_id, year, round, vote_type)`, `(city_id, year, round, vote_type)` |
 
 ### Arquivos chave
 

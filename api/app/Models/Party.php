@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Party extends Model
 {
+    protected $connection = 'pgsql_maps';
     protected $table = 'maps.parties';
 
     protected $fillable = [

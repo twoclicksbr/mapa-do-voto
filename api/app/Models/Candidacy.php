@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Candidacy extends Model
 {
+    protected $connection = 'pgsql_maps';
     protected $table = 'maps.candidacies';
 
     protected $fillable = [

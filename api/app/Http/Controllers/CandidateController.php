@@ -29,19 +29,15 @@ class CandidateController extends Controller
             'city_id'        => $candidacy->city_id,
             'city_name'      => $candidacy->city?->name,
             'city_ibge_code' => $candidacy->city?->ibge_code,
-            'party'          => [
+            'party'          => $candidacy->party ? [
                 'id'           => $candidacy->party->id,
                 'name'         => $candidacy->party->name,
                 'abbreviation' => $candidacy->party->abbreviation,
-            ],
+            ] : null,
         ];
 
         if ($this->isMaster($request)) {
-            $candidacies = Candidacy::with(['candidate', 'party', 'state', 'city'])
-                ->orderBy('id')
-                ->get();
-
-            return response()->json($candidacies->map($format));
+            return response()->json([]);
         }
 
         $peopleCandidacies = PeopleCandidacy::with([
@@ -71,27 +67,82 @@ class CandidateController extends Controller
             return response()->json([]);
         }
 
-        $bindings = [];
+        // Cada token pode casar com qualquer campo (nome, cargo, ano, partido)
+        // Todos os tokens devem casar (AND entre tokens, OR entre campos)
         $whereClauses = [];
+        $tokenBindings = [];
 
         foreach ($tokens as $token) {
-            $whereClauses[] = 'unaccent(name) ILIKE unaccent(?)';
-            $bindings[] = "%{$token}%";
+            $whereClauses[] = "(
+                unaccent(cy.ballot_name) ILIKE unaccent(?)
+                OR unaccent(cy.role)        ILIKE unaccent(?)
+                OR p.abbreviation           ILIKE ?
+                OR CAST(cy.year AS TEXT)    LIKE ?
+                OR s.uf                     ILIKE ?
+            )";
+            $like = "%{$token}%";
+            $tokenBindings[] = $like;
+            $tokenBindings[] = $like;
+            $tokenBindings[] = $like;
+            $tokenBindings[] = $like;
+            $tokenBindings[] = $like;
         }
 
         $where = implode(' AND ', $whereClauses);
 
-        $rows = DB::select("
-            SELECT id, name, photo_url
-            FROM maps.candidates
-            WHERE {$where}
-            LIMIT 10
-        ", $bindings);
+        if ($this->isMaster($request)) {
+            $rows = DB::connection('pgsql_maps')->select("
+                SELECT cy.id, cy.ballot_name AS name, cy.role, cy.year,
+                       cy.state_id, s.uf AS state_uf,
+                       cy.city_id, c.name AS city_name, c.ibge_code AS city_ibge_code,
+                       p.abbreviation AS party,
+                       ca.photo_url
+                FROM maps.candidacies cy
+                JOIN maps.candidates ca ON ca.id = cy.candidate_id
+                JOIN maps.parties p     ON p.id  = cy.party_id
+                LEFT JOIN maps.states s ON s.id  = cy.state_id
+                LEFT JOIN maps.cities c ON c.id  = cy.city_id
+                WHERE {$where}
+                ORDER BY cy.year DESC, cy.ballot_name
+                LIMIT 10
+            ", $tokenBindings);
+        } else {
+            $peopleId = $request->user()->people_id;
+            $rows = DB::connection('pgsql_maps')->select("
+                SELECT cy.id, cy.ballot_name AS name, cy.role, cy.year,
+                       cy.state_id, s.uf AS state_uf,
+                       cy.city_id, c.name AS city_name, c.ibge_code AS city_ibge_code,
+                       p.abbreviation AS party,
+                       ca.photo_url
+                FROM maps.candidacies cy
+                JOIN maps.candidates ca ON ca.id = cy.candidate_id
+                JOIN maps.parties p     ON p.id  = cy.party_id
+                LEFT JOIN maps.states s ON s.id  = cy.state_id
+                LEFT JOIN maps.cities c ON c.id  = cy.city_id
+                JOIN gabinete_master.people_candidacies pc
+                    ON pc.candidacy_id = cy.id
+                    AND pc.people_id = ?
+                    AND pc.active = true
+                WHERE {$where}
+                ORDER BY cy.year DESC, cy.ballot_name
+                LIMIT 10
+            ", array_merge([$peopleId], $tokenBindings));
+        }
 
         return response()->json(array_map(fn ($row) => [
-            'id'       => $row->id,
-            'name'     => $row->name,
-            'photo_url' => $row->photo_url,
+            'id'             => $row->id,
+            'name'           => $row->name,
+            'ballot_name'    => $row->name,
+            'ballot_number'  => null,
+            'role'           => $row->role,
+            'year'           => $row->year,
+            'state_id'       => $row->state_id,
+            'state_uf'       => $row->state_uf,
+            'city_id'        => $row->city_id,
+            'city'           => $row->city_name,
+            'city_ibge_code' => $row->city_ibge_code,
+            'party'          => $row->party,
+            'photo_url'      => $row->photo_url,
         ], $rows));
     }
 
@@ -107,19 +158,62 @@ class CandidateController extends Controller
         ];
         $isStateLevelRole = in_array(strtoupper($candidacy->role ?? ''), $stateRoles);
 
-        // city_id do filtro (para cargos estaduais/federais o usuário pode filtrar por cidade)
         $filterCityId = $request->integer('city_id') ?: null;
 
-        $rounds = DB::table('maps.votes')
-            ->where('candidacy_id', $id)
-            ->orderBy('round')
-            ->distinct()
-            ->pluck('round')
-            ->map(fn ($r) => (int) $r)
-            ->values()
-            ->all();
+        if ($filterCityId) {
+            $scopeCol = 'v.city_id';
+            $scopeVal = $filterCityId;
+        } elseif ($isStateLevelRole) {
+            $scopeCol = 'v.state_id';
+            $scopeVal = $candidacy->state_id;
+        } else {
+            $scopeCol = 'v.city_id';
+            $scopeVal = $candidacy->city_id;
+        }
 
-        if (empty($rounds)) {
+        // candidate_by_round: quando filterCityId, limita votos do candidato à cidade filtrada
+        $candidateCityFilter = $filterCityId ? 'AND city_id = ?' : '';
+        $candidateBindings   = $filterCityId
+            ? [$id, $candidacy->year, $filterCityId]
+            : [$id, $candidacy->year];
+
+        // Query única: candidate_by_round + scope_by_round em um único pass
+        // year filter ativa partition pruning na tabela particionada
+        $rows = DB::connection('pgsql_maps')->select("
+            WITH candidate_by_round AS (
+                SELECT round, SUM(qty_votes) AS qty_votes
+                FROM maps.votes
+                WHERE candidacy_id = ? AND year = ? {$candidateCityFilter}
+                GROUP BY round
+            ),
+            scope_by_round AS (
+                SELECT v.round,
+                    SUM(CASE WHEN v.vote_type = 'candidate' THEN v.qty_votes ELSE 0 END)                             AS total_valid,
+                    SUM(CASE WHEN v.vote_type = 'blank'     THEN v.qty_votes ELSE 0 END)                             AS qty_blank,
+                    SUM(CASE WHEN v.vote_type = 'null'      THEN v.qty_votes ELSE 0 END)                             AS qty_null,
+                    SUM(CASE WHEN v.vote_type = 'legend'    THEN v.qty_votes ELSE 0 END)                             AS qty_legend,
+                    SUM(CASE WHEN v.vote_type IN ('candidate','blank','null') THEN v.qty_votes ELSE 0 END)            AS qty_total,
+                    SUM(CASE WHEN v.vote_type = 'candidate' AND cy.party_id = ? THEN v.qty_votes ELSE 0 END)         AS qty_party_nominal
+                FROM maps.votes v
+                LEFT JOIN maps.candidacies cy ON cy.id = v.candidacy_id AND v.vote_type = 'candidate'
+                WHERE {$scopeCol} = ? AND v.year = ?
+                GROUP BY v.round
+            )
+            SELECT
+                cbr.round,
+                cbr.qty_votes,
+                COALESCE(sbr.total_valid, 0)        AS total_valid,
+                COALESCE(sbr.qty_blank, 0)          AS qty_blank,
+                COALESCE(sbr.qty_null, 0)           AS qty_null,
+                COALESCE(sbr.qty_legend, 0)         AS qty_legend,
+                COALESCE(sbr.qty_total, 0)          AS qty_total,
+                COALESCE(sbr.qty_party_nominal, 0)  AS qty_party_nominal
+            FROM candidate_by_round cbr
+            LEFT JOIN scope_by_round sbr ON sbr.round = cbr.round
+            ORDER BY cbr.round
+        ", array_merge($candidateBindings, [$candidacy->party_id, $scopeVal, $candidacy->year]));
+
+        if (empty($rows)) {
             return response()->json([
                 'rounds'        => [],
                 'default_round' => null,
@@ -127,70 +221,25 @@ class CandidateController extends Controller
             ]);
         }
 
-        $stats = [];
+        $stats  = [];
+        $rounds = [];
 
-        foreach ($rounds as $round) {
-            // qty_votes do candidato (com filtro de cidade se informado)
-            $qtyVotesQuery = DB::table('maps.votes')
-                ->where('candidacy_id', $id)
-                ->where('round', $round);
-
-            if ($filterCityId) {
-                $qtyVotesQuery->where('city_id', $filterCityId);
-            }
-
-            $qtyVotes = (int) $qtyVotesQuery->sum('qty_votes');
-
-            // Escopo: state_id ou city_id
-            if ($filterCityId) {
-                $scopeCol = 'v.city_id';
-                $scopeVal = $filterCityId;
-            } elseif ($isStateLevelRole) {
-                $scopeCol = 'v.state_id';
-                $scopeVal = $candidacy->state_id;
-            } else {
-                $scopeCol = 'v.city_id';
-                $scopeVal = $candidacy->city_id;
-            }
-
-            // CTE única: totais do escopo + votos nominais do partido (Q2+Q3 em uma query)
-            $scopeTotals = DB::selectOne("
-                WITH scope_votes AS (
-                    SELECT v.qty_votes, v.vote_type, c.party_id
-                    FROM votes v
-                    LEFT JOIN candidacies c ON c.id = v.candidacy_id
-                    WHERE {$scopeCol} = ? AND v.round = ?
-                )
-                SELECT
-                    SUM(CASE WHEN vote_type = 'candidate' THEN qty_votes ELSE 0 END)                          AS total_valid,
-                    SUM(CASE WHEN vote_type = 'blank'     THEN qty_votes ELSE 0 END)                          AS qty_blank,
-                    SUM(CASE WHEN vote_type = 'null'      THEN qty_votes ELSE 0 END)                          AS qty_null,
-                    SUM(CASE WHEN vote_type = 'legend'    THEN qty_votes ELSE 0 END)                          AS qty_legend,
-                    SUM(CASE WHEN vote_type IN ('candidate','blank','null') THEN qty_votes ELSE 0 END)         AS qty_total,
-                    SUM(CASE WHEN vote_type = 'candidate' AND party_id = ? THEN qty_votes ELSE 0 END)         AS qty_party_nominal
-                FROM scope_votes
-            ", [$scopeVal, $round, $candidacy->party_id]);
-
-            $totalValid      = (int) ($scopeTotals->total_valid      ?? 0);
-            $qtyBlank        = (int) ($scopeTotals->qty_blank        ?? 0);
-            $qtyNull         = (int) ($scopeTotals->qty_null         ?? 0);
-            $qtyLegend       = (int) ($scopeTotals->qty_legend       ?? 0);
-            $qtyTotal        = (int) ($scopeTotals->qty_total        ?? 0);
-            $qtyPartyTotal   = (int) ($scopeTotals->qty_party_nominal ?? 0) + $qtyLegend;
-
-            $percentage = $totalValid > 0
-                ? round($qtyVotes / $totalValid * 100, 2)
-                : 0.0;
+        foreach ($rows as $row) {
+            $round      = (int) $row->round;
+            $rounds[]   = $round;
+            $qtyVotes   = (int) $row->qty_votes;
+            $totalValid = (int) $row->total_valid;
+            $qtyLegend  = (int) $row->qty_legend;
 
             $stats[(string) $round] = [
                 'qty_votes'       => $qtyVotes,
-                'percentage'      => $percentage,
+                'percentage'      => $totalValid > 0 ? round($qtyVotes / $totalValid * 100, 2) : 0.0,
                 'total_valid'     => $totalValid,
-                'qty_blank'       => $qtyBlank,
-                'qty_null'        => $qtyNull,
+                'qty_blank'       => (int) $row->qty_blank,
+                'qty_null'        => (int) $row->qty_null,
                 'qty_legend'      => $qtyLegend,
-                'qty_party_total' => $qtyPartyTotal,
-                'qty_total'       => $qtyTotal,
+                'qty_party_total' => (int) $row->qty_party_nominal + $qtyLegend,
+                'qty_total'       => (int) $row->qty_total,
                 'status'          => $candidacy->status,
             ];
         }
@@ -210,19 +259,20 @@ class CandidateController extends Controller
             return response()->json([]);
         }
 
-        $cities = DB::select("
+        $cities = DB::connection('pgsql_maps')->select("
             SELECT c.id, c.name, c.ibge_code,
                    COALESCE(SUM(v.qty_votes), 0) AS qty_votes
-            FROM cities c
-            LEFT JOIN votes v ON v.city_id = c.id
+            FROM maps.cities c
+            LEFT JOIN maps.votes v ON v.city_id = c.id
                 AND v.candidacy_id = ?
                 AND v.vote_type = 'candidate'
-                AND v.round = (SELECT MAX(round) FROM votes WHERE candidacy_id = ?)
+                AND v.year = ?
+                AND v.round = (SELECT MAX(round) FROM maps.votes WHERE candidacy_id = ? AND year = ?)
             WHERE c.state_id = ?
               AND c.tse_code SIMILAR TO '[0-9]+'
             GROUP BY c.id, c.name, c.ibge_code
             ORDER BY qty_votes DESC, c.name ASC
-        ", [$id, $id, $candidacy->state_id]);
+        ", [$id, $candidacy->year, $id, $candidacy->year, $candidacy->state_id]);
 
         return response()->json($cities);
     }
