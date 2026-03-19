@@ -6,3 +6,4 @@ site/.next/
 tse/
 mkt/
 maps/@/
+*.sql
