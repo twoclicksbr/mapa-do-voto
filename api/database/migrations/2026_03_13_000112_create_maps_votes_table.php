@@ -38,6 +38,10 @@ return new class extends Migration
         DB::statement('CREATE TABLE maps.votes_2022 PARTITION OF maps.votes FOR VALUES FROM (2022) TO (2023)');
         DB::statement('CREATE TABLE maps.votes_2024 PARTITION OF maps.votes FOR VALUES FROM (2024) TO (2025)');
         DB::statement('CREATE TABLE maps.votes_default PARTITION OF maps.votes DEFAULT');
+
+        DB::statement('CREATE INDEX IF NOT EXISTS idx_votes_candidacy_year_round   ON maps.votes (candidacy_id, year, round)');
+        DB::statement('CREATE INDEX IF NOT EXISTS idx_votes_state_year_round_type  ON maps.votes (state_id, year, round, vote_type)');
+        DB::statement('CREATE INDEX IF NOT EXISTS idx_votes_city_year_round_type   ON maps.votes (city_id, year, round, vote_type)');
     }
 
     public function down(): void

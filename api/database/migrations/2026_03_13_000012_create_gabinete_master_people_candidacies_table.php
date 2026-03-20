@@ -11,16 +11,16 @@ return new class extends Migration
     {
         DB::statement('SET search_path TO gabinete_master');
 
-        if (!Schema::hasTable('split_candidacies')) {
-            Schema::create('split_candidacies', function (Blueprint $table) {
+        if (!Schema::hasTable('people_candidacies')) {
+            Schema::create('people_candidacies', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('people_candidacy_id')->constrained('gabinete_master.people_candidacies')->cascadeOnDelete();
-                $table->foreignId('candidacy_id')->constrained('maps.candidacies')->cascadeOnDelete();
+                $table->foreignId('people_id')->constrained('gabinete_master.people')->cascadeOnDelete();
+                $table->unsignedBigInteger('candidacy_id');
                 $table->integer('order')->default(1);
                 $table->boolean('active')->default(true);
                 $table->timestamps();
 
-                $table->unique(['people_candidacy_id', 'candidacy_id']);
+                $table->unique(['people_id', 'candidacy_id']);
             });
         }
 
@@ -30,7 +30,7 @@ return new class extends Migration
     public function down(): void
     {
         DB::statement('SET search_path TO gabinete_master');
-        Schema::dropIfExists('split_candidacies');
+        Schema::dropIfExists('people_candidacies');
         DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 };

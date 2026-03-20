@@ -11,8 +11,13 @@ return new class extends Migration
     {
         DB::statement('SET search_path TO gabinete_master');
 
-        Schema::table('people', function (Blueprint $table) {
-            $table->date('birth_date')->nullable()->after('name');
+        Schema::create('sessions', function (Blueprint $table) {
+            $table->string('id')->primary();
+            $table->foreignId('user_id')->nullable()->index();
+            $table->string('ip_address', 45)->nullable();
+            $table->text('user_agent')->nullable();
+            $table->longText('payload');
+            $table->integer('last_activity')->index();
         });
 
         DB::statement('SET search_path TO gabinete_master,maps,public');
@@ -21,11 +26,7 @@ return new class extends Migration
     public function down(): void
     {
         DB::statement('SET search_path TO gabinete_master');
-
-        Schema::table('people', function (Blueprint $table) {
-            $table->dropColumn('birth_date');
-        });
-
+        Schema::dropIfExists('sessions');
         DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 };

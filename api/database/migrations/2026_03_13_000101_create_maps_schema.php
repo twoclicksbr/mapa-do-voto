@@ -7,12 +7,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $user = config('database.connections.pgsql.username');
         DB::statement('CREATE SCHEMA IF NOT EXISTS maps');
-        DB::statement('GRANT ALL ON SCHEMA maps TO ' . config('database.connections.pgsql.username'));
+        DB::statement("GRANT ALL ON SCHEMA maps TO {$user}");
     }
 
     public function down(): void
     {
-        DB::statement('DROP SCHEMA IF EXISTS maps CASCADE');
+        // Schema não é dropado — as migrations de tabela cuidam de seus próprios objetos
     }
 };

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -16,6 +16,8 @@ return new class extends Migration
             $table->foreignId('tenant_id')->nullable()->constrained('gabinete_master.tenants');
             $table->foreignId('type_people_id')->nullable()->constrained('gabinete_master.type_people');
             $table->string('name');
+            $table->date('birth_date')->nullable();
+            $table->string('photo_path')->nullable();
             $table->boolean('active')->default(true);
             $table->timestamps();
             $table->softDeletes();

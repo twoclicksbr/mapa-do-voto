@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 19/03/2026 (deploy produção + votes SP 2022/2024)
+> Atualizado em: 20/03/2026 (unificação de migrations + sessions + slug master + FK cross-schema removida)
 
 ---
 
@@ -60,7 +60,7 @@ Cadastro dos gabinetes (clientes da plataforma). Cada tenant corresponde a um su
 | `deleted_at` | timestamp | NULL | Soft delete |
 
 **Índices:** `slug` unique, `schema` unique
-**Seed:** `{ name: 'Mapa do Voto', slug: 'mapadovoto', schema: 'gabinete_master', valid_until: '2026-06-24' }`
+**Seed:** `{ name: 'Mapa do Voto', slug: 'master', schema: 'gabinete_master', valid_until: '2026-06-24' }`
 
 ---
 
@@ -214,7 +214,7 @@ Vínculo entre pessoas da plataforma e candidaturas do TSE. Define quais candida
 |---|---|---|---|
 | `id` | bigint | NOT NULL | PK autoincrement |
 | `people_id` | bigint | NOT NULL | FK → `people.id` (cascade delete) |
-| `candidacy_id` | bigint | NOT NULL | FK → `maps.candidacies.id` (cascade delete) |
+| `candidacy_id` | bigint | NOT NULL | Referência a `maps.candidacies.id` — sem FK (cross-schema; integridade via aplicação) |
 | `order` | integer | NOT NULL | Ordem de exibição (default: 1) |
 | `active` | boolean | NOT NULL | Se o vínculo está ativo (default: `true`) |
 | `created_at` | timestamp | NULL | — |
@@ -235,7 +235,7 @@ Candidato configurado para o painel de comparação (split view) de uma candidat
 |---|---|---|---|
 | `id` | bigint | NOT NULL | PK autoincrement |
 | `people_candidacy_id` | bigint | NOT NULL | FK → `people_candidacies.id` (cascade delete) — candidatura principal |
-| `candidacy_id` | bigint | NOT NULL | FK → `maps.candidacies.id` (cascade delete) — candidato do lado direito do split |
+| `candidacy_id` | bigint | NOT NULL | Referência a `maps.candidacies.id` — sem FK (cross-schema; integridade via aplicação) — candidato do lado direito do split |
 | `order` | integer | NOT NULL | Ordem (default: 1) |
 | `active` | boolean | NOT NULL | Se está ativo (default: `true`) |
 | `created_at` | timestamp | NULL | — |
@@ -690,14 +690,14 @@ Votos por seção eleitoral. **Tabela particionada por `year` (PARTITION BY RANG
 
 **PK composta:** `(id, year)` — exigência do PostgreSQL para tabelas particionadas.
 
-**Índices (migration 000122):**
+**Índices (incorporados na migration 000112):**
 | Nome | Colunas | Uso |
 |---|---|---|
 | `idx_votes_candidacy_year_round` | `(candidacy_id, year, round)` | Stats do candidato por turno |
 | `idx_votes_state_year_round_type` | `(state_id, year, round, vote_type)` | Totais do escopo estadual |
 | `idx_votes_city_year_round_type` | `(city_id, year, round, vote_type)` | Totais do escopo municipal + endpoint cities() |
 
-> ⚠️ **Atenção de arquitetura:** a migration `000112` usa `DB::statement()` (conexão default `pgsql` → `cm_politico`), mas as queries de stats/cities usam `pgsql_maps` (→ `cm_maps`). Em **produção**, a tabela foi criada manualmente em `cm_maps` via SQL direto (não pela migration). Os índices (000122) usam `pgsql_maps` corretamente. Em dev local a migration cria a tabela em `cm_politico`, mas o banco `cm_maps` também tem a tabela (criada pelo import TSE). Não rodar a migration 000112 via artisan em produção.
+> ⚠️ **Atenção de arquitetura:** a migration `000112` usa `DB::statement()` (conexão default `pgsql` → `cm_politico`). Em **produção**, a tabela foi criada manualmente em `cm_maps` via SQL direto (não pela migration). Os índices estão incorporados na `000112` (antes estavam em `000122`, que foi removida). Em dev local a migration cria a tabela em `cm_politico`. Não rodar a migration 000112 via artisan em produção.
 
 > **Dados importados em produção (servidor `168.231.64.36`, banco `cm_maps`):**
 > - SP/2022: 18.761.482 linhas (importado via `\copy` BINARY)

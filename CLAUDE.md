@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 20/03/2026 -->
+<!-- Atualizado em: 20/03/2026 (unificação de migrations + sessions + slug master) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -429,14 +429,14 @@ Todos os models têm `$table` explícito com schema qualificado.
 
 | Range | Schema | Conteúdo |
 |-------|--------|----------|
-| `000001`–`000052` | `gabinete_master` | schema, tenants, PAT, cache, jobs, type_people, people, users, permission_actions, permissions, people_candidacies, split_candidacies, attendances, attendance_history |
+| `000001`–`000013` | `gabinete_master` | schema, tenants, PAT, cache, jobs, sessions, type_people, people (inclui birth_date + photo_path), users, permission_actions (inclui order + name_module + name_action), permissions, people_candidacies, split_candidacies |
+| `000051`–`000052` | `gabinete_master` | attendances, attendance_history |
 | `000053`–`000060` | `gabinete_master` | type_contacts, type_addresses, type_documents, contacts, addresses (campos ViaCEP + lat/lng), documents, notes, files |
-| `000061` | `gabinete_master` | add birth_date na tabela people |
-| `000062` | `gabinete_master` | add photo_path (nullable string) na tabela people |
-| `000063` | `gabinete_master` | add order (integer nullable default 0) em permission_actions; popula com ROW_NUMBER() ORDER BY module, action |
-| `000064` | `gabinete_master` | add name_module + name_action (varchar nullable) em permission_actions; popula com valores PT-BR para módulos/ações existentes |
-| `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes, tse_votacao_secao (2008–2024) |
-| `000122` | `maps` | índices de performance em `maps.votes`: `(candidacy_id, year, round)`, `(state_id, year, round, vote_type)`, `(city_id, year, round, vote_type)` |
+| `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes (inclui índices), tse_votacao_secao (2008–2024) |
+
+**Observações sobre migrations:**
+- `down()` das migrations de schema (000001, 000101) são **no-op** — schemas não são dropados; cada migration de tabela cuida dos seus próprios objetos
+- FK cross-schema removida de `people_candidacies` e `split_candidacies` (`candidacy_id` é `unsignedBigInteger` sem constraint — integridade via aplicação)
 
 ### Arquivos chave
 

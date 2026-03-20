@@ -24,7 +24,7 @@ return new class extends Migration
 
         DB::table('gabinete_master.tenants')->insert([
             'name'       => 'Mapa do Voto',
-            'slug'       => 'mapadovoto',
+            'slug'       => 'master',
             'schema'     => 'gabinete_master',
             'active'      => true,
             'valid_until' => '2026-06-24',
