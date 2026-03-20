@@ -313,7 +313,7 @@ export function CandidateSearch({ onSelect, onClear, variant }: CandidateSearchP
         </div>
       ) : (
         <>
-          <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white">
+          <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white cursor-text" onClick={() => inputRef.current?.focus()}>
             <input
               ref={inputRef}
               type="text"
@@ -323,7 +323,7 @@ export function CandidateSearch({ onSelect, onClear, variant }: CandidateSearchP
               placeholder="Buscar candidato..."
               className="w-full font-semibold text-sm outline-none placeholder:text-gray-400 placeholder:font-semibold bg-transparent uppercase"
             />
-            <div className="text-sm text-gray-500">Digite o nome</div>
+            <div className="text-sm text-gray-500">Digite nome, cargo, ano, cidade, UF ou partido</div>
           </div>
 
           {showDropdown && (

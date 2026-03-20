@@ -40,8 +40,9 @@ interface CityOption {
   qty_votes?: number;
 }
 
-function CitySearch({ candidacyId, onSelect, onClear, selected }: {
+function CitySearch({ candidacyId, stateUf, onSelect, onClear, selected }: {
   candidacyId: string;
+  stateUf?: string;
   onSelect: (city: CityOption) => void;
   onClear: () => void;
   selected: CityOption | null;
@@ -62,7 +63,7 @@ function CitySearch({ candidacyId, onSelect, onClear, selected }: {
   }, [candidacyId]);
 
   const filtered = query.length >= 2
-    ? allCities.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
+    ? allCities.filter((c) => normalizeName(c.name).includes(normalizeName(query)))
     : allCities;
 
   const withVotes    = filtered.filter((c) => (c.qty_votes ?? 0) > 0);
@@ -113,7 +114,7 @@ function CitySearch({ candidacyId, onSelect, onClear, selected }: {
               onMouseDown={(e) => { e.preventDefault(); handleSelect(city); }}
               className="w-full px-3 py-2 text-left text-xs hover:bg-gray-50 transition-colors flex items-center justify-between"
             >
-              <span>{city.name}</span>
+              <span>{city.name}{stateUf ? ` - ${stateUf}` : ''}</span>
               <span className="text-[10px] text-gray-400 shrink-0 ml-2">
                 {(city.qty_votes ?? 0).toLocaleString('pt-BR')}
               </span>
@@ -132,7 +133,7 @@ function CitySearch({ candidacyId, onSelect, onClear, selected }: {
               onMouseDown={(e) => { e.preventDefault(); handleSelect(city); }}
               className="w-full px-3 py-2 text-left text-xs hover:bg-gray-50 transition-colors text-gray-500"
             >
-              {city.name}
+              {city.name}{stateUf ? ` - ${stateUf}` : ''}
             </button>
           ))}
         </>
@@ -145,7 +146,7 @@ function CitySearch({ candidacyId, onSelect, onClear, selected }: {
     <div ref={containerRef} className="relative">
       {selected ? (
         <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white flex items-center justify-between gap-2">
-          <span className="text-xs font-medium truncate">{selected.name}</span>
+          <span className="text-xs font-medium truncate">{selected.name}{stateUf ? ` - ${stateUf}` : ''}</span>
           <button onMouseDown={(e) => { e.preventDefault(); handleClear(); }} className="flex-shrink-0 text-gray-400 hover:text-gray-600">
             <X className="size-3" />
           </button>
@@ -225,6 +226,12 @@ function getHeatColor(votes: number, max: number): { fillColor: string; fillOpac
   if (votes <= 0 || max <= 0) return { fillColor: '#D1D5DB', fillOpacity: 0.15 };
   const t = Math.log(votes) / Math.log(max);
   return { fillColor: lerpColor(t), fillOpacity: 0.65 };
+}
+
+function fmtShort(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'm';
+  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return Math.round(n).toString();
 }
 
 const MUNICIPAL_ROLES = ['PREFEITO', 'PREFEITA', 'VICE-PREFEITO', 'VICE-PREFEITA', 'VEREADOR', 'VEREADORA'];
@@ -392,8 +399,55 @@ function StatsCard() {
 
   if (!activeCandidate || !statsData) return null;
 
+  const isStateLevel = STATE_ROLES.includes((activeCandidate.role ?? '').toUpperCase());
+
   const stat = activeRound !== null ? (statsData.stats[String(activeRound)] ?? null) : null;
-  if (!stat) return null;
+
+  // Cidade sem votos: mostra painel com 0 votos
+  if (!stat) {
+    return (
+      <>
+        {isStateLevel && (
+          <div className="w-full max-w-xs">
+            <Frame stacked dense spacing="sm" className="w-full" style={{ overflow: 'visible' }}>
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger className="flex w-full">
+                  <FrameHeader className="flex grow flex-row items-center justify-between gap-2">
+                    <FrameTitle className="text-sm font-medium">Visualização</FrameTitle>
+                    <ChevronRightIcon aria-hidden="true" className="text-muted-foreground size-4 transition-transform in-data-open:rotate-90" />
+                  </FrameHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <FramePanel>
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <Switch size="sm" checked={showCities} onCheckedChange={setShowCities} />
+                        <span className="text-sm">Exibir Cidades</span>
+                      </label>
+                      {showCities && (
+                        <CitySearch
+                          candidacyId={activeCandidate.id}
+                          stateUf={activeCandidate.state_uf ?? undefined}
+                          selected={selectedCity}
+                          onSelect={handleCitySelect}
+                          onClear={handleCityClear}
+                        />
+                      )}
+                    </div>
+                  </FramePanel>
+                </CollapsibleContent>
+              </Collapsible>
+            </Frame>
+          </div>
+        )}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-3">
+          <div className="bg-muted/60 border border-border rounded-lg p-3 text-center text-sm text-gray-500">
+            0 votos nesta cidade
+          </div>
+        </div>
+      </>
+    );
+  }
 
   const pct = stat.percentage < 0.1
     ? stat.percentage.toFixed(2)
@@ -401,17 +455,6 @@ function StatsCard() {
 
   const statusKey = stat.status?.toUpperCase().trim() ?? '';
   const statusLabel = statusKey === '2º TURNO' ? 'ELEITO (2° TURNO)' : (stat.status ?? '—');
-
-  const isStateLevel = STATE_ROLES.includes((activeCandidate.role ?? '').toUpperCase());
-
-  // const details = [
-  //   { label: 'Votos válidos',  value: stat.total_valid.toLocaleString('pt-BR') },
-  //   { label: 'Brancos',        value: stat.qty_blank.toLocaleString('pt-BR') },
-  //   { label: 'Nulos',          value: stat.qty_null.toLocaleString('pt-BR') },
-  //   { label: 'Legenda',        value: stat.qty_legend.toLocaleString('pt-BR') },
-  //   { label: 'Total partido',  value: stat.qty_party_total.toLocaleString('pt-BR') },
-  //   { label: 'Comparecimento', value: stat.qty_total.toLocaleString('pt-BR') },
-  // ];
 
   return (
     <>
@@ -583,9 +626,10 @@ function MapCore({
   isCompare?: boolean;
 }) {
   const map = useMap();
-  const polygonLayerRef = useRef<L.GeoJSON | null>(null);
-  const citiesLayerRef  = useRef<L.GeoJSON | null>(null);
-  const brazilLayerRef  = useRef<L.GeoJSON | null>(null);
+  const polygonLayerRef       = useRef<L.GeoJSON | null>(null);
+  const citiesLayerRef        = useRef<L.GeoJSON | null>(null);
+  const brazilLayerRef        = useRef<L.GeoJSON | null>(null);
+  const focusedCityBoundsRef  = useRef<L.LatLngBounds | null>(null);
   const { showCities, setMapClickedCity, focusCityOnMap, setFocusCityOnMap, clearCityHighlight, setClearCityHighlight } = useActiveCandidate();
   const showCitiesRef = useRef(showCities);
   useEffect(() => { showCitiesRef.current = showCities; }, [showCities]);
@@ -679,12 +723,16 @@ function MapCore({
       citiesLayerRef.current.remove();
       citiesLayerRef.current = null;
     }
-    if (!showCities) setMaxVotes(0);
+    if (!showCities) { setMaxVotes(0); focusedCityBoundsRef.current = null; }
     if (polygonLayerRef.current) {
       if (showCities) {
         polygonLayerRef.current.remove();
       } else {
         polygonLayerRef.current.addTo(map);
+        const bounds = polygonLayerRef.current.getBounds();
+        if (bounds.isValid()) {
+          map.flyToBounds(bounds, { paddingTopLeft: [0, 20], paddingBottomRight: [20, 20], maxZoom: 7, duration: 1 });
+        }
       }
     }
     if (!showCities || !activeCandidate) return;
@@ -753,6 +801,7 @@ function MapCore({
             citiesLayerRef.current?.eachLayer((l) => citiesLayerRef.current!.resetStyle(l as L.Layer));
             (lyr as L.Path).setStyle(CITIES_HIGHLIGHT_STYLE);
             if (bounds.isValid()) {
+              focusedCityBoundsRef.current = bounds;
               map.flyToBounds(bounds, { paddingTopLeft: [0, 40], paddingBottomRight: [40, 40], duration: 1 });
             }
             if (dbCity) {
@@ -781,6 +830,7 @@ function MapCore({
         citiesLayerRef.current!.eachLayer((l) => citiesLayerRef.current!.resetStyle(l as L.Layer));
         (lyr as L.Path).setStyle(CITIES_HIGHLIGHT_STYLE);
         const bounds = (lyr as L.Polygon).getBounds();
+        if (bounds.isValid()) focusedCityBoundsRef.current = bounds;
         map.invalidateSize();
         map.flyToBounds(bounds, { paddingTopLeft: [0, 40], paddingBottomRight: [40, 40], duration: 1 });
         found = true;
@@ -791,24 +841,42 @@ function MapCore({
 
   useEffect(() => {
     if (!clearCityHighlight) return;
+    focusedCityBoundsRef.current = null;
     if (citiesLayerRef.current) {
       citiesLayerRef.current.eachLayer((l) => citiesLayerRef.current!.resetStyle(l as L.Layer));
-      const bounds = citiesLayerRef.current.getBounds();
+    }
+    const boundsLayer = polygonLayerRef.current ?? citiesLayerRef.current;
+    if (boundsLayer) {
+      const bounds = boundsLayer.getBounds();
       if (bounds.isValid()) {
-        map.flyToBounds(bounds, { paddingTopLeft: [0, 40], paddingBottomRight: [40, 40], duration: 1 });
+        map.flyToBounds(bounds, { paddingTopLeft: [0, 20], paddingBottomRight: [20, 20], maxZoom: 7, duration: 1 });
       }
     }
     setClearCityHighlight(false);
   }, [clearCityHighlight, map, setClearCityHighlight]);
 
+  const [thermTooltip, setThermTooltip] = useState<{ x: number; y: number; votes: number } | null>(null);
+
+  const handleThermMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+    const t = 1 - relY / rect.height;
+    const votes = maxVotes > 0 ? Math.round(Math.pow(maxVotes, t)) : 0;
+    setThermTooltip({ x: rect.left, y: e.clientY, votes });
+  };
+
   const fitToCity = useCallback(() => {
-    if (!cityBounds) return;
+    const focused = focusedCityBoundsRef.current;
+    const bounds  = focused ?? cityBounds;
+    if (!bounds) return;
+    // Cidade selecionada → padding de cidade; estado (sem cidade) → mesmas opções do applyLayer
+    const opts: L.FitBoundsOptions = focused
+      ? { paddingTopLeft: [0, 40], paddingBottomRight: [40, 40], duration: 1 }
+      : { paddingTopLeft: [0, 20], paddingBottomRight: [20, 20], maxZoom: 7, duration: 1 };
     isSyncingRef.current = true;
-    map.flyToBounds(cityBounds, { paddingTopLeft: [0, 40], paddingBottomRight: [40, 40], duration: 1 });
-    syncRef?.current?.flyToBounds(cityBounds, { paddingTopLeft: [0, 40], paddingBottomRight: [40, 40], duration: 1 });
-    setTimeout(() => {
-      isSyncingRef.current = false;
-    }, 1500);
+    map.flyToBounds(bounds, opts);
+    syncRef?.current?.flyToBounds(bounds, opts);
+    setTimeout(() => { isSyncingRef.current = false; }, 1500);
   }, [cityBounds, map, isSyncingRef, syncRef]);
 
   return (
@@ -818,9 +886,20 @@ function MapCore({
           {showCities && maxVotes > 0 && (
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm px-2.5 py-2">
               <div
-                className="w-2.5 rounded-full"
+                className="w-2.5 rounded-full cursor-crosshair"
                 style={{ background: 'linear-gradient(to bottom, #E63946, #F5A623, #52C97A, #4A90D9)', minHeight: 160 }}
+                onMouseMove={handleThermMove}
+                onMouseLeave={() => setThermTooltip(null)}
               />
+              {thermTooltip !== null && createPortal(
+                <div
+                  className="fixed z-[9999] pointer-events-none bg-gray-800 text-white text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap -translate-y-1/2 -translate-x-full"
+                  style={{ top: thermTooltip.y, left: thermTooltip.x - 6 }}
+                >
+                  {fmtShort(thermTooltip.votes)} votos
+                </div>,
+                document.body,
+              )}
             </div>
           )}
           <button

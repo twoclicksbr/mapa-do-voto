@@ -83,8 +83,10 @@ class CandidateController extends Controller
                 OR p.abbreviation           ILIKE ?
                 OR CAST(cy.year AS TEXT)    LIKE ?
                 OR s.uf                     ILIKE ?
+                OR unaccent(c.name)         ILIKE unaccent(?)
             )";
             $like = "%{$token}%";
+            $tokenBindings[] = $like;
             $tokenBindings[] = $like;
             $tokenBindings[] = $like;
             $tokenBindings[] = $like;
@@ -107,6 +109,7 @@ class CandidateController extends Controller
                 LEFT JOIN maps.states s ON s.id  = cy.state_id
                 LEFT JOIN maps.cities c ON c.id  = cy.city_id
                 WHERE {$where}
+                AND cy.role NOT ILIKE 'VICE-%'
                 ORDER BY cy.year DESC, cy.ballot_name
                 LIMIT 10
             ", $tokenBindings);
@@ -135,6 +138,7 @@ class CandidateController extends Controller
                 LEFT JOIN maps.states s ON s.id  = cy.state_id
                 LEFT JOIN maps.cities c ON c.id  = cy.city_id
                 WHERE cy.id IN ({$inList}) AND {$where}
+                AND cy.role NOT ILIKE 'VICE-%'
                 ORDER BY cy.year DESC, cy.ballot_name
                 LIMIT 10
             ", $tokenBindings);

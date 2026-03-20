@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 19/03/2026 (deploy produção + votes SP 2022/2024) -->
+<!-- Atualizado em: 20/03/2026 -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -195,8 +195,8 @@ C:\Herd\mapa-do-voto\
 | Arquivo | Descrição |
 |---------|-----------|
 | `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças, Configurações. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Aba Configurações exibe `AppMegaMenu` com seções: Permissões (DataGrid + Modal com DnD), Pessoas (DataGrid + Modal), Tipos de Pessoa, Tipos de Contato, Tipos de Endereço, Tipos de Documento. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). |
-| `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch + heatmap + botões flutuantes |
-| `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — variants: `map`, `sidebar`, `modal`; no modal busca apenas id/name/photo_url sem party/role; dropdown com `onMouseDown`+`preventDefault` para funcionar dentro de Radix Dialog |
+| `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch interno + heatmap + botões flutuantes. `CitySearch` interno: prop `stateUf`, busca normalizada (unaccent via `normalizeName`), exibe "CIDADE - UF". `StatsCard`: exibe "0 votos nesta cidade" quando city sem votos. `MapCore`: `focusedCityBoundsRef` guarda bounds da cidade focada (clique ou CitySearch); crosshair usa cidade quando disponível senão estado; `clearCityHighlight` e toggle "Exibir Cidades" voltam zoom ao estado via `polygonLayerRef` com maxZoom:7. Termômetro do heatmap: tooltip hover com valor abreviado (250/2.5k/1.5m votos) seguindo mouse verticalmente. `fmtShort()` formata números. |
+| `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — variants: `map`, `sidebar`, `modal`; no modal busca apenas id/name/photo_url sem party/role; dropdown com `onMouseDown`+`preventDefault` para funcionar dentro de Radix Dialog; placeholder "Digite nome, cargo, ano, cidade, UF ou partido"; clicar em qualquer lugar do campo foca o input |
 | `src/components/mapa-do-voto/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
 | `src/components/map/active-candidate-context.tsx` | Contexto global: activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, mapClickedCity (inclui city_id), focusCityOnMap, clearCityHighlight |
 | `src/components/auth/login-modal.tsx` | Modal de login automático; usa logo SVG `/media/logo/logo.svg`; exibe link "Crie sua conta!" quando gabinete não encontrado |
@@ -329,7 +329,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | POST | `/api/auth/login` | pública | `tenant` | Retorna token + user + people; identifica gabinete pelo subdomínio |
 | POST | `/api/auth/logout` | Bearer | — | Revoga token atual |
 | GET | `/api/auth/me` | Bearer | — | Retorna usuário autenticado + people |
-| GET | `/api/candidates/search?q=` | Bearer | — | Busca em `maps.candidacies` por nome/cargo/ano/partido/UF — master: todas as candidacies; outros: apenas `people_candidacies` do user |
+| GET | `/api/candidates/search?q=` | Bearer | — | Busca em `maps.candidacies` por nome/cargo/ano/partido/UF/cidade (unaccent) — exclui cargos VICE-* — master: todas as candidacies; outros: apenas `people_candidacies` do user |
 | GET | `/api/candidates` | Bearer | — | Lista candidaturas; master vê todas, user vê apenas as vinculadas via people_candidacies |
 | GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | — | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE — query única CTE com partition pruning por year |
 | GET | `/api/candidacies/{id}/cities` | Bearer | — | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) — filtrado por year |
@@ -463,7 +463,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/TypeContactController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/TypeAddressController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/TypeDocumentController.php` | `index`, `store`, `update`, `destroy` |
-| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search` (busca pública em maps.candidates), `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` (set pelo TenantMiddleware) com fallback por Host. `search()` para não-master: busca `people_candidacies` via query separada na `gabinete_master` e usa `WHERE cy.id IN (...)` — evita cross-database JOIN impossível via `pgsql_maps` |
+| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search`, `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` com fallback por Host. `search()`: busca por nome, cargo, ano, partido, UF e cidade (`unaccent(c.name)`); exclui `cy.role NOT ILIKE 'VICE-%'`; para não-master busca `people_candidacies` via query separada e usa `WHERE cy.id IN (...)` |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, PersonalAccessToken, Permission, PermissionAction, PersonFile, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |
@@ -511,9 +511,11 @@ Lógica em `mapa-do-voto-map.tsx` via `MUNICIPAL_ROLES` e `STATE_ROLES`:
 - Heatmap: paleta azul→verde→amarelo→vermelho baseada em qty_votes; cidades sem votos em cinza
 - Match GeoJSON ↔ banco: exact → normalized (sem acento) → prefix → Levenshtein ≤ 2
 - Ao clicar num município: destaque (`CITIES_HIGHLIGHT_STYLE`) + flyToBounds + atualiza stats na sidebar
-- `CitySearch` no overlay: lista cidades agrupadas em "Com votos / Sem votos" com dropdown via portal
-- Legenda do heatmap (gradiente vertical) exibida no canto inferior direito quando `showCities && maxVotes > 0`
-- Ao limpar cidade na sidebar: `clearCityHighlight` reseta highlight e volta ao fitBounds do estado
+- `CitySearch` no overlay: lista cidades agrupadas em "Com votos / Sem votos" com dropdown via portal; exibe "CIDADE - UF"; busca normalizada sem acentos (`normalizeName`); prop `stateUf` vinda de `activeCandidate.state_uf`
+- Cidade sem votos: `StatsCard` exibe "0 votos nesta cidade" (rounds vazio → stat null → fallback visual)
+- Legenda do heatmap: gradiente vertical no canto inferior direito; tooltip hover mostra valor aproximado (ex: `2.5k votos`) seguindo mouse — calculado com escala log inversa (`Math.pow(maxVotes, 1 - yRatio)`)
+- Ao limpar cidade (`clearCityHighlight`): reseta highlight no `citiesLayerRef` e volta zoom ao `polygonLayerRef` (estado) com `maxZoom:7`
+- Ao desmarcar "Exibir Cidades": volta zoom ao `polygonLayerRef` com `maxZoom:7`
 
 **UF → código IBGE estado** (mapeamento em `UF_TO_IBGE` no mapa-do-voto-map.tsx):
 - SP=35, RJ=33, MG=31, etc.
@@ -522,6 +524,7 @@ Lógica em `mapa-do-voto-map.tsx` via `MUNICIPAL_ROLES` e `STATE_ROLES`:
 - `brazilLayerRef` — contorno do Brasil (sem candidato)
 - `polygonLayerRef` — polígono do estado ou município do candidato
 - `citiesLayerRef` — municípios do estado (quando "Exibir Cidades" marcado)
+- `focusedCityBoundsRef` — bounds da cidade atualmente focada (clique no polígono ou seleção via CitySearch); usado pelo crosshair; limpo ao desselecionar cidade ou desmarcar "Exibir Cidades"
 - Todos com `cancelled` flag para evitar race condition em fetches
 
 ### Limites do Brasil (`BRAZIL_BOUNDS`)
@@ -578,21 +581,26 @@ Estado `isSplit` em `src/pages/home/page.tsx`. Botão `Columns2` na Toolbar.
 
 ### fitToCity — clique no polígono e botão crosshair
 
-Função centralizada em `MapCore` que move ambos os mapas para o município:
+Função centralizada em `MapCore`. Comportamento inteligente:
+- Se `focusedCityBoundsRef.current` existe → foca na cidade (padding [0,40]/[40,40])
+- Senão → foca no estado via `cityBounds` (padding [0,20]/[20,20] + maxZoom:7)
 
 ```ts
 const fitToCity = useCallback(() => {
-  if (!cityBounds) return
-  isSyncingRef.current = true
-  map.flyToBounds(cityBounds, { padding: [40, 40], duration: 1 })
-  syncRef?.current?.flyToBounds(cityBounds, { padding: [40, 40], duration: 1 })
-  setTimeout(() => { isSyncingRef.current = false }, 1500) // > duration, evita race condition
+  const focused = focusedCityBoundsRef.current
+  const bounds  = focused ?? cityBounds
+  if (!bounds) return
+  const opts = focused
+    ? { paddingTopLeft: [0, 40], paddingBottomRight: [40, 40], duration: 1 }
+    : { paddingTopLeft: [0, 20], paddingBottomRight: [20, 20], maxZoom: 7, duration: 1 }
+  map.flyToBounds(bounds, opts)
+  syncRef?.current?.flyToBounds(bounds, opts)
+  setTimeout(() => { isSyncingRef.current = false }, 1500)
 }, [cityBounds, map, isSyncingRef, syncRef])
 ```
 
-- `cityBounds` → estado em `home/page.tsx` (`useState<L.LatLngBounds | null>`), definido quando o GeoJSON carrega no mapa 1, passado como prop para ambos os mapas
-- Clique no polígono usa `fitToCityRef.current()` (ref da função) para evitar stale closure no `onEachFeature` com deps `[]`
-- `setTimeout(1500)` em vez de `moveend` evita race condition entre os dois mapas no split mode
+- `cityBounds` → estado em `home/page.tsx` (`useState<L.LatLngBounds | null>`), definido quando o GeoJSON carrega
+- `setTimeout(1500)` evita race condition entre os dois mapas no split mode
 
 ---
 
@@ -601,7 +609,7 @@ const fitToCity = useCallback(() => {
 - `CandidateCard` + `StatsCard` exibidos como overlay flutuante no canto superior esquerdo do mapa
 - Controlados por `showCard` do contexto: opacidade 20% quando oculto, 100% quando visível, com transição
 - Toggle via botão Eye/EyeOff na Navbar
-- `StatsCard`: exibe qty_votes, percentual, barra de progresso (Progress), badge de Status TSE; suporte a múltiplos turnos via botões segmentados
+- `StatsCard`: exibe qty_votes, percentual, barra de progresso (Progress), badge de Status TSE; suporte a múltiplos turnos via botões segmentados; quando cidade sem votos (rounds vazio) exibe "0 votos nesta cidade"
 
 ---
 
