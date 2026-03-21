@@ -24,7 +24,7 @@ interface TypeDocumentsModalProps {
 export function TypeDocumentsModal({ open, typeDocument, onClose, onSaved }: TypeDocumentsModalProps) {
   const [name, setName] = useState("");
   const [mask, setMask] = useState("");
-  const [validity, setValidity] = useState("");
+  const [validity, setValidity] = useState(false);
   const [active, setActive] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -33,7 +33,7 @@ export function TypeDocumentsModal({ open, typeDocument, onClose, onSaved }: Typ
     if (!open) return;
     setName(typeDocument?.name ?? "");
     setMask(typeDocument?.mask ?? "");
-    setValidity(typeDocument?.validity ?? "");
+    setValidity(typeDocument?.validity ?? false);
     setActive(typeDocument?.active ?? true);
     setErrors({});
   }, [open, typeDocument]);
@@ -45,9 +45,9 @@ export function TypeDocumentsModal({ open, typeDocument, onClose, onSaved }: Typ
     try {
       let res;
       if (typeDocument) {
-        res = await api.put<TypeDocument>(`/type-documents/${typeDocument.id}`, { name, mask: mask || null, validity: validity || null, active });
+        res = await api.put<TypeDocument>(`/type-documents/${typeDocument.id}`, { name, mask: mask || null, validity, active });
       } else {
-        res = await api.post<TypeDocument>("/type-documents", { name, mask: mask || null, validity: validity || null, active });
+        res = await api.post<TypeDocument>("/type-documents", { name, mask: mask || null, validity, active });
       }
       onSaved(res.data);
       onClose();
@@ -95,15 +95,12 @@ export function TypeDocumentsModal({ open, typeDocument, onClose, onSaved }: Typ
               />
               {errors.mask && <p className="text-xs text-destructive">{errors.mask}</p>}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="td-validity">Validade</Label>
-              <Input
-                id="td-validity"
-                type="date"
-                value={validity}
-                onChange={(e) => setValidity(e.target.value)}
-              />
-              {errors.validity && <p className="text-xs text-destructive">{errors.validity}</p>}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="td-validity">Exige data de validade?</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{validity ? "Sim" : "Não"}</span>
+                <Switch id="td-validity" checked={validity} onCheckedChange={setValidity} />
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="td-active">Status</Label>

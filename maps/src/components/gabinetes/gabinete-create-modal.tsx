@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { AlertTriangleIcon, CircleCheckIcon, InfoIcon, Eye, EyeOff, CheckIcon, PlayIcon, CircleIcon } from "lucide-react";
+import { AlertTriangleIcon, CircleCheckIcon, InfoIcon, Eye, EyeOff, CheckIcon, PlayIcon, CircleIcon, MapIcon, DatabaseIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -19,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
 import { BirthDatePicker } from "@/components/people/birth-date-picker";
 import {
   Timeline,
@@ -98,7 +100,9 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
-  // Step 3 — Candidato + Subdomínio
+  // Step 3 — Gabinete + Candidato + Subdomínio
+  const [gabineteName, setGabineteName] = useState("");
+  const [hasSchema, setHasSchema] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<MapCandidate | null>(null);
   const [candidateQuery, setCandidateQuery] = useState("");
   const [candidateResults, setCandidateResults] = useState<MapCandidate[]>([]);
@@ -131,13 +135,17 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
     setEmail("");
     setPassword("");
     setPasswordConfirmation("");
+    setGabineteName("");
+    setHasSchema(false);
     setSelectedCandidate(null);
     setCandidateQuery("");
     setCandidateResults([]);
     setCandidateOpen(false);
     setSlug("");
     setSlugManual(false);
-    setValidUntil("");
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    setValidUntil(d.toISOString().split("T")[0]);
     setErrors({});
     setSubmitError(null);
     setShowPassword(false);
@@ -210,7 +218,7 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
   const canGoStep2 = name.trim().length > 0;
   const passwordValid = password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
   const canGoStep3 = email.trim().length > 0 && passwordValid && !passwordMismatch && passwordConfirmation.length > 0;
-  const canFinish = selectedCandidate !== null && slug.length > 0 && !slugTaken && !slugChecking && !errors.slug && validUntil.length > 0;
+  const canFinish = gabineteName.trim().length > 0 && selectedCandidate !== null && slug.length > 0 && !slugTaken && !slugChecking && !errors.slug && validUntil.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -432,112 +440,168 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
           </>
         )}
 
-        {/* ── Step 3: Candidato + Subdomínio ────────────────────────────── */}
+        {/* ── Step 3: Gabinete + Candidato + Subdomínio ─────────────────── */}
         {step === 3 && (
           <>
             <DialogBody className="flex flex-col py-6 gap-6">
               <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Candidato</Label>
-                  <div ref={candidateRef} className="relative">
-                    {selectedCandidate ? (
-                      <div className="flex items-center gap-3 border rounded-md px-3 py-2 bg-background">
-                        {selectedCandidate.photo_url ? (
-                          <img src={selectedCandidate.photo_url} className="size-8 rounded-full object-cover shrink-0" />
-                        ) : (
-                          <div className="size-8 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground shrink-0">
-                            {selectedCandidate.name[0].toUpperCase()}
-                          </div>
-                        )}
-                        <span className="flex-1 text-sm font-medium capitalize">{selectedCandidate.name.toLowerCase()}</span>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedCandidate(null); if (!slugManual) setSlug(""); }}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <CheckIcon className="size-4 text-emerald-500" />
-                        </button>
-                      </div>
-                    ) : (
-                      <Input
-                        value={candidateQuery}
-                        onChange={(e) => handleCandidateQueryChange(e.target.value)}
-                        placeholder="Digite o nome do candidato..."
-                        autoComplete="off"
-                      />
-                    )}
-                    {candidateOpen && (
-                      <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border rounded-md shadow-md overflow-hidden">
-                        {candidateLoading ? (
-                          <div className="px-3 py-2 text-xs text-muted-foreground">Buscando...</div>
-                        ) : candidateResults.length === 0 ? (
-                          <div className="px-3 py-2 text-xs text-muted-foreground">Nenhum candidato encontrado.</div>
-                        ) : (
-                          candidateResults.map((c) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onMouseDown={(e) => { e.preventDefault(); handleCandidateSelect(c); }}
-                              className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted transition-colors"
-                            >
-                              {c.photo_url ? (
-                                <img src={c.photo_url} className="size-8 rounded-full object-cover shrink-0" />
-                              ) : (
-                                <div className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                                  {c.name[0].toUpperCase()}
-                                </div>
-                              )}
-                              <span className="text-sm capitalize">{c.name.toLowerCase()}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="slug">Subdomínio</Label>
-                  <div className="flex items-center">
+
+                {/* Linha 1: Nome do Gabinete + Candidato */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="gabinete-name">Nome do Gabinete <span className="text-destructive">*</span></Label>
                     <Input
-                      id="slug"
-                      value={slug}
-                      onChange={(e) => handleSlugChange(e.target.value)}
-                      placeholder="nomepolitico"
-                      className={`rounded-r-none font-mono text-sm ${!slugChecking && slugTaken ? "border-destructive focus-visible:ring-destructive" : !slugChecking && slug.length > 0 && !slugTaken ? "border-emerald-500 focus-visible:ring-emerald-500" : ""}`}
+                      id="gabinete-name"
+                      value={gabineteName}
+                      onChange={(e) => setGabineteName(e.target.value)}
+                      placeholder="Ex: Gabinete Neto Bota"
+                      autoFocus
                     />
-                    <span className="h-9 px-3 flex items-center border border-l-0 rounded-r-md bg-muted text-muted-foreground text-sm font-mono whitespace-nowrap">
-                      .mapadovoto.com
-                    </span>
                   </div>
-                  {slugChecking && slug.length > 0 && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <span className="inline-block size-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                      Verificando disponibilidade...
-                    </p>
-                  )}
-                  {!slugChecking && slugTaken && (
-                    <p className="text-xs text-destructive flex items-center gap-1">
-                      <CircleIcon className="size-3 shrink-0" /> Subdomínio indisponível.
-                    </p>
-                  )}
-                  {!slugChecking && slug.length > 0 && !slugTaken && (
-                    <p className="text-xs text-emerald-500 flex items-center gap-1">
-                      <CircleCheckIcon className="size-3 shrink-0" /> Subdomínio disponível!
-                    </p>
-                  )}
-                  {!slugTaken && errors.slug && <p className="text-xs text-destructive">{errors.slug}</p>}
+
+                  <div className="space-y-1.5">
+                    <Label>Candidato</Label>
+                    <div ref={candidateRef} className="relative">
+                      {selectedCandidate ? (
+                        <div className="flex items-center gap-3 border rounded-md px-3 py-2 bg-background">
+                          {selectedCandidate.photo_url ? (
+                            <img src={selectedCandidate.photo_url} className="size-7 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="size-7 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground shrink-0">
+                              {selectedCandidate.name[0].toUpperCase()}
+                            </div>
+                          )}
+                          <span className="flex-1 text-sm font-medium capitalize truncate">{selectedCandidate.name.toLowerCase()}</span>
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedCandidate(null); if (!slugManual) setSlug(""); }}
+                            className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                          >
+                            <CheckIcon className="size-4 text-emerald-500" />
+                          </button>
+                        </div>
+                      ) : (
+                        <Input
+                          value={candidateQuery}
+                          onChange={(e) => handleCandidateQueryChange(e.target.value)}
+                          placeholder="Digite o nome do candidato..."
+                          autoComplete="off"
+                        />
+                      )}
+                      {candidateOpen && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border rounded-md shadow-md overflow-hidden">
+                          {candidateLoading ? (
+                            <div className="px-3 py-2 text-xs text-muted-foreground">Buscando...</div>
+                          ) : candidateResults.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-muted-foreground">Nenhum candidato encontrado.</div>
+                          ) : (
+                            candidateResults.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); handleCandidateSelect(c); }}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted transition-colors"
+                              >
+                                {c.photo_url ? (
+                                  <img src={c.photo_url} className="size-8 rounded-full object-cover shrink-0" />
+                                ) : (
+                                  <div className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
+                                    {c.name[0].toUpperCase()}
+                                  </div>
+                                )}
+                                <span className="text-sm capitalize">{c.name.toLowerCase()}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="valid-until">Validade do Contrato <span className="text-destructive">*</span></Label>
-                  <Input
-                    id="valid-until"
-                    type="date"
-                    value={validUntil}
-                    onChange={(e) => setValidUntil(e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
-                  />
+                {/* Linha 2: Subdomínio (2/3) + Validade (1/3) */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2 space-y-1.5">
+                    <Label htmlFor="slug">Subdomínio</Label>
+                    <div className="flex items-center">
+                      <Input
+                        id="slug"
+                        value={slug}
+                        onChange={(e) => handleSlugChange(e.target.value)}
+                        placeholder="nomepolitico"
+                        className={`rounded-r-none font-mono text-sm ${!slugChecking && slugTaken ? "border-destructive focus-visible:ring-destructive" : !slugChecking && slug.length > 0 && !slugTaken ? "border-emerald-500 focus-visible:ring-emerald-500" : ""}`}
+                      />
+                      <span className="h-9 px-3 flex items-center border border-l-0 rounded-r-md bg-muted text-muted-foreground text-sm font-mono whitespace-nowrap">
+                        .mapadovoto.com
+                      </span>
+                    </div>
+                    {slugChecking && slug.length > 0 && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <span className="inline-block size-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                        Verificando disponibilidade...
+                      </p>
+                    )}
+                    {!slugChecking && slugTaken && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <CircleIcon className="size-3 shrink-0" /> Subdomínio indisponível.
+                      </p>
+                    )}
+                    {!slugChecking && slug.length > 0 && !slugTaken && (
+                      <p className="text-xs text-emerald-500 flex items-center gap-1">
+                        <CircleCheckIcon className="size-3 shrink-0" /> Subdomínio disponível!
+                      </p>
+                    )}
+                    {!slugTaken && errors.slug && <p className="text-xs text-destructive">{errors.slug}</p>}
+                  </div>
+
+                  <div className="col-span-1 space-y-1.5">
+                    <Label htmlFor="valid-until">Validade <span className="text-destructive">*</span></Label>
+                    <BirthDatePicker
+                      id="valid-until"
+                      value={validUntil}
+                      onChange={setValidUntil}
+                      minYear={new Date().getFullYear()}
+                      maxYear={new Date().getFullYear() + 10}
+                    />
+                  </div>
                 </div>
+
+                {/* Plano */}
+                <div className="space-y-1.5">
+                  <Label>Plano</Label>
+                  <RadioGroup
+                    value={hasSchema ? "crm" : "mapa"}
+                    onValueChange={(v) => setHasSchema(v === "crm")}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    {[
+                      { value: "mapa", title: "Mapa", description: "Visualização de votos e heatmap eleitoral.", Icon: MapIcon },
+                      { value: "crm", title: "Mapa + CRM", description: "Mapa completo + gestão de pessoas e atendimentos.", Icon: DatabaseIcon },
+                    ].map(({ value, title, description, Icon }) => (
+                      <label
+                        key={value}
+                        htmlFor={`plan-${value}`}
+                        className={`flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                          (hasSchema ? "crm" : "mapa") === value
+                            ? "border-primary bg-primary/5"
+                            : "border-input hover:border-muted-foreground/40"
+                        }`}
+                      >
+                        <RadioGroupItem value={value} id={`plan-${value}`} className="mt-0.5 shrink-0" />
+                        <Field orientation="horizontal" className="gap-0">
+                          <FieldContent className="gap-0.5">
+                            <FieldTitle className="flex items-center gap-1.5 text-sm font-medium">
+                              <Icon className="size-3.5 text-muted-foreground" />
+                              {title}
+                            </FieldTitle>
+                            <FieldDescription className="text-xs">{description}</FieldDescription>
+                          </FieldContent>
+                        </Field>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </div>
+
               </div>
             </DialogBody>
 
@@ -676,8 +740,9 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
 
                     // 3. Criar tenant (já linka person via people_id)
                     const tenantRes = await api.post("/tenants", {
-                      name,
+                      name: gabineteName,
                       slug,
+                      has_schema: hasSchema,
                       active: true,
                       valid_until: validUntil,
                       people_id: personId,

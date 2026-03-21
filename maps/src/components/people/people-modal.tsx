@@ -49,6 +49,8 @@ import { TypeAddress } from "@/components/type-addresses/type-addresses-data-gri
 import { TypeDocument } from "@/components/type-documents/type-documents-data-grid";
 import { PeopleFilesTab } from "./people-files-tab";
 import { BirthDatePicker } from "./birth-date-picker";
+import { PhoneInput } from "@/components/reui/phone-input";
+import type { Value as PhoneValue } from "react-phone-number-input";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -254,10 +256,20 @@ function CreatePersonModal({
 
 function applyMask(raw: string, mask: string): string {
   const digits = raw.replace(/\D/g, "");
+  // Suporte a múltiplas máscaras separadas por "|" (ex: CPF|CNPJ)
+  // Escolhe a máscara cujo número de "9"s melhor encaixa a quantidade de dígitos
+  const masks = mask.split("|");
+  const selected = masks.reduce((best, m) => {
+    const mDigits = (m.match(/9/g) ?? []).length;
+    const bDigits = (best.match(/9/g) ?? []).length;
+    // Prefere a menor máscara que ainda comporte os dígitos digitados
+    if (digits.length <= mDigits && mDigits < bDigits) return m;
+    return best;
+  }, masks[masks.length - 1]);
   let result = "";
   let di = 0;
-  for (let i = 0; i < mask.length && di < digits.length; i++) {
-    result += mask[i] === "9" ? digits[di++] : mask[i];
+  for (let i = 0; i < selected.length && di < digits.length; i++) {
+    result += selected[i] === "9" ? digits[di++] : selected[i];
   }
   return result;
 }
@@ -283,6 +295,8 @@ function ContactsTab({
   const selectedType = typeContacts.find((tc) => String(tc.id) === newTypeId);
   const mask = selectedType?.mask ?? null;
 
+  const isWhatsApp = selectedType?.name?.toLowerCase() === "whatsapp";
+
   const handleTypeChange = (id: string) => {
     setNewTypeId(id);
     setNewValue("");
@@ -296,7 +310,11 @@ function ContactsTab({
     if (!newTypeId || !newValue.trim()) return;
     setSaving(true);
     try {
-      const rawValue = mask ? newValue.replace(/\D/g, "") : newValue.trim();
+      const rawValue = isWhatsApp
+        ? newValue.replace(/\D/g, "")
+        : mask
+        ? newValue.replace(/\D/g, "")
+        : newValue.trim();
       const res = await api.post<ContactItem>(`/people/${personId}/contacts`, {
         type_contact_id: Number(newTypeId),
         value: rawValue,
@@ -356,14 +374,23 @@ function ContactsTab({
               ))}
             </SelectContent>
           </Select>
-          <Input
-            className="h-8 text-sm flex-1"
-            placeholder={mask ?? "Valor..."}
-            value={newValue}
-            onChange={(e) => handleValueChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }}
-            autoFocus
-          />
+          {isWhatsApp ? (
+            <PhoneInput
+              className="flex-1"
+              placeholder="Número do WhatsApp"
+              value={newValue as PhoneValue}
+              onChange={(v) => setNewValue(v ?? "")}
+            />
+          ) : (
+            <Input
+              className="h-8 text-sm flex-1"
+              placeholder={mask ?? "Valor..."}
+              value={newValue}
+              onChange={(e) => handleValueChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }}
+              autoFocus
+            />
+          )}
           <Button size="icon" variant="primary" className="size-8" onClick={handleAdd} disabled={saving || !newTypeId || !newValue.trim()}>
             <Check className="size-3.5 [&_svg]:size-2.5" />
           </Button>

@@ -23,9 +23,9 @@ class TypeDocumentRequest extends FormRequest
         $id = $this->route('id');
 
         return [
-            'name'     => ['required', 'string', 'max:255', 'unique:type_documents,name' . ($id ? ",{$id}" : '')],
+            'name'     => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255', 'unique:type_documents,name' . ($id ? ",{$id}" : '')]),
             'mask'     => ['nullable', 'string', 'max:255'],
-            'validity' => ['nullable', 'date'],
+            'validity' => ['boolean'],
             'order'    => ['integer', 'min:1'],
             'active'   => ['boolean'],
         ];

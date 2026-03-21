@@ -23,7 +23,7 @@ class TypeAddressRequest extends FormRequest
         $id = $this->route('id');
 
         return [
-            'name'   => ['required', 'string', 'max:255', 'unique:type_addresses,name' . ($id ? ",{$id}" : '')],
+            'name'   => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255', 'unique:type_addresses,name' . ($id ? ",{$id}" : '')]),
             'order'  => ['integer', 'min:1'],
             'active' => ['boolean'],
         ];

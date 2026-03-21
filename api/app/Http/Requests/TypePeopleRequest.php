@@ -16,7 +16,7 @@ class TypePeopleRequest extends FormRequest
         $id = $this->route('type_people');
 
         return [
-            'name'   => ['required', 'string', 'max:255', 'unique:type_people,name' . ($id ? ",{$id}" : '')],
+            'name'   => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255', 'unique:type_people,name' . ($id ? ",{$id}" : '')]),
             'order'  => ['integer', 'min:1'],
             'active' => ['boolean'],
         ];

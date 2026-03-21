@@ -30,7 +30,7 @@ export interface TypeDocument {
   id: number;
   name: string;
   mask: string | null;
-  validity: string | null;
+  validity: boolean;
   order: number;
   active: boolean;
 }
@@ -159,12 +159,9 @@ export function TypeDocumentsDataGrid({
         id: "validity",
         header: ({ column }) => <DataGridColumnHeader title="Validade" column={column} />,
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
-            {row.original.validity
-              ? new Date(row.original.validity + 'T00:00:00').toLocaleDateString('pt-BR')
-              : <span className="text-xs italic">—</span>
-            }
-          </span>
+          row.original.validity
+            ? <Badge variant="success" appearance="light">Sim</Badge>
+            : <Badge variant="secondary" appearance="light">Não</Badge>
         ),
         meta: { skeleton: <Skeleton className="h-5 w-24" />, headerClassName: "w-[10%]", cellClassName: "w-[10%]" },
         enableSorting: true,

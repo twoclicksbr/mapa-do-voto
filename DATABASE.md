@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 21/03/2026 (tenants: +tenant_id +has_schema; nova controller PeopleCandidacy; correção unique validation em users)
+> Atualizado em: 21/03/2026 (type_documents.validity: date→boolean; fix reorder em type_*: 'sometimes' na validação; avatar: scaling progressivo 800/400/150px)
 
 ---
 
@@ -328,9 +328,12 @@ Tipos de documento configuráveis (CPF, RG, CNH, etc).
 | `id` | bigint | NOT NULL | PK autoincrement |
 | `name` | varchar | NOT NULL | Nome do tipo |
 | `mask` | varchar | NULL | Máscara de formatação (ex: `999.999.999-99`) |
+| `validity` | boolean | NOT NULL | Se este tipo de documento exige data de validade (default: `false`) |
 | `order` | integer | NOT NULL | Ordem de exibição |
 | `active` | boolean | NOT NULL | default: `true` |
 | `deleted_at` | timestamp | NULL | Soft delete |
+
+**Seeds:** CPF(false), RG(false), CNH(false), Passaporte(true), Título de Eleitor(false)
 
 ---
 

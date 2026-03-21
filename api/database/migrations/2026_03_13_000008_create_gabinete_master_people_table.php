@@ -31,6 +31,7 @@ return new class extends Migration
             'tenant_id'      => 1,
             'type_people_id' => $typePeopleId,
             'name'           => 'Alex Alves de Almeida',
+            'birth_date'     => '1985-05-09',
             'active'         => true,
             'created_at'     => now(),
             'updated_at'     => now(),

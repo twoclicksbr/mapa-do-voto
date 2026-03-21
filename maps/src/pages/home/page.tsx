@@ -4,7 +4,8 @@ import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
-import { Columns2, ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building2, Settings } from "lucide-react";
+import { ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, type LucideIcon } from "lucide-react";
+import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -38,6 +39,44 @@ import { PeopleDataGrid, Person } from "@/components/people/people-data-grid";
 import { PeopleModal } from "@/components/people/people-modal";
 import { PermissionActionsDataGrid, PermissionAction } from "@/components/permission-actions/permission-actions-data-grid";
 import { PermissionActionsModal } from "@/components/permission-actions/permission-actions-modal";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+
+const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
+  'Home': Home,
+  'Gabinetes': Building2,
+  'Pessoas': Users,
+  'Cadastros': NotepadText,
+  'Submódulos': ReplaceAll,
+  'Documentos': FileText,
+  'Tipo de Documentos': BookmarkCheck,
+  'Contatos': Phone,
+  'Tipo de Contato': BookmarkCheck,
+  'Endereços': MapPin,
+  'Tipo de Endereço': BookmarkCheck,
+  'Tipo de Pessoas': BookmarkCheck,
+  'Permissões': ShieldCheck,
+};
+
+function SectionBreadcrumb({ items }: { items: string[] }) {
+  return (
+    <Breadcrumb>
+      <BreadcrumbList className="flex items-center">
+        {items.map((item, i) => {
+          const Icon = BREADCRUMB_ICONS[item];
+          return (
+            <BreadcrumbItem key={item} className="inline-flex items-center">
+              {i < items.length - 1 ? (
+                <><span className="inline-flex items-center gap-1 leading-none">{Icon && <Icon className="size-3.5 shrink-0" />}{item}</span><BreadcrumbSeparator /></>
+              ) : (
+                <BreadcrumbPage className="inline-flex items-center gap-1 leading-none">{Icon && <Icon className="size-3.5 shrink-0" />}{item}</BreadcrumbPage>
+              )}
+            </BreadcrumbItem>
+          );
+        })}
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
 
 function getTenantName(): string {
   const parts = window.location.hostname.split('.');
@@ -66,7 +105,7 @@ export function HomePage() {
   const { isMobile } = useLayout();
   const { activeTab, setActiveTab } = useActiveTab();
   const { loggedIn } = useLoginModal();
-  const [isSplit, setIsSplit] = useState(false);
+  const { isSplit, setIsSplit } = useActiveCandidate();
   const tenantName = getTenantName();
   const isMaster = tenantName.toLowerCase() === 'master';
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -232,27 +271,25 @@ export function HomePage() {
   const mapRef2 = useRef<L.Map | null>(null);
   const [cityBounds, setCityBounds] = useState<L.LatLngBounds | null>(null);
 
-  const handleSplitToggle = () => {
-    setIsSplit((prev) => {
-      const next = !prev;
-      setTimeout(() => {
-        if (next) {
-          mapRef1.current?.invalidateSize();
-          mapRef2.current?.invalidateSize();
-          if (cityBounds) {
-            mapRef1.current?.fitBounds(cityBounds, { padding: [40, 40], animate: false });
-            mapRef2.current?.fitBounds(cityBounds, { padding: [40, 40], animate: false });
-          }
-        } else {
-          mapRef1.current?.invalidateSize();
-          if (cityBounds) {
-            mapRef1.current?.fitBounds(cityBounds, { padding: [40, 40], animate: true });
-          }
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (isSplit) {
+        mapRef1.current?.invalidateSize();
+        mapRef2.current?.invalidateSize();
+        if (cityBounds) {
+          mapRef1.current?.fitBounds(cityBounds, { padding: [40, 40], animate: false });
+          mapRef2.current?.fitBounds(cityBounds, { padding: [40, 40], animate: false });
         }
-      }, 100);
-      return next;
-    });
-  };
+      } else {
+        mapRef1.current?.invalidateSize();
+        if (cityBounds) {
+          mapRef1.current?.fitBounds(cityBounds, { padding: [40, 40], animate: true });
+        }
+      }
+    }, 100);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSplit]);
 
   const getMap2InitialView = () => {
     if (mapRef1.current) {
@@ -414,16 +451,6 @@ export function HomePage() {
           </div>
           {!isMobile && (
             <ToolbarActions>
-              {isMaster && (
-                <Button
-                  mode="icon"
-                  variant={isSplit ? "primary" : "dim"}
-                  onClick={handleSplitToggle}
-                  title="Split view"
-                >
-                  <Columns2 />
-                </Button>
-              )}
               <Navbar />
             </ToolbarActions>
           )}
@@ -436,7 +463,7 @@ export function HomePage() {
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
                   <h2 className="text-lg font-semibold flex items-center gap-2"><Building2 className="size-5 text-muted-foreground" />Gabinetes <Badge variant="success" appearance="light" size="md">{formatRecordCount(tenants.length)}</Badge></h2>
-                  <p className="text-sm text-muted-foreground">Gerencie os gabinetes da plataforma</p>
+                  <SectionBreadcrumb items={['Home', 'Gabinetes']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {tenantsSelected > 0 ? (
@@ -533,8 +560,8 @@ export function HomePage() {
           <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div>
-                <h2 className="text-lg font-semibold flex items-center gap-2">Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(people.length)}</Badge></h2>
-                <p className="text-sm text-muted-foreground">Gerencie as pessoas da plataforma</p>
+                <h2 className="text-lg font-semibold flex items-center gap-2"><Users className="size-5" />Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(people.length)}</Badge></h2>
+                <SectionBreadcrumb items={['Home', 'Pessoas']} />
               </div>
               <div className="flex items-center gap-2">
                 {peopleSelected > 0 ? (
@@ -596,8 +623,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">Tipo de Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(typePeople.length)}</Badge></h2>
-                  <p className="text-sm text-muted-foreground">Gerencie os tipos de pessoa da plataforma</p>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><BookmarkCheck className="size-5" />Tipo de Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(typePeople.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Cadastros', 'Pessoas', 'Tipo de Pessoas']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {typePeopleSelected > 0 ? (
@@ -650,8 +677,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">Tipo de Contato <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeContacts.length)}</Badge></h2>
-                  <p className="text-sm text-muted-foreground">Gerencie os tipos de contato da plataforma</p>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><BookmarkCheck className="size-5" />Tipo de Contato <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeContacts.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Cadastros', 'Submódulos', 'Contatos', 'Tipo de Contato']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {typeContactsSelected > 0 ? (
@@ -704,8 +731,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">Tipo de Endereço <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeAddresses.length)}</Badge></h2>
-                  <p className="text-sm text-muted-foreground">Gerencie os tipos de endereço da plataforma</p>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><BookmarkCheck className="size-5" />Tipo de Endereço <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeAddresses.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Cadastros', 'Submódulos', 'Endereços', 'Tipo de Endereço']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {typeAddressesSelected > 0 ? (
@@ -758,8 +785,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">Tipo de Documentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeDocuments.length)}</Badge></h2>
-                  <p className="text-sm text-muted-foreground">Gerencie os tipos de documento da plataforma</p>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><BookmarkCheck className="size-5" />Tipo de Documentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeDocuments.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Cadastros', 'Submódulos', 'Documentos', 'Tipo de Documentos']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {typeDocumentsSelected > 0 ? (
@@ -812,8 +839,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(people.length)}</Badge></h2>
-                  <p className="text-sm text-muted-foreground">Gerencie as pessoas da plataforma</p>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><Users className="size-5" />Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(people.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Pessoas']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {peopleSelected > 0 ? (
@@ -866,7 +893,7 @@ export function HomePage() {
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
                   <h2 className="text-lg font-semibold flex items-center gap-2"><Building2 className="size-5 text-muted-foreground" />Gabinetes <Badge variant="success" appearance="light" size="md">{formatRecordCount(tenants.length)}</Badge></h2>
-                  <p className="text-sm text-muted-foreground">Gerencie os gabinetes da plataforma</p>
+                  <SectionBreadcrumb items={['Home', 'Gabinetes']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {tenantsSelected > 0 ? (
@@ -916,8 +943,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">Permissões <Badge variant="success" appearance="light" size="md">{formatRecordCount(permissionActions.length)}</Badge></h2>
-                  <p className="text-sm text-muted-foreground">Gerencie os módulos e ações de permissão da plataforma</p>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><ShieldCheck className="size-5" />Permissões <Badge variant="success" appearance="light" size="md">{formatRecordCount(permissionActions.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Cadastros', 'Permissões']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {permissionActionsSelected > 0 ? (

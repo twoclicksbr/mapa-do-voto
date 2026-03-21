@@ -38,6 +38,8 @@ interface BirthDatePickerProps {
   onChange: (value: string) => void
   className?: string
   inputSize?: "sm" | "md"
+  minYear?: number
+  maxYear?: number
 }
 
 function applyDateMask(raw: string): string {
@@ -53,6 +55,8 @@ export function BirthDatePicker({
   onChange,
   className,
   inputSize = "md",
+  minYear,
+  maxYear,
 }: BirthDatePickerProps) {
   const today = new Date()
   const parsedDate = value ? parse(value, "yyyy-MM-dd", new Date()) : undefined
@@ -66,8 +70,8 @@ export function BirthDatePicker({
   )
   const [open, setOpen] = useState(false)
 
-  const startDate = startOfYear(new Date(1920, 0))
-  const endDate = endOfYear(new Date(today.getFullYear(), 11))
+  const startDate = startOfYear(new Date(minYear ?? 1920, 0))
+  const endDate = endOfYear(new Date(maxYear ?? today.getFullYear(), 11))
 
   const years = eachYearOfInterval({ start: startDate, end: endDate })
 
@@ -92,7 +96,7 @@ export function BirthDatePicker({
 
     if (masked.length === 10) {
       const parsed = parse(masked, "dd/MM/yyyy", new Date())
-      if (isValid(parsed) && parsed.getFullYear() >= 1920 && parsed <= today) {
+      if (isValid(parsed) && !isBefore(parsed, startDate) && !isAfter(parsed, endDate)) {
         setDate(parsed)
         setMonth(parsed)
         onChange(format(parsed, "yyyy-MM-dd"))

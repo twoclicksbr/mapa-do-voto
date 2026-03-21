@@ -43,7 +43,7 @@ class TypeDocumentController extends Controller
             'id'       => $typeDocument->id,
             'name'     => $typeDocument->name,
             'mask'     => $typeDocument->mask,
-            'validity' => $typeDocument->validity?->toDateString(),
+            'validity' => (bool) $typeDocument->validity,
             'order'    => $typeDocument->order,
             'active'   => $typeDocument->active,
         ];

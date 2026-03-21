@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import * as L from 'leaflet';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import { useActiveCandidate } from '@/components/map/active-candidate-context';
-import { Plus, Minus, Crosshair, X } from 'lucide-react';
+import { Plus, Minus, Crosshair, X, Eye, EyeOff, Columns2 } from 'lucide-react';
 import { getPartyColors } from '@/lib/party-colors';
 import { CandidateSearch, type Candidate } from '@/components/map/candidate-search';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -334,7 +334,12 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function StatsCard() {
-  const { activeCandidate, showCities, setShowCities, setFocusCityOnMap, mapClickedCity, setMapClickedCity, setClearCityHighlight } = useActiveCandidate();
+  const { activeCandidate, showCities, setShowCities, showCard, setShowCard, isSplit, setIsSplit, setFocusCityOnMap, mapClickedCity, setMapClickedCity, setClearCityHighlight } = useActiveCandidate();
+  const isMaster = (() => {
+    const parts = window.location.hostname.split('.');
+    const slug = parts.length >= 3 ? parts[0] : (parts.length === 2 ? parts[0] : 'master');
+    return slug.toLowerCase() === 'master';
+  })();
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [activeRound, setActiveRound] = useState<number | null>(null);
@@ -407,39 +412,49 @@ function StatsCard() {
   if (!stat) {
     return (
       <>
-        {isStateLevel && (
-          <div className="w-full max-w-xs">
-            <Frame stacked dense spacing="sm" className="w-full" style={{ overflow: 'visible' }}>
-              <Collapsible defaultOpen={false}>
-                <CollapsibleTrigger className="flex w-full">
-                  <FrameHeader className="flex grow flex-row items-center justify-between gap-2">
-                    <FrameTitle className="text-sm font-medium">Visualização</FrameTitle>
-                    <ChevronRightIcon aria-hidden="true" className="text-muted-foreground size-4 transition-transform in-data-open:rotate-90" />
-                  </FrameHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <FramePanel>
-                    <div className="flex flex-col gap-2">
+        <div className="w-full max-w-xs">
+          <Frame stacked dense spacing="sm" className="w-full" style={{ overflow: 'visible' }}>
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="flex w-full">
+                <FrameHeader className="flex grow flex-row items-center justify-between gap-2">
+                  <FrameTitle className="text-sm font-medium">Visualização</FrameTitle>
+                  <ChevronRightIcon aria-hidden="true" className="text-muted-foreground size-4 transition-transform in-data-open:rotate-90" />
+                </FrameHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <FramePanel>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <Switch size="sm" checked={showCard} onCheckedChange={setShowCard} />
+                      <span className="text-sm flex items-center gap-1.5">{showCard ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />} Exibir card</span>
+                    </label>
+                    {isMaster && (
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <Switch size="sm" checked={isSplit} onCheckedChange={setIsSplit} />
+                        <span className="text-sm flex items-center gap-1.5"><Columns2 className="size-3.5" /> Split view</span>
+                      </label>
+                    )}
+                    {isStateLevel && (
                       <label className="flex items-center gap-2.5 cursor-pointer">
                         <Switch size="sm" checked={showCities} onCheckedChange={setShowCities} />
                         <span className="text-sm">Exibir Cidades</span>
                       </label>
-                      {showCities && (
-                        <CitySearch
-                          candidacyId={activeCandidate.id}
-                          stateUf={activeCandidate.state_uf ?? undefined}
-                          selected={selectedCity}
-                          onSelect={handleCitySelect}
-                          onClear={handleCityClear}
-                        />
-                      )}
-                    </div>
-                  </FramePanel>
-                </CollapsibleContent>
-              </Collapsible>
-            </Frame>
-          </div>
-        )}
+                    )}
+                    {isStateLevel && showCities && (
+                      <CitySearch
+                        candidacyId={activeCandidate.id}
+                        stateUf={activeCandidate.state_uf ?? undefined}
+                        selected={selectedCity}
+                        onSelect={handleCitySelect}
+                        onClear={handleCityClear}
+                      />
+                    )}
+                  </div>
+                </FramePanel>
+              </CollapsibleContent>
+            </Collapsible>
+          </Frame>
+        </div>
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-3">
           <div className="bg-muted/60 border border-border rounded-lg p-3 text-center text-sm text-gray-500">
             0 votos nesta cidade
@@ -458,40 +473,48 @@ function StatsCard() {
 
   return (
     <>
-      {isStateLevel && (
-        <div className="w-full max-w-xs">
-          <Frame stacked dense spacing="sm" className="w-full" style={{ overflow: 'visible' }}>
-            <Collapsible defaultOpen={false}>
-              <CollapsibleTrigger className="flex w-full">
-                <FrameHeader className="flex grow flex-row items-center justify-between gap-2">
-                  <FrameTitle className="text-sm font-medium">
-                    Visualização
-                  </FrameTitle>
-                  <ChevronRightIcon aria-hidden="true" className="text-muted-foreground size-4 transition-transform in-data-open:rotate-90" />
-                </FrameHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <FramePanel>
-                  <div className="flex flex-col gap-2">
+      <div className="w-full max-w-xs">
+        <Frame stacked dense spacing="sm" className="w-full" style={{ overflow: 'visible' }}>
+          <Collapsible defaultOpen={false}>
+            <CollapsibleTrigger className="flex w-full">
+              <FrameHeader className="flex grow flex-row items-center justify-between gap-2">
+                <FrameTitle className="text-sm font-medium">Visualização</FrameTitle>
+                <ChevronRightIcon aria-hidden="true" className="text-muted-foreground size-4 transition-transform in-data-open:rotate-90" />
+              </FrameHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <FramePanel>
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <Switch size="sm" checked={showCard} onCheckedChange={setShowCard} />
+                    <span className="text-sm flex items-center gap-1.5">{showCard ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />} Exibir card</span>
+                  </label>
+                  {isMaster && (
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <Switch size="sm" checked={isSplit} onCheckedChange={setIsSplit} />
+                      <span className="text-sm flex items-center gap-1.5"><Columns2 className="size-3.5" /> Split view</span>
+                    </label>
+                  )}
+                  {isStateLevel && (
                     <label className="flex items-center gap-2.5 cursor-pointer">
                       <Switch size="sm" checked={showCities} onCheckedChange={setShowCities} />
                       <span className="text-sm">Exibir Cidades</span>
                     </label>
-                    {showCities && (
-                      <CitySearch
-                        candidacyId={activeCandidate.id}
-                        selected={selectedCity}
-                        onSelect={handleCitySelect}
-                        onClear={handleCityClear}
-                      />
-                    )}
-                  </div>
-                </FramePanel>
-              </CollapsibleContent>
-            </Collapsible>
-          </Frame>
-        </div>
-      )}
+                  )}
+                  {isStateLevel && showCities && (
+                    <CitySearch
+                      candidacyId={activeCandidate.id}
+                      selected={selectedCity}
+                      onSelect={handleCitySelect}
+                      onClear={handleCityClear}
+                    />
+                  )}
+                </div>
+              </FramePanel>
+            </CollapsibleContent>
+          </Collapsible>
+        </Frame>
+      </div>
       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="relative pb-3.5">
       <div className="relative bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-3">
         {statsData.rounds.length > 1 && (

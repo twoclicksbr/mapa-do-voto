@@ -21,7 +21,7 @@ class TypeDocument extends Model
     ];
 
     protected $casts = [
-        'validity' => 'date',
+        'validity' => 'boolean',
     ];
 
     protected static function booted(): void

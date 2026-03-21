@@ -11,7 +11,13 @@ interface MegaMenuProps {
   activeSection?: string;
 }
 
-function PanelItem({ item, onNavigate }: { item: MenuItem; onNavigate?: (section: string) => void }) {
+function hasActiveDescendant(item: MenuItem, activeSection?: string): boolean {
+  if (!activeSection) return false;
+  if (item.section === activeSection) return true;
+  return !!item.children?.some((c) => hasActiveDescendant(c, activeSection));
+}
+
+function PanelItem({ item, onNavigate, activeSection }: { item: MenuItem; onNavigate?: (section: string) => void; activeSection?: string }) {
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasChildren = item.children && item.children.length > 0;
@@ -22,10 +28,11 @@ function PanelItem({ item, onNavigate }: { item: MenuItem; onNavigate?: (section
   };
 
   const handleMouseLeave = () => {
-    closeTimer.current = setTimeout(() => setOpen(false), 100);
+    closeTimer.current = setTimeout(() => setOpen(false), 300);
   };
 
   if (hasChildren) {
+    const isActive = hasActiveDescendant(item, activeSection);
     return (
       <div
         className="relative"
@@ -34,17 +41,17 @@ function PanelItem({ item, onNavigate }: { item: MenuItem; onNavigate?: (section
       >
         <button className={cn(
           'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer',
-          open
+          isActive || open
             ? 'bg-accent text-primary'
             : 'text-secondary-foreground hover:bg-accent hover:text-primary'
         )}>
-          <span>{item.title}</span>
+          <span className="flex items-center gap-2">{item.icon && <item.icon className="size-4 shrink-0" />}{item.title}</span>
           <ChevronRight className="size-3.5 text-muted-foreground" />
         </button>
         {open && (
-          <div className="absolute left-full top-0 ml-1 bg-popover border border-border rounded-xl shadow-lg p-2 min-w-[180px] z-50 flex flex-col gap-0.5">
+          <div className="absolute left-full top-0 bg-popover border border-border rounded-xl shadow-lg p-2 min-w-[180px] z-50 flex flex-col gap-0.5">
             {item.children!.map((sub) => (
-              <PanelItem key={sub.title} item={sub} onNavigate={onNavigate} />
+              <PanelItem key={sub.title} item={sub} onNavigate={onNavigate} activeSection={activeSection} />
             ))}
           </div>
         )}
@@ -52,11 +59,16 @@ function PanelItem({ item, onNavigate }: { item: MenuItem; onNavigate?: (section
     );
   }
 
+  const isActive = item.section === activeSection;
   return item.section ? (
     <button
       onClick={() => onNavigate?.(item.section!)}
-      className="w-full text-left flex items-center justify-between px-3 py-2 rounded-md text-sm text-secondary-foreground font-medium hover:bg-accent hover:text-primary transition-colors"
+      className={cn(
+        'w-full text-left flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+        isActive ? 'bg-accent text-primary' : 'text-secondary-foreground hover:bg-accent hover:text-primary'
+      )}
     >
+      {item.icon && <item.icon className="size-4 shrink-0" />}
       {item.title}
     </button>
   ) : (
@@ -140,16 +152,17 @@ export function MegaMenu({ onNavigate, activeSection }: MegaMenuProps) {
               onMouseEnter={() => handleMouseEnter(index)}
               onMouseLeave={handleMouseLeave}
             >
-              <button className={cn(linkClass, 'flex items-center gap-1 px-3 py-1.5 rounded-md cursor-pointer',
+              <button className={cn(linkClass, 'flex items-center gap-1.5 px-3 py-1.5 rounded-md cursor-pointer',
                 isActive ? 'bg-accent text-primary' : 'text-secondary-foreground hover:bg-accent hover:text-primary'
               )}>
+                {item.icon && <item.icon className="size-4" />}
                 {item.title}
                 <ChevronDown className={cn('size-3.5 transition-transform', openIndex === index && 'rotate-180')} />
               </button>
               {openIndex === index && (
                 <div className="absolute top-full left-0 mt-1 bg-popover border border-border rounded-xl shadow-lg p-2 min-w-[200px] z-50 flex flex-col gap-0.5">
                   {item.children!.map((child) => (
-                    <PanelItem key={child.title} item={child} onNavigate={onNavigate} />
+                    <PanelItem key={child.title} item={child} onNavigate={onNavigate} activeSection={activeSection} />
                   ))}
                 </div>
               )}
