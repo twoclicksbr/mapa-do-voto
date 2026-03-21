@@ -14,6 +14,7 @@ import {
   format,
   isAfter,
   isBefore,
+  isValid,
   parse,
   startOfYear,
 } from "date-fns"
@@ -39,6 +40,13 @@ interface BirthDatePickerProps {
   inputSize?: "sm" | "md"
 }
 
+function applyDateMask(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
 export function BirthDatePicker({
   id,
   value,
@@ -53,39 +61,78 @@ export function BirthDatePicker({
   const [date, setDate] = useState<Date | undefined>(parsedDate)
   const [isYearView, setIsYearView] = useState(false)
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [inputValue, setInputValue] = useState(
+    parsedDate ? format(parsedDate, "dd/MM/yyyy") : ""
+  )
+  const [open, setOpen] = useState(false)
 
   const startDate = startOfYear(new Date(1920, 0))
   const endDate = endOfYear(new Date(today.getFullYear(), 11))
 
   const years = eachYearOfInterval({ start: startDate, end: endDate })
 
+  // Sincroniza quando value externo é limpo (ex: reset do modal)
+  useEffect(() => {
+    if (!value) {
+      setDate(undefined)
+      setInputValue("")
+    }
+  }, [value])
+
   const handleSelect = (selected: Date | undefined) => {
     setDate(selected)
+    setInputValue(selected ? format(selected, "dd/MM/yyyy") : "")
     onChange(selected ? format(selected, "yyyy-MM-dd") : "")
+    if (selected) setOpen(false)
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const masked = applyDateMask(e.target.value)
+    setInputValue(masked)
+
+    if (masked.length === 10) {
+      const parsed = parse(masked, "dd/MM/yyyy", new Date())
+      if (isValid(parsed) && parsed.getFullYear() >= 1920 && parsed <= today) {
+        setDate(parsed)
+        setMonth(parsed)
+        onChange(format(parsed, "yyyy-MM-dd"))
+      } else {
+        setDate(undefined)
+        onChange("")
+      }
+    } else {
+      setDate(undefined)
+      onChange("")
+    }
   }
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="relative flex items-center">
+        <input
           id={id}
-          type="button"
-          variant="outline"
+          type="text"
+          inputMode="numeric"
+          value={inputValue}
+          onChange={handleInputChange}
+          placeholder="DD/MM/AAAA"
+          maxLength={10}
           className={cn(
-            "group/pick-date w-full justify-between font-normal",
-            inputSize === "sm" ? "h-8 text-sm px-3" : "h-8.5 text-[0.8125rem] px-3",
+            "flex w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 pr-9",
+            inputSize === "sm" ? "h-8" : "h-8.5",
             className
           )}
-        >
-          <span className={cn("truncate", !date && "text-muted-foreground")}>
-            {date ? format(date, "dd/MM/yyyy", { locale: ptBR }) : "Selecione a data"}
-          </span>
-          <CalendarIcon
-            aria-hidden="true"
-            className="text-muted-foreground/80 group-hover/pick-date:text-foreground shrink-0 transition-colors size-4"
-          />
-        </Button>
-      </PopoverTrigger>
+        />
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="absolute right-2.5 text-muted-foreground hover:text-foreground transition-colors"
+            tabIndex={-1}
+          >
+            <CalendarIcon className="size-4" />
+          </button>
+        </PopoverTrigger>
+      </div>
       <PopoverContent align="start" className="p-0 z-[200] w-auto">
             <Calendar
               locale={ptBR}

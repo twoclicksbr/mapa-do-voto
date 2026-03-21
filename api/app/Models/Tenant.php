@@ -12,15 +12,28 @@ class Tenant extends Model
     protected $table = 'gabinete_master.tenants';
 
     protected $fillable = [
+        'tenant_id',
         'name',
         'slug',
         'schema',
+        'has_schema',
         'active',
         'valid_until',
     ];
 
     protected $casts = [
+        'has_schema'  => 'boolean',
         'active'      => 'boolean',
         'valid_until' => 'date',
     ];
+
+    public function parent()
+    {
+        return $this->belongsTo(Tenant::class, 'tenant_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(Tenant::class, 'tenant_id');
+    }
 }

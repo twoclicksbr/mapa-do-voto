@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 20/03/2026 (unificação de migrations + sessions + slug master + FK cross-schema removida)
+> Atualizado em: 21/03/2026 (tenants: +tenant_id +has_schema; nova controller PeopleCandidacy; correção unique validation em users)
 
 ---
 
@@ -50,9 +50,11 @@ Cadastro dos gabinetes (clientes da plataforma). Cada tenant corresponde a um su
 | Coluna | Tipo | Nullable | Descrição |
 |---|---|---|---|
 | `id` | bigint | NOT NULL | PK autoincrement |
+| `tenant_id` | bigint | NULL | FK → `tenants.id` — reseller pai (para modelo agência/cliente) |
 | `name` | varchar | NOT NULL | Nome do gabinete (ex: "Mapa do Voto") |
 | `slug` | varchar | NOT NULL | Subdomínio de acesso (ex: `netobota`) — **unique** |
 | `schema` | varchar | NOT NULL | Nome do schema PostgreSQL do tenant (ex: `gabinete_netobota`) — **unique** |
+| `has_schema` | boolean | NOT NULL | Se o schema PostgreSQL foi/deve ser criado (default: `false`) |
 | `active` | boolean | NOT NULL | Se o tenant está ativo (default: `true`) |
 | `valid_until` | date | NOT NULL | Data de validade do contrato |
 | `created_at` | timestamp | NULL | — |
@@ -60,7 +62,7 @@ Cadastro dos gabinetes (clientes da plataforma). Cada tenant corresponde a um su
 | `deleted_at` | timestamp | NULL | Soft delete |
 
 **Índices:** `slug` unique, `schema` unique
-**Seed:** `{ name: 'Mapa do Voto', slug: 'master', schema: 'gabinete_master', valid_until: '2026-06-24' }`
+**Seed:** `{ name: 'Mapa do Voto', slug: 'master', schema: 'gabinete_master', has_schema: false, valid_until: '2026-06-24' }`
 
 ---
 

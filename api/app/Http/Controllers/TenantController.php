@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\People;
+use App\Models\PeopleCandidacy;
 use App\Models\Tenant;
 use App\Models\TypePeople;
 use Illuminate\Http\Request;
@@ -16,7 +17,7 @@ class TenantController extends Controller
             ->where('active', true)
             ->whereNull('deleted_at')
             ->orderBy('name')
-            ->get(['id', 'name', 'slug', 'active', 'valid_until']);
+            ->get(['id', 'tenant_id', 'name', 'slug', 'active', 'valid_until']);
 
         return response()->json($tenants);
     }
@@ -26,8 +27,10 @@ class TenantController extends Controller
         $validated = $request->validate([
             'name'        => 'required|string|max:255',
             'slug'        => 'required|string|max:255',
+            'has_schema'  => 'boolean',
             'active'      => 'boolean',
             'valid_until' => 'required|date',
+            'people_id'   => 'nullable|integer',
         ]);
 
         $schema = 'gabinete_' . $validated['slug'];
@@ -43,15 +46,24 @@ class TenantController extends Controller
             ], 422);
         }
 
+        $hasSchema = $validated['has_schema'] ?? false;
+
         $tenant = Tenant::create([
             'name'        => $validated['name'],
             'slug'        => $validated['slug'],
             'schema'      => $schema,
+            'has_schema'  => $hasSchema,
             'active'      => $validated['active'] ?? true,
             'valid_until' => $validated['valid_until'],
         ]);
 
-        DB::statement("CREATE SCHEMA IF NOT EXISTS \"{$schema}\"");
+        if ($hasSchema) {
+            DB::statement("CREATE SCHEMA IF NOT EXISTS \"{$schema}\"");
+        }
+
+        if (!empty($validated['people_id'])) {
+            People::where('id', $validated['people_id'])->update(['tenant_id' => $tenant->id]);
+        }
 
         return response()->json([
             'id'          => $tenant->id,
@@ -104,6 +116,56 @@ class TenantController extends Controller
             'type_people_id' => $person->type_people_id,
             'name'           => $person->name,
             'active'         => $person->active,
+        ], 201);
+    }
+
+    public function storeClient(Request $request, int $id)
+    {
+        $reseller = Tenant::findOrFail($id);
+
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
+            'slug'        => 'required|string|max:255',
+            'has_schema'  => 'boolean',
+            'valid_until' => 'required|date',
+        ]);
+
+        $slugExists = DB::table('gabinete_master.tenants')
+            ->whereNull('deleted_at')
+            ->where('slug', $validated['slug'])
+            ->exists();
+
+        if ($slugExists) {
+            return response()->json([
+                'errors' => ['slug' => ['Este subdomínio já está em uso.']],
+            ], 422);
+        }
+
+        $schema    = 'gabinete_' . $validated['slug'];
+        $hasSchema = $validated['has_schema'] ?? false;
+
+        $tenant = Tenant::create([
+            'tenant_id'   => $reseller->id,
+            'name'        => $validated['name'],
+            'slug'        => $validated['slug'],
+            'schema'      => $schema,
+            'has_schema'  => $hasSchema,
+            'active'      => true,
+            'valid_until' => $validated['valid_until'],
+        ]);
+
+        if ($hasSchema) {
+            DB::statement("CREATE SCHEMA IF NOT EXISTS \"{$schema}\"");
+        }
+
+        return response()->json([
+            'id'          => $tenant->id,
+            'tenant_id'   => $tenant->tenant_id,
+            'name'        => $tenant->name,
+            'slug'        => $tenant->slug,
+            'has_schema'  => $tenant->has_schema,
+            'active'      => $tenant->active,
+            'valid_until' => $tenant->valid_until->format('Y-m-d'),
         ], 201);
     }
 

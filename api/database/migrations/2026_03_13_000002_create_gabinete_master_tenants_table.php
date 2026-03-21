@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->string('schema')->unique();
+            $table->unsignedBigInteger('tenant_id')->nullable();
+            $table->boolean('has_schema')->default(false);
             $table->boolean('active')->default(true);
             $table->date('valid_until');
             $table->timestamps();

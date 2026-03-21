@@ -270,7 +270,11 @@ export function HomePage() {
       <GabinetCreateModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        onCreated={(tenant) => { setTenants((prev) => [...prev, tenant]); setEditingTenant(tenant); }}
+        onCreated={(tenant) => {
+          setTenants((prev) => [...prev, tenant]);
+          setEditingTenant(tenant);
+          api.get<Person[]>('/people').then(res => setPeople(res.data)).catch(() => {});
+        }}
         existingSlugs={tenants.map((t) => t.slug)}
       />
       <GabinetEditModal
@@ -365,14 +369,16 @@ export function HomePage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
         <Toolbar>
           <div className="flex items-center gap-3">
-            <img src="/media/logo/logo.svg" alt="Mapa do Voto" className="h-7 w-auto" />
-            <span className="text-lg text-foreground"><strong>Mapa</strong>do<strong>Voto</strong></span>
+            <div className="hidden lg:flex size-8 rounded-lg items-center justify-center shrink-0 bg-[#1D6FE8]">
+              <MapPinned className="size-4 text-white" />
+            </div>
+            <span className="hidden lg:inline text-lg text-foreground"><strong>Mapa</strong>do<strong>Voto</strong></span>
             <ToolbarHeading>
               <div className="flex items-center gap-2">
                 {isMaster ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="inline-flex items-center gap-1 text-sm font-medium text-foreground px-2 py-1 rounded-md hover:bg-accent transition-colors">
+                      <button className="inline-flex items-center gap-1 text-sm font-medium text-foreground px-2 py-1 rounded-md hover:bg-accent transition-colors whitespace-nowrap">
                         Gabinete: {tenantName} <ChevronDown className="size-3" />
                       </button>
                     </DropdownMenuTrigger>

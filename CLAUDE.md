@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 20/03/2026 (unificação de migrations + sessions + slug master) -->
+<!-- Atualizado em: 21/03/2026 (modal Novo Gabinete 4-steps + candidatos/candidaturas + correção unique validation) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -20,6 +20,7 @@ Sempre ler os dois arquivos abaixo ao iniciar uma nova conversa:
 - NÃO fazer git add/commit/push sem ser solicitado
 - Implementar SOMENTE o que for pedido na tarefa
 - Ao final de cada tarefa, gerar um resumo compacto em um único bloco de código para copiar com um clique
+- **NÃO rodar seeders** (`db:seed`) sem ser solicitado — o projeto não utiliza seed inicial; dados são inseridos manualmente ou via importação TSE
 - **PROIBIDO** executar qualquer comando que destrua o banco inteiro: `migrate:refresh`, `migrate:reset`, `migrate:fresh`, `db:wipe`. A senha é `Alex1985@`. Solicitar a senha em **qualquer** uma das situações abaixo:
   - O usuário pedir para **executar** um desses comandos
   - O usuário pedir para **gerar** um desses comandos (ex: "me manda o comando")
@@ -44,7 +45,7 @@ Sempre ler os dois arquivos abaixo ao iniciar uma nova conversa:
 Mapa do Voto é um produto **independente** da TwoClicks:
 - Clientes são políticos — perfil diferente do SaaS genérico
 - Backend simples — candidatos, partidos, dados TSE, autenticação
-- Um banco PostgreSQL com dois schemas: `gabinete_master` (auth/tenants) e `maps` (dados eleitorais)
+- **Dois bancos PostgreSQL separados:** `cm_politico` (schema `gabinete_master` — auth/tenants) e `cm_maps` (schema `maps` — dados eleitorais)
 - **Multi-tenant por subdomínio:** `{slug}.mapadovoto.com` → identifica o gabinete via `gabinete_master.tenants.slug`
 - Marca própria: **Mapa do Voto** | Domínio: `mapadovoto.com`
 
@@ -203,7 +204,8 @@ C:\Herd\mapa-do-voto\
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
 | `src/components/layout/active-tab-context.tsx` | Contexto `ActiveTabProvider`/`useActiveTab` — persiste aba ativa no `localStorage` (chave `mapadovoto:activeTab`); default: `overview` |
 | `src/components/gabinetes/gabinetes-data-grid.tsx` | Data grid de tenants: colunas ID, Nome (clicável → `onEdit`), Subdomínio (link externo), Validade (badge com alerta vencimento), Status, Ações (editar/excluir); prop `onEdit` |
-| `src/components/gabinetes/gabinete-create-modal.tsx` | Modal de criação de gabinete com 2 steps: Step 1 "Em breve", Step 2 Candidato (`CandidateSearch variant=modal`) + Subdomínio; auto-preenche slug pelo ballot_name |
+| `src/components/gabinetes/gabinete-create-modal.tsx` | Modal de criação de gabinete com **4 steps** + timeline horizontal: Step 1 Dados Pessoais (name, birth_date, type_people_id, active); Step 2 Acesso (email + senha com indicador de força 5 requisitos + confirmação); Step 3 Candidato (busca em `maps.candidates` via `/map-candidates/search`) + Subdomínio (check disponibilidade em tempo real) + Validade; Step 4 Candidaturas (multi-select cards via `/map-candidates/{id}/candidacies`). Submit sequencial: POST /people → POST /people/{id}/user → POST /tenants → POST /people/{id}/candidacies. Rollback automático deleta person órfão se passo 2+ falhar. |
+| `src/components/reui/timeline.tsx` | Timeline horizontal customizada (sem shadcn CLI) — componentes: `Timeline`, `TimelineItem`, `TimelineHeader`, `TimelineSeparator`, `TimelineIndicator`, `TimelineTitle`, `TimelineContent`. Usa React context para `value` (step atual) e `orientation`. |
 | `src/components/gabinetes/gabinete-edit-modal.tsx` | Modal de edição de tenant |
 | `src/components/common/app-mega-menu.tsx` | Wrapper reutilizável do MegaMenu do Layout 1 — props: `onNavigate`, `activeSection` (destaca o botão do módulo ativo) |
 | `src/components/people/people-data-grid.tsx` | DataGrid de pessoas: colunas ID, Avatar, Nome (clicável), Aniversário (com ícone `PartyPopper` pulsante no dia), Tipo, Status, Ações |
@@ -262,14 +264,15 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 
 - **URL:** `http://mapadovoto-api.test` (via Herd symlink)
 - **Laravel:** 12.53.0 | **PHP:** 8.4 | **PostgreSQL:** 17.7
-- **Banco:** `cm_politico` | **Usuário:** `mapadovoto`
+- **Bancos:** `cm_politico` (gabinete_master) + `cm_maps` (maps) | **Usuário:** `mapadovoto`
 
 ### Rotas da API
 
 | Método | Endpoint | Auth | Middleware | Descrição |
 |--------|----------|------|------------|-----------|
 | GET | `/api/tenants` | pública | — | Lista todos os tenants ativos (id, name, slug, active, valid_until) |
-| POST | `/api/tenants` | Bearer | — | Cria novo tenant: valida slug único, cria schema PostgreSQL |
+| POST | `/api/tenants` | Bearer | — | Cria novo tenant: valida slug único, opcionalmente cria schema PostgreSQL (`has_schema: bool`), aceita `people_id` opcional para vincular person ao tenant |
+| POST | `/api/tenants/{id}/clients` | Bearer | — | Cria tenant filho vinculado a um reseller (`tenant_id = id`); aceita `has_schema` |
 | PUT | `/api/tenants/{id}` | Bearer | — | Atualiza tenant (name, slug, active, valid_until) |
 | GET | `/api/tenants/{id}/person` | Bearer | — | Retorna person do tenant + lista de type_people |
 | POST | `/api/tenants/{id}/person` | Bearer | — | Cria person vinculada ao tenant |
@@ -331,6 +334,9 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | GET | `/api/auth/me` | Bearer | — | Retorna usuário autenticado + people |
 | GET | `/api/candidates/search?q=` | Bearer | — | Busca em `maps.candidacies` por nome/cargo/ano/partido/UF/cidade (unaccent) — exclui cargos VICE-* — master: todas as candidacies; outros: apenas `people_candidacies` do user |
 | GET | `/api/candidates` | Bearer | — | Lista candidaturas; master vê todas, user vê apenas as vinculadas via people_candidacies |
+| GET | `/api/map-candidates/search?q=` | Bearer | — | Busca em `maps.candidates` (pessoas candidatas, não candidaturas) por nome com unaccent ILIKE; retorna id, name, photo_url; usado no modal Novo Gabinete step 3 |
+| GET | `/api/map-candidates/{id}/candidacies` | Bearer | — | Lista candidaturas de um `maps.candidate` pelo `candidate_id`; retorna ballot_name, role, year, number, status, party, party_color_bg/text/gradient, state_uf, city_name |
+| POST | `/api/people/{personId}/candidacies` | Bearer | — | Vincula candidaturas à pessoa via `people_candidacies`; body: `{candidacy_ids: number[]}`; ignora duplicatas |
 | GET | `/api/candidacies/{id}/stats?city_id=` | Bearer | — | Retorna votos por turno: qty_votes, %, brancos, nulos, legenda, total partido, status TSE — query única CTE com partition pruning por year |
 | GET | `/api/candidacies/{id}/cities` | Bearer | — | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) — filtrado por year |
 | GET | `/api/cities/search?q=&state_id=` | Bearer | — | Busca cidades com unaccent, filtro state_id, limit 10 |
@@ -377,7 +383,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | `maps.candidates` | Pessoa do candidato (id, gender_id, name, cpf, photo_url) |
 | `maps.parties` | 30 partidos (id, name, abbreviation, color_bg, color_text, color_gradient) |
 | `maps.candidacies` | Candidatura por eleição (id, sq_candidato unique, candidate_id, party_id, country_id, state_id, city_id, year, role, ballot_name, number, status) |
-| `maps.votes` | Votos por seção, particionada RANGE(year) (id, candidacy_id, country_id, state_id, city_id, zone_id, voting_location_id, section_id, year, round, qty_votes, vote_type) |
+| `maps.votes` | Votos por seção, particionada RANGE(year) (id, candidacy_id, country_id, state_id, city_id, zone_id, voting_location_id, section_id, year, round, qty_votes, vote_type) — partições: `votes_default`, `votes_2022`, `votes_2024` |
 | `maps.tse_votacao_secao_2024` | Staging bruta TSE 2024 (26 colunas text) |
 | `maps.tse_votacao_secao_2022` | Staging bruta TSE 2022 (26 colunas text) |
 
@@ -446,13 +452,13 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/bootstrap/app.php` | Registro do alias `tenant` → `TenantMiddleware` |
 | `api/app/Http/Middleware/TenantMiddleware.php` | Middleware de identificação de tenant por subdomínio |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me — resposta inclui `photo_original/md/sm` via `formatUser()` + `PeopleAvatarController::avatarUrls()` |
-| `api/app/Http/Controllers/TenantController.php` | `index`, `store`, `update`, `person`, `storePerson` |
+| `api/app/Http/Controllers/TenantController.php` | `index`, `store`, `update`, `person`, `storePerson`, `storeClient`. `store()` aceita `people_id` opcional (vincula person ao tenant via `tenant_id`) e `has_schema` (cria schema PostgreSQL apenas se true). `index()` retorna `tenant_id` na listagem. |
 | `api/app/Http/Controllers/TypePeopleController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Requests/TypePeopleRequest.php` | Validação: name unique (sem schema qualificado), order min:1, active |
 | `api/app/Http/Controllers/PeopleController.php` | `index`, `store`, `update`, `destroy` — retorna birth_date, photo_path, photo_original/md/sm, type_people |
 | `api/app/Http/Requests/PeopleRequest.php` | Validação: name required, birth_date nullable date, type_people_id nullable exists, active boolean |
 | `api/app/Http/Controllers/PeopleAvatarController.php` | `store` (upload avatar → 3 versões jpg via Intervention Image), `destroy` (remove storage); `static avatarUrls(?string)` retorna photo_original/md/sm |
-| `api/app/Http/Controllers/PeopleUserController.php` | `show`, `store`, `update` — gerencia usuário vinculado à pessoa |
+| `api/app/Http/Controllers/PeopleUserController.php` | `show`, `store`, `update` — gerencia usuário vinculado à pessoa. Unique validation usa `Rule::unique('users', 'email')` (sem schema qualificado — depende do `search_path` do TenantMiddleware) |
 | `api/app/Http/Controllers/PersonPermissionController.php` | `index` (lista actions ordenadas por `order`, retorna `name_module`/`name_action` + `allowed`), `update` (upsert permissão) |
 | `api/app/Http/Controllers/PermissionActionController.php` | `index`, `store`, `update`, `destroy`, `reorder` (lote `[{id,order}]`) — CRUD completo de permission_actions |
 | `api/app/Http/Controllers/PersonContactController.php` | CRUD de contatos polimórficos de uma pessoa |
@@ -463,7 +469,8 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/TypeContactController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/TypeAddressController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/TypeDocumentController.php` | `index`, `store`, `update`, `destroy` |
-| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search`, `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` com fallback por Host. `search()`: busca por nome, cargo, ano, partido, UF e cidade (`unaccent(c.name)`); exclui `cy.role NOT ILIKE 'VICE-%'`; para não-master busca `people_candidacies` via query separada e usa `WHERE cy.id IN (...)` |
+| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search`, `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` com fallback por Host. `search()`: busca por nome, cargo, ano, partido, UF e cidade (`unaccent(c.name)`); exclui `cy.role NOT ILIKE 'VICE-%'`; para não-master busca `people_candidacies` via query separada e usa `WHERE cy.id IN (...)`. `searchPersons()`: busca em `maps.candidates` por nome (não candidaturas). `candidaciesByPerson()`: lista candidaturas de um `maps.candidate` pelo `candidate_id`, retorna `party_color_gradient` |
+| `api/app/Http/Controllers/PeopleCandidacyController.php` | `store()`: vincula array de `candidacy_ids` à pessoa via `people_candidacies`; ignora duplicatas existentes |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, PersonalAccessToken, Permission, PermissionAction, PersonFile, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |
@@ -660,3 +667,11 @@ Relatório premium cruzando histórico TSE com candidatos aliados potenciais, ra
 
 **VPS:** `root@168.231.64.36` (pago até 2027-04-11)
 **Domínio:** `mapadovoto.com`
+
+---
+
+## Notion
+
+- Acesso restrito à página do projeto: https://www.notion.so/Mapa-do-Voto-328764dd18d18145a9b6fe0388ff7d6d
+- Page ID: `328764dd18d18145a9b6fe0388ff7d6d`
+- Nunca ler, criar ou modificar páginas fora desta hierarquia

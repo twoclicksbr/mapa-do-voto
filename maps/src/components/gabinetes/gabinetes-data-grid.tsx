@@ -28,10 +28,30 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 interface Tenant {
   id: number;
+  tenant_id: number | null;
   name: string;
   slug: string;
   active: boolean;
   valid_until: string;
+  _depth?: number;
+}
+
+function flattenTree(tenants: Tenant[]): Tenant[] {
+  const roots = tenants.filter(t => t.tenant_id === null);
+  const childrenOf = (id: number) => tenants.filter(t => t.tenant_id === id);
+  const result: Tenant[] = [];
+  for (const root of roots) {
+    result.push({ ...root, _depth: 0 });
+    for (const child of childrenOf(root.id)) {
+      result.push({ ...child, _depth: 1 });
+    }
+  }
+  // tenants sem pai conhecido (tenant_id != null mas pai não está na lista)
+  const placed = new Set(result.map(t => t.id));
+  for (const t of tenants) {
+    if (!placed.has(t.id)) result.push({ ...t, _depth: 0 });
+  }
+  return result;
 }
 
 interface GabinetesDataGridProps {
@@ -54,7 +74,7 @@ export function GabinetesDataGrid({ tenants, isLoading, onSelectionChange, onEdi
   const [rowSelection, setRowSelection] = useState({});
 
   useEffect(() => {
-    setData(tenants);
+    setData(flattenTree(tenants));
   }, [tenants]);
 
   useEffect(() => {
@@ -137,9 +157,12 @@ export function GabinetesDataGrid({ tenants, isLoading, onSelectionChange, onEdi
           <DataGridColumnHeader title="Nome" column={column} />
         ),
         cell: ({ row }) => (
-          <button onClick={() => onEdit?.(row.original)} className="font-medium text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 transition-colors text-left">
-            {row.original.name}
-          </button>
+          <div style={{ paddingLeft: `${(row.original._depth ?? 0) * 20}px` }} className="flex items-center gap-1.5">
+            {(row.original._depth ?? 0) > 0 && <span className="text-muted-foreground">↳</span>}
+            <button onClick={() => onEdit?.(row.original)} className="font-medium text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 transition-colors text-left">
+              {row.original.name}
+            </button>
+          </div>
         ),
         meta: { skeleton: <Skeleton className="h-5 w-40" /> },
         enableSorting: true,

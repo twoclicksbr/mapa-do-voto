@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { MapPinned } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -50,7 +51,9 @@ export function LoginModal() {
     <Dialog open={open}>
       <DialogContent showCloseButton={false}>
         <div className="flex items-center justify-center gap-2 mb-4">
-          <img src="/media/logo/logo.svg" alt="Mapa do Voto" className="w-8 h-8" />
+          <div className="size-8 rounded-lg flex items-center justify-center shrink-0 bg-[#1D6FE8]">
+            <MapPinned className="size-4 text-white" />
+          </div>
           <span className="text-xl"><strong>Mapa</strong>do<strong>Voto</strong></span>
         </div>
 

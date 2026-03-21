@@ -19,6 +19,7 @@ use App\Http\Controllers\PeopleAvatarController;
 use App\Http\Controllers\PeopleUserController;
 use App\Http\Controllers\PersonPermissionController;
 use App\Http\Controllers\TypePeopleController;
+use App\Http\Controllers\PeopleCandidacyController;
 use App\Http\Controllers\PermissionActionController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +32,8 @@ Route::middleware('tenant')->post('/auth/login', [AuthController::class, 'login'
 
 Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::get('/candidates/search', [CandidateController::class, 'search']);
+    Route::get('/map-candidates/search', [CandidateController::class, 'searchPersons']);
+    Route::get('/map-candidates/{id}/candidacies', [CandidateController::class, 'candidaciesByPerson']);
     Route::get('/people', [PeopleController::class, 'index']);
     Route::post('/people', [PeopleController::class, 'store']);
     Route::put('/people/{id}', [PeopleController::class, 'update']);
@@ -39,6 +42,7 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::delete('/people/{id}/avatar', [PeopleAvatarController::class, 'destroy']);
     Route::get('/people/{personId}/permissions', [PersonPermissionController::class, 'index']);
     Route::put('/people/{personId}/permissions/{actionId}', [PersonPermissionController::class, 'update']);
+    Route::post('/people/{personId}/candidacies', [PeopleCandidacyController::class, 'store']);
     Route::get('/people/{personId}/user', [PeopleUserController::class, 'show']);
     Route::post('/people/{personId}/user', [PeopleUserController::class, 'store']);
     Route::put('/people/{personId}/user', [PeopleUserController::class, 'update']);
@@ -87,6 +91,7 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::put('/tenants/{id}', [TenantController::class, 'update']);
     Route::get('/tenants/{id}/person', [TenantController::class, 'person']);
     Route::post('/tenants/{id}/person', [TenantController::class, 'storePerson']);
+    Route::post('/tenants/{id}/clients', [TenantController::class, 'storeClient']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::get('/candidates', [CandidateController::class, 'index']);

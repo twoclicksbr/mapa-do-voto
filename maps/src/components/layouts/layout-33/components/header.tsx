@@ -7,7 +7,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Menu, MapPin } from 'lucide-react';
+import { Menu, MapPinned } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SidebarContent } from './sidebar-content';
 import { Link, useLocation } from 'react-router';
@@ -29,8 +29,8 @@ export function Header() {
         {/* Mobile sidebar toggle */}
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2">
-            <div className="size-8 rounded-lg flex items-center justify-center shrink-0 bg-[#E63946]">
-              <MapPin className="size-4 text-white" />
+            <div className="size-8 rounded-lg flex items-center justify-center shrink-0 bg-[#1D6FE8]">
+              <MapPinned className="size-4 text-white" />
             </div>
             <span className="text-xl text-foreground hidden lg:inline">
               <span className="font-normal">Mapa</span><span className="font-bold">do Voto</span>

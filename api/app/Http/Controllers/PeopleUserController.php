@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\People;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class PeopleUserController extends Controller
 {
@@ -30,7 +31,7 @@ class PeopleUserController extends Controller
         }
 
         $request->validate([
-            'email'    => 'required|email|unique:gabinete_master.users,email',
+            'email'    => ['required', 'email', Rule::unique('users', 'email')],
             'password' => 'required|string|min:8|confirmed',
         ]);
 
@@ -52,7 +53,7 @@ class PeopleUserController extends Controller
         $rules = [];
 
         if ($request->filled('email') && $request->email !== $user->email) {
-            $rules['email'] = "required|email|unique:gabinete_master.users,email,{$user->id}";
+            $rules['email'] = ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)];
         }
 
         if ($request->filled('password')) {

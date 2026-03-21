@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Candidate;
 use App\Models\Candidacy;
 use App\Models\PeopleCandidacy;
 use Illuminate\Http\Request;
@@ -290,5 +291,51 @@ class CandidateController extends Controller
         ", [$id, $candidacy->year, $id, $candidacy->year, $candidacy->state_id]);
 
         return response()->json($cities);
+    }
+
+    public function candidaciesByPerson(Request $request, int $id)
+    {
+        $rows = DB::connection('pgsql_maps')->select("
+            SELECT
+                cy.id,
+                cy.ballot_name,
+                cy.role,
+                cy.year,
+                cy.number,
+                cy.status,
+                p.abbreviation    AS party,
+                p.color_bg        AS party_color_bg,
+                p.color_text      AS party_color_text,
+                p.color_gradient  AS party_color_gradient,
+                s.uf            AS state_uf,
+                ci.name         AS city_name
+            FROM maps.candidacies cy
+            LEFT JOIN maps.parties p  ON p.id = cy.party_id
+            LEFT JOIN maps.states  s  ON s.id = cy.state_id
+            LEFT JOIN maps.cities  ci ON ci.id = cy.city_id
+            WHERE cy.candidate_id = ?
+            ORDER BY cy.year DESC, cy.role
+        ", [$id]);
+
+        return response()->json($rows);
+    }
+
+    public function searchPersons(Request $request)
+    {
+        $q = trim($request->query('q', ''));
+
+        if (strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $results = DB::connection('pgsql_maps')->select("
+            SELECT id, name, photo_url
+            FROM maps.candidates
+            WHERE unaccent(name) ILIKE unaccent(?)
+            ORDER BY name
+            LIMIT 20
+        ", ["%{$q}%"]);
+
+        return response()->json($results);
     }
 }
