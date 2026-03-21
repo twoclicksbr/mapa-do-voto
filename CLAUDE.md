@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 21/03/2026 (modal Novo Gabinete 4-steps + candidatos/candidaturas + correção unique validation) -->
+<!-- Atualizado em: 21/03/2026 (modal Novo Gabinete 4-steps + candidatos/candidaturas + correção unique validation; perf: stats() sem JOIN em 18M+ linhas) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -469,7 +469,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/TypeContactController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/TypeAddressController.php` | `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/TypeDocumentController.php` | `index`, `store`, `update`, `destroy` |
-| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search`, `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` com fallback por Host. `search()`: busca por nome, cargo, ano, partido, UF e cidade (`unaccent(c.name)`); exclui `cy.role NOT ILIKE 'VICE-%'`; para não-master busca `people_candidacies` via query separada e usa `WHERE cy.id IN (...)`. `searchPersons()`: busca em `maps.candidates` por nome (não candidaturas). `candidaciesByPerson()`: lista candidaturas de um `maps.candidate` pelo `candidate_id`, retorna `party_color_gradient` |
+| `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search`, `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` com fallback por Host. `search()`: busca por nome, cargo, ano, partido, UF e cidade (`unaccent(c.name)`); exclui `cy.role NOT ILIKE 'VICE-%'`; para não-master busca `people_candidacies` via query separada e usa `WHERE cy.id IN (...)`. `searchPersons()`: busca em `maps.candidates` por nome (não candidaturas). `candidaciesByPerson()`: lista candidaturas de um `maps.candidate` pelo `candidate_id`, retorna `party_color_gradient`. `stats()`: CTE `party_ids` resolve candidacy_ids do partido antes da varredura principal — elimina LEFT JOIN em 18M+ linhas; `scope_by_round` usa `IN (SELECT id FROM party_ids)` em vez de JOIN |
 | `api/app/Http/Controllers/PeopleCandidacyController.php` | `store()`: vincula array de `candidacy_ids` à pessoa via `people_candidacies`; ignora duplicatas existentes |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |

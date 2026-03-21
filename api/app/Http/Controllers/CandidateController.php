@@ -193,10 +193,14 @@ class CandidateController extends Controller
             ? [$id, $candidacy->year, $filterCityId]
             : [$id, $candidacy->year];
 
-        // Query única: candidate_by_round + scope_by_round em um único pass
-        // year filter ativa partition pruning na tabela particionada
+        // party_ids CTE: resolve candidacy_ids do partido sem JOIN na varredura principal
+        // scope_by_round usa IN (subquery) em vez de LEFT JOIN — elimina hash join em 18M+ linhas
         $rows = DB::connection('pgsql_maps')->select("
-            WITH candidate_by_round AS (
+            WITH party_ids AS (
+                SELECT id FROM maps.candidacies
+                WHERE party_id = ? AND year = ?
+            ),
+            candidate_by_round AS (
                 SELECT round, SUM(qty_votes) AS qty_votes
                 FROM maps.votes
                 WHERE candidacy_id = ? AND year = ? {$candidateCityFilter}
@@ -204,14 +208,13 @@ class CandidateController extends Controller
             ),
             scope_by_round AS (
                 SELECT v.round,
-                    SUM(CASE WHEN v.vote_type = 'candidate' THEN v.qty_votes ELSE 0 END)                             AS total_valid,
-                    SUM(CASE WHEN v.vote_type = 'blank'     THEN v.qty_votes ELSE 0 END)                             AS qty_blank,
-                    SUM(CASE WHEN v.vote_type = 'null'      THEN v.qty_votes ELSE 0 END)                             AS qty_null,
-                    SUM(CASE WHEN v.vote_type = 'legend'    THEN v.qty_votes ELSE 0 END)                             AS qty_legend,
-                    SUM(CASE WHEN v.vote_type IN ('candidate','blank','null') THEN v.qty_votes ELSE 0 END)            AS qty_total,
-                    SUM(CASE WHEN v.vote_type = 'candidate' AND cy.party_id = ? THEN v.qty_votes ELSE 0 END)         AS qty_party_nominal
+                    SUM(CASE WHEN v.vote_type = 'candidate' THEN v.qty_votes ELSE 0 END)                                                      AS total_valid,
+                    SUM(CASE WHEN v.vote_type = 'blank'     THEN v.qty_votes ELSE 0 END)                                                      AS qty_blank,
+                    SUM(CASE WHEN v.vote_type = 'null'      THEN v.qty_votes ELSE 0 END)                                                      AS qty_null,
+                    SUM(CASE WHEN v.vote_type = 'legend'    THEN v.qty_votes ELSE 0 END)                                                      AS qty_legend,
+                    SUM(CASE WHEN v.vote_type IN ('candidate','blank','null') THEN v.qty_votes ELSE 0 END)                                     AS qty_total,
+                    SUM(CASE WHEN v.vote_type = 'candidate' AND v.candidacy_id IN (SELECT id FROM party_ids) THEN v.qty_votes ELSE 0 END)     AS qty_party_nominal
                 FROM maps.votes v
-                LEFT JOIN maps.candidacies cy ON cy.id = v.candidacy_id AND v.vote_type = 'candidate'
                 WHERE {$scopeCol} = ? AND v.year = ?
                 GROUP BY v.round
             )
@@ -227,7 +230,7 @@ class CandidateController extends Controller
             FROM candidate_by_round cbr
             LEFT JOIN scope_by_round sbr ON sbr.round = cbr.round
             ORDER BY cbr.round
-        ", array_merge($candidateBindings, [$candidacy->party_id, $scopeVal, $candidacy->year]));
+        ", array_merge([$candidacy->party_id, $candidacy->year], $candidateBindings, [$scopeVal, $candidacy->year]));
 
         if (empty($rows)) {
             return response()->json([
