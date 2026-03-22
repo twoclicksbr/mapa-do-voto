@@ -1,10 +1,10 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, Fragment } from "react";
 import * as L from "leaflet";
 import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
@@ -40,6 +40,18 @@ import { PeopleModal } from "@/components/people/people-modal";
 import { PermissionActionsDataGrid, PermissionAction } from "@/components/permission-actions/permission-actions-data-grid";
 import { PermissionActionsModal } from "@/components/permission-actions/permission-actions-modal";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { FinTitlesDataGrid, FinTitle } from "@/components/financeiro/fin-titles-data-grid";
+import { FinBanksDataGrid, FinBank } from "@/components/financeiro/fin-banks-data-grid";
+import { FinBankModal } from "@/components/financeiro/fin-bank-modal";
+import { FinPaymentMethodsDataGrid, FinPaymentMethod } from "@/components/financeiro/fin-payment-methods-data-grid";
+import { FinPaymentMethodModal } from "@/components/financeiro/fin-payment-method-modal";
+import { FinPaymentMethodTypesDataGrid, FinPaymentMethodType } from "@/components/financeiro/fin-payment-method-types-data-grid";
+import { FinPaymentMethodTypeModal } from "@/components/financeiro/fin-payment-method-type-modal";
+import { FinMegaMenu } from "@/components/financeiro/fin-mega-menu";
+import { DepartmentsDataGrid, Department } from "@/components/financeiro/departments-data-grid";
+import { DepartmentModal } from "@/components/financeiro/department-modal";
+import { FinAccountsTree, FinAccount, ReorderItem } from "@/components/financeiro/fin-accounts-tree";
+import { FinAccountModal } from "@/components/financeiro/fin-account-modal";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Home': Home,
@@ -55,6 +67,13 @@ const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Tipo de Endereço': BookmarkCheck,
   'Tipo de Pessoas': BookmarkCheck,
   'Permissões': ShieldCheck,
+  'Finanças': Landmark,
+  'Títulos a Pagar': Landmark,
+  'Bancos': CreditCard,
+  'Modalidades': CreditCard,
+  'Tipos de Modalidade': CreditCard,
+  'Departamentos': Building,
+  'Plano de Contas': LayoutList,
 };
 
 function SectionBreadcrumb({ items }: { items: string[] }) {
@@ -64,13 +83,16 @@ function SectionBreadcrumb({ items }: { items: string[] }) {
         {items.map((item, i) => {
           const Icon = BREADCRUMB_ICONS[item];
           return (
-            <BreadcrumbItem key={item} className="inline-flex items-center">
-              {i < items.length - 1 ? (
-                <><span className="inline-flex items-center gap-1 leading-none">{Icon && <Icon className="size-3.5 shrink-0" />}{item}</span><BreadcrumbSeparator /></>
-              ) : (
-                <BreadcrumbPage className="inline-flex items-center gap-1 leading-none">{Icon && <Icon className="size-3.5 shrink-0" />}{item}</BreadcrumbPage>
-              )}
-            </BreadcrumbItem>
+            <Fragment key={item}>
+              <BreadcrumbItem className="inline-flex items-center">
+                {i < items.length - 1 ? (
+                  <span className="inline-flex items-center gap-1 leading-none">{Icon && <Icon className="size-3.5 shrink-0" />}{item}</span>
+                ) : (
+                  <BreadcrumbPage className="inline-flex items-center gap-1 leading-none">{Icon && <Icon className="size-3.5 shrink-0" />}{item}</BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+              {i < items.length - 1 && <BreadcrumbSeparator />}
+            </Fragment>
           );
         })}
       </BreadcrumbList>
@@ -156,6 +178,48 @@ export function HomePage() {
   const [peopleSelected, setPeopleSelected] = useState(0);
   const [peopleModalOpen, setPeopleModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+
+  const [finSection, setFinSectionState] = useState<string>(
+    () => localStorage.getItem('mapadovoto:finSection') ?? ''
+  );
+  const setFinSection = (section: string) => {
+    localStorage.setItem('mapadovoto:finSection', section);
+    setFinSectionState(section);
+  };
+
+  const [finTitles, setFinTitles] = useState<FinTitle[]>([]);
+  const [finTitlesLoading, setFinTitlesLoading] = useState(false);
+  const [finTitlesSelected, setFinTitlesSelected] = useState(0);
+
+  const [finBanks, setFinBanks] = useState<FinBank[]>([]);
+  const [finBanksLoading, setFinBanksLoading] = useState(false);
+  const [finBanksSelected, setFinBanksSelected] = useState(0);
+  const [finBankModalOpen, setFinBankModalOpen] = useState(false);
+  const [editingFinBank, setEditingFinBank] = useState<FinBank | null>(null);
+
+  const [finPaymentMethods, setFinPaymentMethods] = useState<FinPaymentMethod[]>([]);
+  const [finPaymentMethodsLoading, setFinPaymentMethodsLoading] = useState(false);
+  const [finPaymentMethodsSelected, setFinPaymentMethodsSelected] = useState(0);
+  const [finPaymentMethodModalOpen, setFinPaymentMethodModalOpen] = useState(false);
+  const [editingFinPaymentMethod, setEditingFinPaymentMethod] = useState<FinPaymentMethod | null>(null);
+
+  const [finPaymentMethodTypes, setFinPaymentMethodTypes] = useState<FinPaymentMethodType[]>([]);
+  const [finPaymentMethodTypesLoading, setFinPaymentMethodTypesLoading] = useState(false);
+  const [finPaymentMethodTypesSelected, setFinPaymentMethodTypesSelected] = useState(0);
+  const [finPaymentMethodTypeModalOpen, setFinPaymentMethodTypeModalOpen] = useState(false);
+  const [editingFinPaymentMethodType, setEditingFinPaymentMethodType] = useState<FinPaymentMethodType | null>(null);
+
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [departmentsSelected, setDepartmentsSelected] = useState(0);
+  const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+
+  const [finAccounts, setFinAccounts] = useState<FinAccount[]>([]);
+  const [finAccountsLoading, setFinAccountsLoading] = useState(false);
+  const [finAccountModalOpen, setFinAccountModalOpen] = useState(false);
+  const [editingFinAccount, setEditingFinAccount] = useState<FinAccount | null>(null);
+  const [parentFinAccount, setParentFinAccount] = useState<FinAccount | null>(null);
 
   useEffect(() => {
     if (!isMaster) return;
@@ -265,6 +329,123 @@ export function HomePage() {
   const handlePeopleDelete = async (id: number) => {
     await api.delete(`/people/${id}`);
     setPeople(prev => prev.filter(p => p.id !== id));
+  };
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    setFinTitlesLoading(true);
+    api.get<FinTitle[]>('/fin-titles?type=expense')
+      .then(res => setFinTitles(res.data))
+      .catch(() => setFinTitles([]))
+      .finally(() => setFinTitlesLoading(false));
+  }, [loggedIn]);
+
+  useEffect(() => {
+    if (!loggedIn || finSection !== 'fin-banks') return;
+    setFinBanksLoading(true);
+    api.get<FinBank[]>('/fin-banks')
+      .then(res => setFinBanks(res.data))
+      .catch(() => setFinBanks([]))
+      .finally(() => setFinBanksLoading(false));
+  }, [loggedIn, finSection]);
+
+  const handleFinBankReorder = async (id: number, newOrder: number) => {
+    await api.put(`/fin-banks/${id}`, { order: newOrder });
+    const res = await api.get<FinBank[]>('/fin-banks');
+    setFinBanks(res.data);
+  };
+
+  const handleFinBankDelete = async (id: number) => {
+    await api.delete(`/fin-banks/${id}`);
+    setFinBanks(prev => prev.filter(b => b.id !== id));
+  };
+
+  useEffect(() => {
+    if (!loggedIn || finSection !== 'fin-payment-methods') return;
+    setFinPaymentMethodsLoading(true);
+    api.get<FinPaymentMethod[]>('/fin-payment-methods')
+      .then(res => setFinPaymentMethods(res.data))
+      .catch(() => setFinPaymentMethods([]))
+      .finally(() => setFinPaymentMethodsLoading(false));
+  }, [loggedIn, finSection]);
+
+  const handleFinPaymentMethodReorder = async (id: number, newOrder: number) => {
+    await api.put(`/fin-payment-methods/${id}`, { order: newOrder });
+    const res = await api.get<FinPaymentMethod[]>('/fin-payment-methods');
+    setFinPaymentMethods(res.data);
+  };
+
+  const handleFinPaymentMethodDelete = async (id: number) => {
+    await api.delete(`/fin-payment-methods/${id}`);
+    setFinPaymentMethods(prev => prev.filter(m => m.id !== id));
+  };
+
+  useEffect(() => {
+    if (!loggedIn || finSection !== 'fin-payment-method-types') return;
+    setFinPaymentMethodTypesLoading(true);
+    api.get<FinPaymentMethodType[]>('/fin-payment-method-types')
+      .then(res => setFinPaymentMethodTypes(res.data))
+      .catch(() => setFinPaymentMethodTypes([]))
+      .finally(() => setFinPaymentMethodTypesLoading(false));
+  }, [loggedIn, finSection]);
+
+  const handleFinPaymentMethodTypeReorder = async (reordered: FinPaymentMethodType[]) => {
+    await api.put('/fin-payment-method-types/reorder', reordered.map((t, idx) => ({ id: t.id, order: idx + 1 })));
+    setFinPaymentMethodTypes(reordered.map((t, idx) => ({ ...t, order: idx + 1 })));
+  };
+
+  const handleFinPaymentMethodTypeDelete = async (id: number) => {
+    await api.delete(`/fin-payment-method-types/${id}`);
+    setFinPaymentMethodTypes(prev => prev.filter(t => t.id !== id));
+  };
+
+  useEffect(() => {
+    if (!loggedIn || finSection !== 'fin-departments') return;
+    setDepartmentsLoading(true);
+    api.get<Department[]>('/departments')
+      .then(res => setDepartments(res.data))
+      .catch(() => setDepartments([]))
+      .finally(() => setDepartmentsLoading(false));
+  }, [loggedIn, finSection]);
+
+  const handleDepartmentsReorder = async (id: number, newOrder: number) => {
+    await api.put(`/departments/${id}`, { order: newOrder });
+    const res = await api.get<Department[]>('/departments');
+    setDepartments(res.data);
+  };
+
+  const handleDepartmentDelete = async (id: number) => {
+    await api.delete(`/departments/${id}`);
+    setDepartments(prev => prev.filter(d => d.id !== id));
+  };
+
+  useEffect(() => {
+    if (!loggedIn || finSection !== 'fin-accounts') return;
+    setFinAccountsLoading(true);
+    api.get<FinAccount[]>('/fin-accounts')
+      .then(res => setFinAccounts(res.data))
+      .catch(() => setFinAccounts([]))
+      .finally(() => setFinAccountsLoading(false));
+  }, [loggedIn, finSection]);
+
+  const handleFinAccountsReorder = async (items: ReorderItem[]) => {
+    await api.put('/fin-accounts/reorder', items);
+  };
+
+  const handleFinAccountDelete = async (id: number) => {
+    await api.delete(`/fin-accounts/${id}`);
+    const res = await api.get<FinAccount[]>('/fin-accounts');
+    setFinAccounts(res.data);
+  };
+
+  const handleFinAccountSaved = (saved: FinAccount) => {
+    // Reload full tree from server to keep hierarchy consistent
+    api.get<FinAccount[]>('/fin-accounts')
+      .then(res => setFinAccounts(res.data))
+      .catch(() => {});
+    setFinAccountModalOpen(false);
+    setEditingFinAccount(null);
+    setParentFinAccount(null);
   };
 
   const mapRef1 = useRef<L.Map | null>(null);
@@ -385,6 +566,65 @@ export function HomePage() {
           setEditingTypeDocument(null);
         }}
       />
+      <FinBankModal
+        open={finBankModalOpen || !!editingFinBank}
+        bank={editingFinBank}
+        onClose={() => { setFinBankModalOpen(false); setEditingFinBank(null); }}
+        onSaved={(saved) => {
+          setFinBanks(prev => {
+            const idx = prev.findIndex(b => b.id === saved.id);
+            return idx >= 0 ? prev.map(b => b.id === saved.id ? saved : b) : [...prev, saved];
+          });
+          setFinBankModalOpen(false);
+          setEditingFinBank(null);
+        }}
+      />
+      <FinPaymentMethodModal
+        open={finPaymentMethodModalOpen || !!editingFinPaymentMethod}
+        method={editingFinPaymentMethod}
+        onClose={() => { setFinPaymentMethodModalOpen(false); setEditingFinPaymentMethod(null); }}
+        onSaved={(saved) => {
+          setFinPaymentMethods(prev => {
+            const idx = prev.findIndex(m => m.id === saved.id);
+            return idx >= 0 ? prev.map(m => m.id === saved.id ? saved : m) : [...prev, saved];
+          });
+          setFinPaymentMethodModalOpen(false);
+          setEditingFinPaymentMethod(null);
+        }}
+      />
+      <FinPaymentMethodTypeModal
+        open={finPaymentMethodTypeModalOpen || !!editingFinPaymentMethodType}
+        type={editingFinPaymentMethodType}
+        onClose={() => { setFinPaymentMethodTypeModalOpen(false); setEditingFinPaymentMethodType(null); }}
+        onSaved={(saved) => {
+          setFinPaymentMethodTypes(prev => {
+            const idx = prev.findIndex(t => t.id === saved.id);
+            return idx >= 0 ? prev.map(t => t.id === saved.id ? saved : t) : [...prev, saved];
+          });
+          setFinPaymentMethodTypeModalOpen(false);
+          setEditingFinPaymentMethodType(null);
+        }}
+      />
+      <DepartmentModal
+        open={departmentModalOpen || !!editingDepartment}
+        department={editingDepartment}
+        onClose={() => { setDepartmentModalOpen(false); setEditingDepartment(null); }}
+        onSaved={(saved) => {
+          setDepartments(prev => {
+            const idx = prev.findIndex(d => d.id === saved.id);
+            return idx >= 0 ? prev.map(d => d.id === saved.id ? saved : d) : [...prev, saved];
+          });
+          setDepartmentModalOpen(false);
+          setEditingDepartment(null);
+        }}
+      />
+      <FinAccountModal
+        open={finAccountModalOpen || !!editingFinAccount}
+        account={editingFinAccount}
+        parentAccount={parentFinAccount}
+        onClose={() => { setFinAccountModalOpen(false); setEditingFinAccount(null); setParentFinAccount(null); }}
+        onSaved={handleFinAccountSaved}
+      />
       <PeopleModal
         open={peopleModalOpen || !!editingPerson}
         person={editingPerson}
@@ -443,7 +683,7 @@ export function HomePage() {
                   <TabsTrigger value="activity">Atendimentos</TabsTrigger>
                   <TabsTrigger value="metrics">Agenda</TabsTrigger>
                   <TabsTrigger value="reports">Alianças</TabsTrigger>
-                  <TabsTrigger value="alerts">Finanças</TabsTrigger>
+                  <TabsTrigger value="alerts"><DollarSign className="size-3.5" />Finanças</TabsTrigger>
                   <TabsTrigger value="settings"><Settings className="size-3.5" />Configurações</TabsTrigger>
                 </TabsList>
               </div>
@@ -611,10 +851,308 @@ export function HomePage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="alerts" className="flex-1 min-h-0 mt-0">
-          <div className="rounded-lg overflow-hidden h-full flex items-center justify-center border border-border">
-            <p className="text-muted-foreground">Finanças — em breve</p>
-          </div>
+        <TabsContent value="alerts" className="flex-1 min-h-0 mt-0 flex flex-col">
+          <FinMegaMenu onNavigate={setFinSection} activeSection={finSection} />
+
+          {finSection === 'fin-payment-method-types' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard className="size-5 text-muted-foreground" />Tipos de Modalidade <Badge variant="success" appearance="light" size="md">{formatRecordCount(finPaymentMethodTypes.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Tipos de Modalidade']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {finPaymentMethodTypesSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({finPaymentMethodTypesSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Excluir selecionados</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Confirmar</Badge></DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => setFinPaymentMethodTypeModalOpen(true)}>
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <FinPaymentMethodTypesDataGrid
+                  types={finPaymentMethodTypes}
+                  isLoading={finPaymentMethodTypesLoading}
+                  onSelectionChange={setFinPaymentMethodTypesSelected}
+                  onEdit={(t) => setEditingFinPaymentMethodType(t)}
+                  onDelete={handleFinPaymentMethodTypeDelete}
+                  onReorder={handleFinPaymentMethodTypeReorder}
+                />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          ) : finSection === 'fin-payment-methods' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard className="size-5 text-muted-foreground" />Modalidades de Pagamento <Badge variant="success" appearance="light" size="md">{formatRecordCount(finPaymentMethods.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Modalidades']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {finPaymentMethodsSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({finPaymentMethodsSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem><Badge variant="success" appearance="light" size="sm">Ativar</Badge></DropdownMenuItem>
+                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Inativar</Badge></DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => setFinPaymentMethodModalOpen(true)}>
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <FinPaymentMethodsDataGrid
+                  methods={finPaymentMethods}
+                  isLoading={finPaymentMethodsLoading}
+                  onSelectionChange={setFinPaymentMethodsSelected}
+                  onEdit={(m) => setEditingFinPaymentMethod(m)}
+                  onDelete={handleFinPaymentMethodDelete}
+                  onReorder={handleFinPaymentMethodReorder}
+                />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          ) : finSection === 'fin-departments' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><Building className="size-5 text-muted-foreground" />Departamentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(departments.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Departamentos']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {departmentsSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({departmentsSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem><Badge variant="success" appearance="light" size="sm">Ativar</Badge></DropdownMenuItem>
+                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Inativar</Badge></DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => setDepartmentModalOpen(true)}>
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <DepartmentsDataGrid
+                  departments={departments}
+                  isLoading={departmentsLoading}
+                  onSelectionChange={setDepartmentsSelected}
+                  onEdit={(d) => setEditingDepartment(d)}
+                  onDelete={handleDepartmentDelete}
+                  onReorder={handleDepartmentsReorder}
+                />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          ) : finSection === 'fin-accounts' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><LayoutList className="size-5 text-muted-foreground" />Plano de Contas <Badge variant="success" appearance="light" size="md">{formatRecordCount(finAccounts.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Plano de Contas']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="primary" size="sm" onClick={() => { setParentFinAccount(null); setFinAccountModalOpen(true); }}>
+                    <Plus className="size-4 mr-2" />
+                    Novo Registro
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <FinAccountsTree
+                  accounts={finAccounts}
+                  isLoading={finAccountsLoading}
+                  onReorder={handleFinAccountsReorder}
+                  onAddChild={(parent) => { setParentFinAccount(parent); setEditingFinAccount(null); setFinAccountModalOpen(true); }}
+                  onEdit={(acc) => { setEditingFinAccount(acc); setParentFinAccount(null); setFinAccountModalOpen(true); }}
+                  onDelete={handleFinAccountDelete}
+                />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          ) : finSection === 'fin-banks' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard className="size-5 text-muted-foreground" />Bancos <Badge variant="success" appearance="light" size="md">{formatRecordCount(finBanks.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Bancos']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {finBanksSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({finBanksSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem><Badge variant="success" appearance="light" size="sm">Ativar</Badge></DropdownMenuItem>
+                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Inativar</Badge></DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => setFinBankModalOpen(true)}>
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <FinBanksDataGrid
+                  banks={finBanks}
+                  isLoading={finBanksLoading}
+                  onSelectionChange={setFinBanksSelected}
+                  onEdit={(b) => setEditingFinBank(b)}
+                  onDelete={handleFinBankDelete}
+                  onReorder={handleFinBankReorder}
+                />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <Landmark className="size-5 text-muted-foreground" />
+                    Títulos a Pagar
+                    <Badge variant="success" appearance="light" size="md">{formatRecordCount(finTitles.length)}</Badge>
+                  </h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Títulos a Pagar']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {finTitlesSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({finTitlesSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Cancelar</Badge></DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                      </Button>
+                      <Button variant="primary" size="sm">
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <FinTitlesDataGrid
+                  titles={finTitles}
+                  isLoading={finTitlesLoading}
+                  onSelectionChange={setFinTitlesSelected}
+                />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 min-h-0 mt-0 flex flex-col">

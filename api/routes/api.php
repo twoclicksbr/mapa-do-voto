@@ -21,6 +21,14 @@ use App\Http\Controllers\PersonPermissionController;
 use App\Http\Controllers\TypePeopleController;
 use App\Http\Controllers\PeopleCandidacyController;
 use App\Http\Controllers\PermissionActionController;
+use App\Http\Controllers\FinBankController;
+use App\Http\Controllers\FinPaymentMethodController;
+use App\Http\Controllers\FinPaymentMethodTypeController;
+use App\Http\Controllers\FinExtractController;
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\FinWalletController;
+use App\Http\Controllers\FinTitleController;
+use App\Http\Controllers\FinAccountController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn () => ['status' => 'ok']);
@@ -99,4 +107,54 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::get('/candidacies/{id}/stats', [CandidateController::class, 'stats']);
     Route::get('/candidacies/{id}/cities', [CandidateController::class, 'cities']);
     Route::get('/cities/search', [CityController::class, 'search']);
+
+    // Financeiro — Bancos
+    Route::get('/fin-banks', [FinBankController::class, 'index']);
+    Route::post('/fin-banks', [FinBankController::class, 'store']);
+    Route::put('/fin-banks/{id}', [FinBankController::class, 'update']);
+    Route::delete('/fin-banks/{id}', [FinBankController::class, 'destroy']);
+
+    // Financeiro — Tipos de Modalidade de Pagamento
+    Route::get('/fin-payment-method-types', [FinPaymentMethodTypeController::class, 'index']);
+    Route::post('/fin-payment-method-types', [FinPaymentMethodTypeController::class, 'store']);
+    Route::put('/fin-payment-method-types/reorder', [FinPaymentMethodTypeController::class, 'reorder']);
+    Route::put('/fin-payment-method-types/{id}', [FinPaymentMethodTypeController::class, 'update']);
+    Route::delete('/fin-payment-method-types/{id}', [FinPaymentMethodTypeController::class, 'destroy']);
+
+    // Financeiro — Modalidades de Pagamento
+    Route::get('/fin-payment-methods', [FinPaymentMethodController::class, 'index']);
+    Route::post('/fin-payment-methods', [FinPaymentMethodController::class, 'store']);
+    Route::put('/fin-payment-methods/{id}', [FinPaymentMethodController::class, 'update']);
+    Route::delete('/fin-payment-methods/{id}', [FinPaymentMethodController::class, 'destroy']);
+
+    // Financeiro — Extrato
+    Route::get('/fin-extract', [FinExtractController::class, 'index']);
+    Route::post('/fin-extract', [FinExtractController::class, 'store']);
+
+    // Financeiro — Departamentos
+    Route::get('/departments', [DepartmentController::class, 'index']);
+    Route::post('/departments', [DepartmentController::class, 'store']);
+    Route::put('/departments/{id}', [DepartmentController::class, 'update']);
+    Route::delete('/departments/{id}', [DepartmentController::class, 'destroy']);
+
+    // Financeiro — Carteira
+    Route::get('/fin-wallets', [FinWalletController::class, 'index']);
+    Route::get('/fin-wallets/{peopleId}', [FinWalletController::class, 'show']);
+
+    // Financeiro — Contas / Plano de Contas
+    Route::get('/fin-accounts', [FinAccountController::class, 'index']);
+    Route::post('/fin-accounts', [FinAccountController::class, 'store']);
+    Route::put('/fin-accounts/reorder', [FinAccountController::class, 'reorder']);
+    Route::put('/fin-accounts/{id}', [FinAccountController::class, 'update']);
+    Route::delete('/fin-accounts/{id}', [FinAccountController::class, 'destroy']);
+
+    // Financeiro — Títulos
+    Route::get('/fin-titles', [FinTitleController::class, 'index']);
+    Route::get('/fin-titles/{id}', [FinTitleController::class, 'show']);
+    Route::post('/fin-titles', [FinTitleController::class, 'store']);
+    Route::put('/fin-titles/{id}', [FinTitleController::class, 'update']);
+    Route::delete('/fin-titles/{id}', [FinTitleController::class, 'destroy']);
+    Route::post('/fin-titles/{id}/pay', [FinTitleController::class, 'pay']);
+    Route::post('/fin-titles/{id}/reverse', [FinTitleController::class, 'reverse']);
+    Route::post('/fin-titles/{id}/clone', [FinTitleController::class, 'clone']);
 });

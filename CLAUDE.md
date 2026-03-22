@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 21/03/2026 (modal Novo Gabinete 4-steps + candidatos/candidaturas + correção unique validation; perf: stats() sem JOIN em 18M+ linhas) -->
+<!-- Atualizado em: 22/03/2026 (módulo Financeiro: fin_banks, fin_payment_method_types, fin_payment_methods, departments, fin_accounts, fin_titles, fin_extract, fin_wallets, fin_cost_centers, fin_title_compositions; FinMegaMenu + DataGrids/Modals no frontend) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -218,6 +218,18 @@ C:\Herd\mapa-do-voto\
 | `src/components/type-contacts/` | CRUD de tipos de contato (DataGrid + Modal) |
 | `src/components/type-addresses/` | CRUD de tipos de endereço (DataGrid + Modal) |
 | `src/components/type-documents/` | CRUD de tipos de documento (DataGrid + Modal) |
+| `src/components/financeiro/fin-mega-menu.tsx` | NavigationMenu da aba Finanças — seções: Títulos a Pagar, Bancos, Modalidades, Tipos de Modalidade, Departamentos, Plano de Contas; persiste `finSection` no `localStorage` (`mapadovoto:finSection`) |
+| `src/components/financeiro/fin-titles-data-grid.tsx` | DataGrid de títulos financeiros (FinTitle) |
+| `src/components/financeiro/fin-banks-data-grid.tsx` | DataGrid de bancos com reordenação |
+| `src/components/financeiro/fin-bank-modal.tsx` | Modal criar/editar banco |
+| `src/components/financeiro/fin-payment-methods-data-grid.tsx` | DataGrid de modalidades de pagamento |
+| `src/components/financeiro/fin-payment-method-modal.tsx` | Modal criar/editar modalidade |
+| `src/components/financeiro/fin-payment-method-types-data-grid.tsx` | DataGrid de tipos de modalidade com DnD |
+| `src/components/financeiro/fin-payment-method-type-modal.tsx` | Modal criar/editar tipo de modalidade |
+| `src/components/financeiro/departments-data-grid.tsx` | DataGrid de departamentos |
+| `src/components/financeiro/department-modal.tsx` | Modal criar/editar departamento |
+| `src/components/financeiro/fin-accounts-tree.tsx` | Árvore hierárquica do plano de contas com reordenação (FinAccount, ReorderItem) |
+| `src/components/financeiro/fin-account-modal.tsx` | Modal criar/editar conta do plano de contas (aceita parentAccount) |
 | `src/components/ui/field.tsx` | Componentes de formulário semânticos: `Field`, `FieldLabel`, `FieldTitle`, `FieldGroup`, `FieldContent`, `FieldDescription`, `FieldError`, `FieldSeparator`, `FieldSet`, `FieldLegend` — baseados em `@radix-ui/react-label` |
 | `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s. Detecta `isProd` pelo hostname: em produção sempre usa `VITE_API_URL`; em dev usa `http://{subdomain}.mapadovoto-api.test/api` |
 | `src/lib/helpers.ts` | Utilitários: `formatDate` (fix timezone — strings `YYYY-MM-DD` parseadas com `T00:00:00` para evitar desvio UTC), `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
@@ -231,7 +243,9 @@ C:\Herd\mapa-do-voto\
 
 ### Abas da Toolbar
 
-Abas: **Mapa**, **Atendimentos**, **Agenda**, **Alianças**, **Finanças**, **Configurações** (ícone `Settings`, visível para todos). Aba **Gabinetes** (`isMaster`) existe como `TabsContent` mas não tem `TabsTrigger` — acesso via lógica interna. Aba ativa persiste via `ActiveTabProvider` no `localStorage`.
+Abas: **Mapa**, **Atendimentos**, **Agenda**, **Alianças**, **Finanças** (ícone `DollarSign`), **Configurações** (ícone `Settings`, visível para todos). Aba **Gabinetes** (`isMaster`) existe como `TabsContent` mas não tem `TabsTrigger` — acesso via lógica interna. Aba ativa persiste via `ActiveTabProvider` no `localStorage`.
+
+Aba **Finanças** exibe `<FinMegaMenu />` acima do conteúdo. Seção ativa persiste em `localStorage` (`mapadovoto:finSection`). Seções disponíveis: painel principal (Títulos a Pagar), `fin-banks`, `fin-payment-methods`, `fin-payment-method-types`, `fin-departments`, `fin-accounts`.
 
 Abas **Gabinetes** e **Configurações** exibem `<AppMegaMenu />` (NavigationMenu do Layout 1) acima do conteúdo. Na aba Configurações, `activeSection={settingsSection}` destaca visualmente o botão do módulo aberto.
 
@@ -342,6 +356,40 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | GET | `/api/candidacies/{id}/cities` | Bearer | — | Retorna cidades do estado do candidato com qty_votes agregados (vote_type=candidate, maior turno) — filtrado por year |
 | GET | `/api/cities/search?q=&state_id=` | Bearer | — | Busca cidades com unaccent, filtro state_id, limit 10 |
 | GET | `/api/states/{uf}/geometry` | pública | — | Retorna geometry GeoJSON do estado (campo geometry da tabela states) |
+| GET | `/api/fin-banks` | Bearer | — | Lista bancos do tenant ordenados por order |
+| POST | `/api/fin-banks` | Bearer | — | Cria banco |
+| PUT | `/api/fin-banks/{id}` | Bearer | — | Atualiza banco (aceita só `order` para reordenar) |
+| DELETE | `/api/fin-banks/{id}` | Bearer | — | Soft delete do banco |
+| GET | `/api/fin-payment-method-types` | Bearer | — | Lista tipos de modalidade de pagamento |
+| POST | `/api/fin-payment-method-types` | Bearer | — | Cria tipo de modalidade |
+| PUT | `/api/fin-payment-method-types/reorder` | Bearer | — | Reordena em lote: `[{id, order}]` |
+| PUT | `/api/fin-payment-method-types/{id}` | Bearer | — | Atualiza tipo de modalidade |
+| DELETE | `/api/fin-payment-method-types/{id}` | Bearer | — | Soft delete do tipo de modalidade |
+| GET | `/api/fin-payment-methods` | Bearer | — | Lista modalidades de pagamento com bank e type |
+| POST | `/api/fin-payment-methods` | Bearer | — | Cria modalidade de pagamento |
+| PUT | `/api/fin-payment-methods/{id}` | Bearer | — | Atualiza modalidade (aceita só `order` para reordenar) |
+| DELETE | `/api/fin-payment-methods/{id}` | Bearer | — | Soft delete da modalidade |
+| GET | `/api/fin-extract` | Bearer | — | Lista lançamentos do extrato financeiro |
+| POST | `/api/fin-extract` | Bearer | — | Cria lançamento manualmente |
+| GET | `/api/departments` | Bearer | — | Lista departamentos ordenados por order |
+| POST | `/api/departments` | Bearer | — | Cria departamento |
+| PUT | `/api/departments/{id}` | Bearer | — | Atualiza departamento |
+| DELETE | `/api/departments/{id}` | Bearer | — | Soft delete do departamento |
+| GET | `/api/fin-wallets` | Bearer | — | Lista carteiras |
+| GET | `/api/fin-wallets/{peopleId}` | Bearer | — | Retorna carteira de uma pessoa (saldo) |
+| GET | `/api/fin-accounts` | Bearer | — | Lista plano de contas hierárquico (árvore completa) |
+| POST | `/api/fin-accounts` | Bearer | — | Cria conta (aceita `parent_id` para sub-conta) |
+| PUT | `/api/fin-accounts/reorder` | Bearer | — | Reordena contas em lote |
+| PUT | `/api/fin-accounts/{id}` | Bearer | — | Atualiza conta |
+| DELETE | `/api/fin-accounts/{id}` | Bearer | — | Soft delete da conta |
+| GET | `/api/fin-titles` | Bearer | — | Lista títulos com filtros: `type`, `status`, `people_id`, `account_id`, `bank_id`, `date_from`, `date_to` |
+| GET | `/api/fin-titles/{id}` | Bearer | — | Detalhe do título com cost_centers e composições |
+| POST | `/api/fin-titles` | Bearer | — | Cria título (aceita `cost_centers[]` com department_id/percentage) |
+| PUT | `/api/fin-titles/{id}` | Bearer | — | Atualiza título |
+| DELETE | `/api/fin-titles/{id}` | Bearer | — | Soft delete do título |
+| POST | `/api/fin-titles/{id}/pay` | Bearer | — | Baixa o título: gera extrato, atualiza status (paid/partial); baixa parcial gera novo título com saldo restante; pagamento excedente credita carteira |
+| POST | `/api/fin-titles/{id}/reverse` | Bearer | — | Estorna título pago: status → reversed + gera título inverso (income↔expense) com status paid |
+| POST | `/api/fin-titles/{id}/clone` | Bearer | — | Clona título (status pending) copiando cost_centers |
 
 ### Schemas e Tabelas
 
@@ -368,6 +416,16 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | `gabinete_master.permissions` | Permissões por people (people_id, permission_action_id, allowed) |
 | `gabinete_master.attendances` | Atendimentos (people_id, title, description, address, lat, lng, status, opened_at, resolved_at) |
 | `gabinete_master.attendance_history` | Histórico de status dos atendimentos |
+| `gabinete_master.fin_banks` | Bancos/contas bancárias do gabinete (id, name, bank, agency, account, main, order, active) — seed: Caixa, Conta Corrente, Conta Poupança |
+| `gabinete_master.fin_payment_method_types` | Tipos de modalidade de pagamento (id, name, order) |
+| `gabinete_master.fin_payment_methods` | Modalidades de pagamento (id, name, fin_bank_id, fin_payment_method_type_id, order, active) |
+| `gabinete_master.departments` | Departamentos para rateio de centro de custo (id, name, order, active) |
+| `gabinete_master.fin_accounts` | Plano de contas hierárquico (id, parent_id, code, name, type, order, active) — seed completo com Ativo/Passivo/Custos e Despesas/Receitas |
+| `gabinete_master.fin_titles` | Títulos financeiros a pagar/receber (id, type, description, amount, discount, interest, due_date, paid_at, amount_paid, installment_number, installment_total, account_id, payment_method_id, bank_id, people_id, document_number, invoice_number, barcode, pix_key, status) |
+| `gabinete_master.fin_extract` | Extrato financeiro — lançamentos gerados por baixas (id, title_id, account_id, type, amount, date, payment_method_id, bank_id) |
+| `gabinete_master.fin_wallets` | Carteira por pessoa — saldo acumulado de pagamentos excedentes (id, people_id, balance, title_id) |
+| `gabinete_master.fin_cost_centers` | Rateio de centro de custo por título (id, title_id, department_id, percentage) |
+| `gabinete_master.fin_title_compositions` | Composição entre títulos — rastreia origem/destino de clones e parcelamentos (id, origin_title_id, destination_title_id) |
 | `gabinete_master.cache` / `gabinete_master.jobs` | Infraestrutura Laravel |
 
 **Schema `maps`** — dados eleitorais TSE:
@@ -411,6 +469,16 @@ Todos os models têm `$table` explícito com schema qualificado.
 - `Candidacy` (`maps.candidacies`) → `belongsTo(Candidate)`, `belongsTo(Party)`, `belongsTo(City)`, `belongsTo(State)`
 - `PeopleCandidacy` (`gabinete_master.people_candidacies`) → `belongsTo(People)`, `belongsTo(Candidacy)`
 - `SplitCandidacy` (`gabinete_master.split_candidacies`)
+- `FinBank` (`gabinete_master.fin_banks`) — com SoftDeletes; `$fillable`: `name`, `bank`, `agency`, `account`, `main`, `order`, `active`
+- `FinPaymentMethodType` (`gabinete_master.fin_payment_method_types`) — sem SoftDeletes; `$fillable`: `name`, `order`
+- `FinPaymentMethod` (`gabinete_master.fin_payment_methods`) — com SoftDeletes; `$fillable`: `name`, `fin_bank_id`, `fin_payment_method_type_id`, `order`, `active`; `belongsTo(FinBank)`, `belongsTo(FinPaymentMethodType)`
+- `Department` (`gabinete_master.departments`) — com SoftDeletes; `$fillable`: `name`, `order`, `active`
+- `FinAccount` (`gabinete_master.fin_accounts`) — com SoftDeletes; `$fillable`: `parent_id`, `code`, `name`, `type`, `order`, `active`; `belongsTo(FinAccount, 'parent_id')`, `hasMany(FinAccount, 'parent_id')`
+- `FinTitle` (`gabinete_master.fin_titles`) — com SoftDeletes; `$fillable`: todos os campos; casts: `amount/discount/interest/amount_paid` → decimal, `due_date/paid_at` → date; `belongsTo(FinAccount, 'account_id')`, `belongsTo(FinPaymentMethod)`, `belongsTo(FinBank)`, `belongsTo(People)`; `hasMany(FinCostCenter)`, `hasMany(FinTitleComposition, 'origin_title_id')`, `hasMany(FinTitleComposition, 'destination_title_id')`
+- `FinExtract` (`gabinete_master.fin_extract`) — sem SoftDeletes; `$fillable`: `title_id`, `account_id`, `type`, `amount`, `date`, `payment_method_id`, `bank_id`
+- `FinWallet` (`gabinete_master.fin_wallets`) — sem SoftDeletes; `$fillable`: `people_id`, `balance`, `title_id`
+- `FinCostCenter` (`gabinete_master.fin_cost_centers`) — sem SoftDeletes; `$fillable`: `title_id`, `department_id`, `percentage`; `belongsTo(Department)`
+- `FinTitleComposition` (`gabinete_master.fin_title_compositions`) — sem SoftDeletes; `$fillable`: `origin_title_id`, `destination_title_id`
 - `City` (`maps.cities`), `State` (`maps.states`), `Country` (`maps.countries`), `Zone` (`maps.zones`), `Section` (`maps.sections`), `VotingLocation` (`maps.voting_locations`), `Vote` (`maps.votes`), `Gender` (`maps.genders`)
 
 ### Seeders
@@ -439,6 +507,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `000001`–`000013` | `gabinete_master` | schema, tenants, PAT, cache, jobs, sessions, type_people, people (inclui birth_date + photo_path), users, permission_actions (inclui order + name_module + name_action), permissions, people_candidacies, split_candidacies |
 | `000051`–`000052` | `gabinete_master` | attendances, attendance_history |
 | `000053`–`000060` | `gabinete_master` | type_contacts, type_addresses, type_documents, contacts, addresses (campos ViaCEP + lat/lng), documents, notes, files |
+| `000061`–`000070` | `gabinete_master` (+ schemas tenant) | fin_banks (seed: 3 registros), fin_payment_method_types, fin_payment_methods, departments, fin_accounts (seed: plano de contas completo), fin_titles, fin_extract, fin_wallets, fin_cost_centers, fin_title_compositions — **aplicadas em todos os schemas tenant** (`has_schema=true`) |
 | `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes (inclui índices), tse_votacao_secao (2008–2024) |
 
 **Observações sobre migrations:**
@@ -472,6 +541,14 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/TypeDocumentController.php` | `index`, `store`, `update`, `destroy` — PUT aceita só `order` (name é `sometimes`); `validity` retorna `bool` |
 | `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search`, `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` com fallback por Host. `search()`: busca por nome, cargo, ano, partido, UF e cidade (`unaccent(c.name)`); exclui `cy.role NOT ILIKE 'VICE-%'`; para não-master busca `people_candidacies` via query separada e usa `WHERE cy.id IN (...)`. `searchPersons()`: busca em `maps.candidates` por nome (não candidaturas). `candidaciesByPerson()`: lista candidaturas de um `maps.candidate` pelo `candidate_id`, retorna `party_color_gradient`. `stats()`: CTE `party_ids` resolve candidacy_ids do partido antes da varredura principal — elimina LEFT JOIN em 18M+ linhas; `scope_by_round` usa `IN (SELECT id FROM party_ids)` em vez de JOIN |
 | `api/app/Http/Controllers/PeopleCandidacyController.php` | `store()`: vincula array de `candidacy_ids` à pessoa via `people_candidacies`; ignora duplicatas existentes |
+| `api/app/Http/Controllers/FinBankController.php` | CRUD de bancos — `index`, `store`, `update` (aceita só `order`), `destroy` |
+| `api/app/Http/Controllers/FinPaymentMethodTypeController.php` | CRUD + `reorder` de tipos de modalidade |
+| `api/app/Http/Controllers/FinPaymentMethodController.php` | CRUD de modalidades de pagamento |
+| `api/app/Http/Controllers/FinExtractController.php` | `index` (listagem do extrato), `store` (lançamento manual) |
+| `api/app/Http/Controllers/DepartmentController.php` | CRUD de departamentos |
+| `api/app/Http/Controllers/FinWalletController.php` | `index`, `show($peopleId)` — saldo da carteira |
+| `api/app/Http/Controllers/FinAccountController.php` | CRUD + `reorder` do plano de contas hierárquico |
+| `api/app/Http/Controllers/FinTitleController.php` | `index` (filtros: type, status, people_id, account_id, bank_id, date_from/to), `show`, `store`, `update`, `destroy`, `pay` (baixa: gera extrato, credita carteira se excedente, gera título restante se parcial), `reverse` (estorno: cria título inverso), `clone` (copia título + cost_centers) |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, PersonalAccessToken, Permission, PermissionAction, PersonFile, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |

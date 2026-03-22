@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 21/03/2026 (type_documents.validity: date→boolean; fix reorder em type_*: 'sometimes' na validação; avatar: scaling progressivo 800/400/150px)
+> Atualizado em: 22/03/2026 (módulo Financeiro: fin_banks, fin_payment_method_types, fin_payment_methods, departments, fin_accounts, fin_titles, fin_extract, fin_wallets, fin_cost_centers, fin_title_compositions)
 
 ---
 
@@ -437,6 +437,197 @@ Arquivos polimórficos. Armazena arquivos uploadados vinculados a qualquer módu
 
 **Índice:** `(modulo, record_id)`
 **Model:** `PersonFile` — `$table = 'gabinete_master.files'`
+
+---
+
+### `gabinete_master.fin_banks`
+Bancos e contas bancárias do gabinete. Migração `000061` — aplica em todos os schemas tenant.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome exibido (ex: "Caixa", "Nubank") |
+| `bank` | varchar | NULL | Nome da instituição bancária |
+| `agency` | varchar | NULL | Agência |
+| `account` | varchar | NULL | Conta |
+| `main` | boolean | NOT NULL | Se é o banco principal (default: `false`) |
+| `order` | integer | NOT NULL | Ordem de exibição (default: `1`) |
+| `active` | boolean | NOT NULL | default: `true` |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Seeds (por schema):** Caixa (main=true, order 1), Conta Corrente (order 2), Conta Poupança (order 3)
+
+---
+
+### `gabinete_master.fin_payment_method_types`
+Tipos de modalidade de pagamento (ex: Transferência, Boleto, Cartão). Migração `000062`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome do tipo |
+| `order` | integer | NOT NULL | Ordem de exibição (default: `1`) |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+
+---
+
+### `gabinete_master.fin_payment_methods`
+Modalidades de pagamento vinculadas a banco e tipo. Migração `000063`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome da modalidade |
+| `fin_bank_id` | bigint | NULL | Referência a `fin_banks.id` (sem FK constraint) |
+| `fin_payment_method_type_id` | bigint | NULL | Referência a `fin_payment_method_types.id` |
+| `order` | integer | NOT NULL | Ordem de exibição (default: `1`) |
+| `active` | boolean | NOT NULL | default: `true` |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Relacionamentos:**
+- `belongsTo` → `fin_banks` via `fin_bank_id`
+- `belongsTo` → `fin_payment_method_types` via `fin_payment_method_type_id`
+
+---
+
+### `gabinete_master.departments`
+Departamentos para rateio de centro de custo. Migração `000064`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome do departamento |
+| `order` | integer | NOT NULL | Ordem de exibição (default: `1`) |
+| `active` | boolean | NOT NULL | default: `true` |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+---
+
+### `gabinete_master.fin_accounts`
+Plano de contas hierárquico. Cada conta pode ter um `parent_id` formando uma árvore N níveis. Migração `000065` — seed completo.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `parent_id` | bigint | NULL | FK auto-referencial → `fin_accounts.id` |
+| `code` | varchar | NULL | Código contábil (ex: `1.1.01`) |
+| `name` | varchar | NOT NULL | Nome da conta |
+| `type` | varchar | NOT NULL | Tipo: `asset` (Ativo), `liability` (Passivo/PL), `revenue` (Receita), `expense` (Despesa), `cost` (Custo) |
+| `order` | integer | NOT NULL | Ordem entre irmãos (default: `1`) |
+| `active` | boolean | NOT NULL | default: `true` |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Seed (por schema):** árvore completa com 4 grupos raiz: Ativo, Passivo, Custos e Despesas, Receitas — com sub-grupos e contas analíticas
+
+---
+
+### `gabinete_master.fin_titles`
+Títulos financeiros a pagar e a receber. Migração `000066`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `type` | varchar | NOT NULL | `income` (receita) ou `expense` (despesa) |
+| `description` | varchar | NOT NULL | Descrição/histórico |
+| `amount` | decimal(15,2) | NOT NULL | Valor original |
+| `discount` | decimal(15,2) | NULL | Desconto |
+| `interest` | decimal(15,2) | NULL | Juros/multa |
+| `due_date` | date | NOT NULL | Vencimento |
+| `paid_at` | date | NULL | Data de pagamento/recebimento |
+| `amount_paid` | decimal(15,2) | NULL | Valor efetivamente pago |
+| `installment_number` | integer | NULL | Nº da parcela (ex: 1) |
+| `installment_total` | integer | NULL | Total de parcelas (ex: 12) |
+| `account_id` | bigint | NULL | Referência a `fin_accounts.id` |
+| `payment_method_id` | bigint | NULL | Referência a `fin_payment_methods.id` |
+| `bank_id` | bigint | NULL | Referência a `fin_banks.id` |
+| `people_id` | bigint | NOT NULL | Referência a `people.id` (cross-schema, sem FK constraint) |
+| `document_number` | varchar | NULL | Nº do documento |
+| `invoice_number` | varchar | NULL | Nº da nota fiscal |
+| `barcode` | varchar | NULL | Código de barras do boleto |
+| `pix_key` | varchar | NULL | Chave PIX |
+| `status` | varchar | NOT NULL | `pending`, `paid`, `partial`, `cancelled`, `reversed` (default: `pending`) |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Relacionamentos:**
+- `belongsTo` → `fin_accounts` via `account_id`
+- `belongsTo` → `fin_payment_methods` via `payment_method_id`
+- `belongsTo` → `fin_banks` via `bank_id`
+- `belongsTo` → `people` via `people_id`
+- `hasMany` → `fin_cost_centers`
+- `hasMany` → `fin_title_compositions` (origin e destination)
+
+---
+
+### `gabinete_master.fin_extract`
+Extrato financeiro — lançamentos gerados automaticamente pela baixa de títulos. Migração `000067`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `title_id` | bigint | NOT NULL | Referência a `fin_titles.id` |
+| `account_id` | bigint | NULL | Referência a `fin_accounts.id` |
+| `type` | varchar | NOT NULL | `in` (entrada) ou `out` (saída) |
+| `amount` | decimal(15,2) | NOT NULL | Valor do lançamento |
+| `date` | date | NOT NULL | Data do lançamento |
+| `payment_method_id` | bigint | NULL | Referência a `fin_payment_methods.id` |
+| `bank_id` | bigint | NULL | Referência a `fin_banks.id` |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+
+---
+
+### `gabinete_master.fin_wallets`
+Carteira financeira por pessoa — saldo acumulado de pagamentos excedentes. Migração `000068`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `people_id` | bigint | NOT NULL | Referência a `people.id` (cross-schema, sem FK) |
+| `balance` | decimal(15,2) | NOT NULL | Saldo atual (default: `0`) |
+| `title_id` | bigint | NULL | Último título que afetou o saldo |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+
+---
+
+### `gabinete_master.fin_cost_centers`
+Rateio de centro de custo por título — distribui o valor entre departamentos. Migração `000069`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `title_id` | bigint | NOT NULL | Referência a `fin_titles.id` |
+| `department_id` | bigint | NOT NULL | Referência a `departments.id` |
+| `percentage` | decimal(5,2) | NOT NULL | Percentual do rateio (0.00 – 100.00) |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+
+**Relacionamentos:**
+- `belongsTo` → `departments`
+
+---
+
+### `gabinete_master.fin_title_compositions`
+Rastreia composição entre títulos — gerada em clones e baixas parciais. Migração `000070`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `origin_title_id` | bigint | NOT NULL | Título de origem |
+| `destination_title_id` | bigint | NOT NULL | Título gerado (clone ou saldo restante) |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
 
 ---
 
