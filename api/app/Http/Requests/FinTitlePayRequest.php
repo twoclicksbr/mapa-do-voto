@@ -16,8 +16,9 @@ class FinTitlePayRequest extends FormRequest
         return [
             'paid_at'           => ['required', 'date_format:Y-m-d'],
             'amount_paid'       => ['required', 'numeric', 'min:0.01'],
-            'payment_method_id' => ['nullable', 'integer'],
-            'bank_id'           => ['nullable', 'integer'],
+            'account_id'        => ['required', 'integer'],
+            'payment_method_id' => ['required', 'integer'],
+            'bank_id'           => ['required', 'integer'],
         ];
     }
 }

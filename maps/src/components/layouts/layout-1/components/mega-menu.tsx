@@ -111,6 +111,22 @@ export function MegaMenu({ onNavigate, activeSection }: MegaMenuProps) {
         const isGabinetes = item.title === 'Gabinetes';
         const isPessoas = item.title === 'Pessoas';
 
+        if (item.section && !hasChildren) {
+          const isActive = item.section === activeSection;
+          return (
+            <button
+              key={item.title}
+              className={cn(linkClass, 'flex items-center gap-1.5 px-3 py-1.5 rounded-md cursor-pointer',
+                isActive ? 'bg-accent text-primary' : 'text-secondary-foreground hover:bg-accent hover:text-primary'
+              )}
+              onClick={() => onNavigate?.(item.section!)}
+            >
+              {item.icon && <item.icon className="size-4" />}
+              {item.title}
+            </button>
+          );
+        }
+
         if (isGabinetes) {
           const isActive = activeSection === 'gabinetes';
           return (

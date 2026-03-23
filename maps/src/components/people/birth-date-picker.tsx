@@ -40,6 +40,7 @@ interface BirthDatePickerProps {
   inputSize?: "sm" | "md"
   minYear?: number
   maxYear?: number
+  disabled?: boolean
 }
 
 function applyDateMask(raw: string): string {
@@ -57,6 +58,7 @@ export function BirthDatePicker({
   inputSize = "md",
   minYear,
   maxYear,
+  disabled = false,
 }: BirthDatePickerProps) {
   const today = new Date()
   const parsedDate = value ? parse(value, "yyyy-MM-dd", new Date()) : undefined
@@ -121,9 +123,11 @@ export function BirthDatePicker({
           onChange={handleInputChange}
           placeholder="DD/MM/AAAA"
           maxLength={10}
+          readOnly={disabled}
           className={cn(
             "flex w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 pr-9",
             inputSize === "sm" ? "h-8" : "h-8.5",
+            disabled && "opacity-50 cursor-not-allowed",
             className
           )}
         />
@@ -132,6 +136,7 @@ export function BirthDatePicker({
             type="button"
             className="absolute right-2.5 text-muted-foreground hover:text-foreground transition-colors"
             tabIndex={-1}
+            disabled={disabled}
           >
             <CalendarIcon className="size-4" />
           </button>

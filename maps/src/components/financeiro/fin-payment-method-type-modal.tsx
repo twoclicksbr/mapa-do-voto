@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import api from "@/lib/api";
 import { FinPaymentMethodType } from "./fin-payment-method-types-data-grid";
 
@@ -21,13 +22,15 @@ interface FinPaymentMethodTypeModalProps {
 }
 
 export function FinPaymentMethodTypeModal({ open, type, onClose, onSaved }: FinPaymentMethodTypeModalProps) {
-  const [name, setName]     = useState("");
+  const [name, setName]       = useState("");
+  const [active, setActive]   = useState(true);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors]   = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
     setName(type?.name ?? "");
+    setActive(type?.active ?? true);
     setErrors({});
   }, [open, type]);
 
@@ -38,9 +41,9 @@ export function FinPaymentMethodTypeModal({ open, type, onClose, onSaved }: FinP
     try {
       let res;
       if (type) {
-        res = await api.put<FinPaymentMethodType>(`/fin-payment-method-types/${type.id}`, { name });
+        res = await api.put<FinPaymentMethodType>(`/fin-payment-method-types/${type.id}`, { name, active });
       } else {
-        res = await api.post<FinPaymentMethodType>("/fin-payment-method-types", { name });
+        res = await api.post<FinPaymentMethodType>("/fin-payment-method-types", { name, active });
       }
       onSaved(res.data);
       onClose();
@@ -77,6 +80,13 @@ export function FinPaymentMethodTypeModal({ open, type, onClose, onSaved }: FinP
                 autoFocus
               />
               {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="fpmt-active">Status</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{active ? "Ativo" : "Inativo"}</span>
+                <Switch id="fpmt-active" checked={active} onCheckedChange={setActive} />
+              </div>
             </div>
           </DialogBody>
           <DialogFooter className="mt-5">

@@ -14,10 +14,11 @@ return new class extends Migration
         Schema::create('fin_titles', function (Blueprint $table) {
             $table->id();
             $table->string('type'); // income, expense
-            $table->string('description');
             $table->decimal('amount', 15, 2);
-            $table->decimal('discount', 15, 2)->nullable();
-            $table->decimal('interest', 15, 2)->nullable();
+            $table->decimal('discount', 15, 8)->nullable(); // % desconto
+            $table->decimal('interest', 15, 8)->nullable(); // % juros
+            $table->decimal('multa', 15, 8)->nullable();    // % multa
+            $table->date('issue_date');
             $table->date('due_date');
             $table->date('paid_at')->nullable();
             $table->decimal('amount_paid', 15, 2)->nullable();

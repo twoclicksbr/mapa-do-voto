@@ -17,10 +17,11 @@ class FinTitleRequest extends FormRequest
 
         return [
             'type'               => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'in:income,expense']),
-            'description'        => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255']),
             'amount'             => array_merge($id ? ['sometimes'] : [], ['required', 'numeric', 'min:0.01']),
             'discount'           => ['nullable', 'numeric', 'min:0'],
             'interest'           => ['nullable', 'numeric', 'min:0'],
+            'multa'              => ['nullable', 'numeric', 'min:0'],
+            'issue_date'         => array_merge($id ? ['sometimes'] : [], ['required', 'date_format:Y-m-d']),
             'due_date'           => array_merge($id ? ['sometimes'] : [], ['required', 'date_format:Y-m-d']),
             'paid_at'            => ['nullable', 'date_format:Y-m-d'],
             'amount_paid'        => ['nullable', 'numeric', 'min:0'],

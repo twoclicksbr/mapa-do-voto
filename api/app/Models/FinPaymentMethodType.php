@@ -12,6 +12,11 @@ class FinPaymentMethodType extends Model
     protected $fillable = [
         'name',
         'order',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
     ];
 
     protected static function booted(): void

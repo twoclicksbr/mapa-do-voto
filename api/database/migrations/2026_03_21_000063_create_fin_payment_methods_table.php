@@ -25,6 +25,25 @@ return new class extends Migration
         DB::statement('SET search_path TO gabinete_master,maps,public');
     }
 
+    private function seedInSchema(string $schema): void
+    {
+        DB::statement("SET search_path TO \"{$schema}\"");
+
+        $now = now();
+        $ins = fn(array $data) => DB::table('fin_payment_methods')->insert(array_merge([
+            'fin_bank_id'                => null,
+            'fin_payment_method_type_id' => null,
+            'active'                     => true,
+            'created_at'                 => $now,
+            'updated_at'                 => $now,
+        ], $data));
+
+        $ins(['name' => 'Dinheiro', 'fin_bank_id' => 1, 'fin_payment_method_type_id' => 1, 'order' => 1]);
+        $ins(['name' => 'Pix',      'fin_bank_id' => 1, 'fin_payment_method_type_id' => 2, 'order' => 2]);
+
+        DB::statement('SET search_path TO gabinete_master,maps,public');
+    }
+
     private function dropInSchema(string $schema): void
     {
         DB::statement("SET search_path TO \"{$schema}\"");
@@ -35,6 +54,7 @@ return new class extends Migration
     public function up(): void
     {
         $this->createInSchema('gabinete_master');
+        $this->seedInSchema('gabinete_master');
 
         $schemas = DB::table('gabinete_master.tenants')
             ->where('has_schema', true)
@@ -44,6 +64,7 @@ return new class extends Migration
 
         foreach ($schemas as $schema) {
             $this->createInSchema($schema);
+            $this->seedInSchema($schema);
         }
     }
 

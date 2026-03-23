@@ -11,7 +11,8 @@ import {
   BanknoteArrowDown,
   BanknoteArrowUp,
   NotepadText,
-  Tags,
+  BookmarkCheck,
+  LayoutDashboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -24,17 +25,18 @@ interface FinMenuItem {
 }
 
 const FIN_MENU: FinMenuItem[] = [
+  { title: 'Dashboard', icon: LayoutDashboard, section: 'fin-dashboard' },
   {
     title: 'Cadastros',
     icon: NotepadText,
     children: [
       { title: 'Bancos',        icon: Landmark,   section: 'fin-banks' },
-      { title: 'Modalidades',   icon: CreditCard, section: 'fin-payment-methods' },
       {
-        title: 'Tipos',
-        icon: Tags,
+        title: 'Modalidades',
+        icon: CreditCard,
         children: [
-          { title: 'Modalidades', icon: CreditCard, section: 'fin-payment-method-types' },
+          { title: 'Tipos',       icon: BookmarkCheck, section: 'fin-payment-method-types' },
+          { title: 'Modalidades', icon: CreditCard, section: 'fin-payment-methods' },
         ],
       },
       { title: 'Departamentos', icon: Building,   section: 'fin-departments' },

@@ -15,10 +15,11 @@ class FinTitle extends Model
 
     protected $fillable = [
         'type',
-        'description',
         'amount',
         'discount',
         'interest',
+        'multa',
+        'issue_date',
         'due_date',
         'paid_at',
         'amount_paid',
@@ -37,12 +38,27 @@ class FinTitle extends Model
 
     protected $casts = [
         'amount'       => 'decimal:2',
-        'discount'     => 'decimal:2',
-        'interest'     => 'decimal:2',
+        'discount'     => 'decimal:8',
+        'interest'     => 'decimal:8',
+        'multa'        => 'decimal:8',
         'amount_paid'  => 'decimal:2',
+        'issue_date'   => 'date:Y-m-d',
         'due_date'     => 'date:Y-m-d',
         'paid_at'      => 'date:Y-m-d',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (FinTitle $title) {
+            if (empty($title->invoice_number)) {
+                $titleId = str_pad($title->id, 5, '0', STR_PAD_LEFT);
+                $num     = $title->installment_number ?? 1;
+                $total   = $title->installment_total  ?? 1;
+                $title->invoice_number = "{$titleId}-{$num}/{$total}";
+                $title->saveQuietly();
+            }
+        });
+    }
 
     public function account(): BelongsTo
     {

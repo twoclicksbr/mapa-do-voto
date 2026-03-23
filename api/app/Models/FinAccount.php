@@ -17,7 +17,9 @@ class FinAccount extends Model
         'parent_id',
         'code',
         'name',
+        'description',
         'type',
+        'nature',
         'order',
         'active',
     ];

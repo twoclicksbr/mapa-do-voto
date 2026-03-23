@@ -17,9 +17,11 @@ class FinAccountRequest extends FormRequest
 
         return [
             'parent_id' => ['nullable', 'integer'],
-            'code'      => ['nullable', 'string', 'max:50'],
-            'name'      => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255']),
+            'code'        => ['nullable', 'string', 'max:50'],
+            'name'        => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255']),
+            'description' => ['nullable', 'string'],
             'type'      => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'in:asset,liability,revenue,expense,cost']),
+            'nature'    => ['nullable', 'string', 'in:analytic,synthetic'],
             'order'     => ['integer', 'min:1'],
             'active'    => ['boolean'],
         ];

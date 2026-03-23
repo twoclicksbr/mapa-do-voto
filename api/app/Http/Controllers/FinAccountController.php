@@ -90,13 +90,15 @@ class FinAccountController extends Controller
     private function format(FinAccount $account): array
     {
         return [
-            'id'        => $account->id,
-            'parent_id' => $account->parent_id,
-            'code'      => $account->code,
-            'name'      => $account->name,
-            'type'      => $account->type,
-            'order'     => $account->order,
-            'active'    => $account->active,
+            'id'          => $account->id,
+            'parent_id'   => $account->parent_id,
+            'code'        => $account->code,
+            'name'        => $account->name,
+            'description' => $account->description,
+            'type'        => $account->type,
+            'nature'      => $account->nature,
+            'order'       => $account->order,
+            'active'      => $account->active,
         ];
     }
 }

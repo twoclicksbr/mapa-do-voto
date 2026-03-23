@@ -333,14 +333,54 @@ function DataGridTableBodyRow<TData>({
 
 function DataGridTableBodyRowExpandded<TData>({ row }: { row: Row<TData> }) {
   const { props, table } = useDataGrid()
+  const visibleCells = row.getVisibleCells()
 
+  // Per-cell mode: each column can define expandedCellContent
+  const hasCellContent = table
+    .getAllColumns()
+    .some((col) => col.columnDef.meta?.expandedCellContent)
+
+  if (hasCellContent) {
+    const bodyCellSpacing = bodyCellSpacingVariants({
+      size: props.tableLayout?.dense ? "dense" : "default",
+    })
+    const renderedCells: ReactNode[] = []
+    let i = 0
+    while (i < visibleCells.length) {
+      const cell = visibleCells[i]
+      const rawSpan = (cell.column.columnDef.meta?.expandedColSpan as number | undefined) ?? 1
+      const colSpan = Math.min(rawSpan, visibleCells.length - i)
+      const isFirst = i === 0
+      const isLast  = i + colSpan >= visibleCells.length
+      renderedCells.push(
+        <td
+          key={cell.id}
+          colSpan={colSpan > 1 ? colSpan : undefined}
+          className={cn(
+            "align-middle bg-muted/60 border-b border-black/40",
+            bodyCellSpacing,
+            colSpan === 1 ? (cell.column.columnDef.meta?.cellClassName as string | undefined) : undefined,
+            (isFirst || isLast) ? props.tableClassNames?.edgeCell : ""
+          )}
+        >
+          {(cell.column.columnDef.meta?.expandedCellContent as
+            | ((row: TData) => ReactNode)
+            | undefined)?.(row.original)}
+        </td>
+      )
+      i += colSpan
+    }
+    return <tr>{renderedCells}</tr>
+  }
+
+  // Legacy mode: single spanning <td>
   return (
     <tr
       className={cn(
         props.tableLayout?.rowBorder && "[&:not(:last-child)>td]:border-b"
       )}
     >
-      <td colSpan={row.getVisibleCells().length}>
+      <td colSpan={visibleCells.length}>
         {table
           .getAllColumns()
           .find((column) => column.columnDef.meta?.expandedContent)

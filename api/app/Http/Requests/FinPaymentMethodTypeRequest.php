@@ -16,8 +16,9 @@ class FinPaymentMethodTypeRequest extends FormRequest
         $id = $this->route('id');
 
         return [
-            'name'  => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255']),
-            'order' => ['sometimes', 'integer', 'min:1'],
+            'name'   => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255']),
+            'order'  => ['sometimes', 'integer', 'min:1'],
+            'active' => ['sometimes', 'boolean'],
         ];
     }
 }

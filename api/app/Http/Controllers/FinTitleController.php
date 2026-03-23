@@ -73,13 +73,15 @@ class FinTitleController extends Controller
 
     public function store(FinTitleRequest $request)
     {
-        $data = $request->validated();
+        $data  = $request->validated();
+        $title = null;
 
         DB::transaction(function () use ($data, &$title) {
             $title = FinTitle::create(collect($data)->except('cost_centers')->toArray());
             $this->syncCostCenters($title, $data['cost_centers'] ?? []);
         });
 
+        /** @var FinTitle $title */
         $title->load(['account', 'paymentMethod', 'bank', 'people', 'costCenters.department']);
 
         return response()->json($this->formatDetail($title), 201);
@@ -124,9 +126,11 @@ class FinTitleController extends Controller
 
         $data       = $request->validated();
         $amountPaid = (float) $data['amount_paid'];
-        $netAmount  = (float) $title->amount
-                    - (float) ($title->discount ?? 0)
-                    + (float) ($title->interest ?? 0);
+        $base       = (float) $title->amount;
+        $netAmount  = $base
+                    + $base * ((float) ($title->interest ?? 0) / 100)
+                    + $base * ((float) ($title->multa     ?? 0) / 100)
+                    - $base * ((float) ($title->discount  ?? 0) / 100);
 
         DB::transaction(function () use ($title, $data, $amountPaid, $netAmount) {
             $isPartial = $amountPaid < $netAmount;
@@ -134,6 +138,7 @@ class FinTitleController extends Controller
             $title->update([
                 'paid_at'           => $data['paid_at'],
                 'amount_paid'       => $amountPaid,
+                'account_id'        => $data['account_id'] ?? $title->account_id,
                 'payment_method_id' => $data['payment_method_id'] ?? $title->payment_method_id,
                 'bank_id'           => $data['bank_id'] ?? $title->bank_id,
                 'status'            => $isPartial ? 'partial' : 'paid',
@@ -161,12 +166,12 @@ class FinTitleController extends Controller
                 $remainder = $netAmount - $amountPaid;
                 FinTitle::create([
                     'type'               => $title->type,
-                    'description'        => $title->description,
                     'amount'             => $remainder,
+                    'issue_date'         => now()->format('Y-m-d'),
                     'due_date'           => $title->due_date,
-                    'account_id'         => $title->account_id,
-                    'payment_method_id'  => $title->payment_method_id,
-                    'bank_id'            => $title->bank_id,
+                    'account_id'         => $data['account_id'] ?? $title->account_id,
+                    'payment_method_id'  => $data['payment_method_id'] ?? $title->payment_method_id,
+                    'bank_id'            => $data['bank_id'] ?? $title->bank_id,
                     'people_id'          => $title->people_id,
                     'installment_number' => $title->installment_number,
                     'installment_total'  => $title->installment_total,
@@ -203,8 +208,8 @@ class FinTitleController extends Controller
 
             FinTitle::create([
                 'type'              => $title->type === 'income' ? 'expense' : 'income',
-                'description'       => 'Estorno: ' . $title->description,
                 'amount'            => $title->amount_paid ?? $title->amount,
+                'issue_date'        => $today,
                 'due_date'          => $today,
                 'paid_at'           => $today,
                 'amount_paid'       => $title->amount_paid ?? $title->amount,
@@ -232,10 +237,10 @@ class FinTitleController extends Controller
         $clone = DB::transaction(function () use ($title) {
             $clone = FinTitle::create([
                 'type'               => $title->type,
-                'description'        => $title->description,
                 'amount'             => $title->amount,
                 'discount'           => $title->discount,
                 'interest'           => $title->interest,
+                'multa'              => $title->multa,
                 'due_date'           => $title->due_date,
                 'installment_number' => $title->installment_number,
                 'installment_total'  => $title->installment_total,
@@ -294,10 +299,11 @@ class FinTitleController extends Controller
         return [
             'id'                 => $title->id,
             'type'               => $title->type,
-            'description'        => $title->description,
             'amount'             => (float) $title->amount,
             'discount'           => $title->discount !== null ? (float) $title->discount : null,
             'interest'           => $title->interest !== null ? (float) $title->interest : null,
+            'multa'              => $title->multa     !== null ? (float) $title->multa     : null,
+            'issue_date'         => $title->issue_date?->format('Y-m-d'),
             'due_date'           => $title->due_date?->format('Y-m-d'),
             'paid_at'            => $title->paid_at?->format('Y-m-d'),
             'amount_paid'        => $title->amount_paid !== null ? (float) $title->amount_paid : null,
@@ -311,6 +317,7 @@ class FinTitleController extends Controller
             'bank_name'          => $title->bank?->name,
             'people_id'          => $title->people_id,
             'people_name'        => $title->people?->name,
+            'invoice_number'     => $title->invoice_number,
             'status'             => $title->status,
         ];
     }

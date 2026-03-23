@@ -16,7 +16,9 @@ return new class extends Migration
             $table->unsignedBigInteger('parent_id')->nullable();
             $table->string('code')->nullable();
             $table->string('name');
+            $table->text('description')->nullable();
             $table->string('type'); // asset, liability, revenue, expense, cost
+            $table->string('nature')->default('analytic'); // analytic, synthetic
             $table->integer('order')->default(1);
             $table->boolean('active')->default(true);
             $table->timestamps();
@@ -33,136 +35,123 @@ return new class extends Migration
         $now = now();
         $ins = function (array $data) use ($now): int {
             return DB::table('fin_accounts')->insertGetId(array_merge([
-                'code'       => null,
-                'active'     => true,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'code'        => null,
+                'description' => null,
+                'nature'      => 'analytic',
+                'active'      => true,
+                'created_at'  => $now,
+                'updated_at'  => $now,
             ], $data));
         };
 
-        // ── 1 ATIVO ──────────────────────────────────────────────────────────
-        $a = $ins(['parent_id' => null, 'name' => 'Ativo',         'type' => 'asset', 'order' => 1]);
-        $a1 = $ins(['parent_id' => $a,  'name' => 'Circulante',    'type' => 'asset', 'order' => 1]);
+        // ── 1 RECEITAS ────────────────────────────────────────────────────────
+        $r = $ins(['parent_id' => null, 'name' => 'Receitas', 'type' => 'revenue', 'nature' => 'synthetic', 'order' => 1,
+            'description' => 'Todas as entradas de recursos do gabinete e da campanha']);
 
-        $a11 = $ins(['parent_id' => $a1, 'name' => 'Caixa',                   'type' => 'asset', 'order' => 1]);
-        $ins(['parent_id' => $a11, 'name' => 'Caixa Geral',                   'type' => 'asset', 'order' => 1]);
+        $ins(['parent_id' => $r, 'name' => 'Doações de Pessoas Físicas',            'type' => 'revenue', 'order' => 1,
+            'description' => 'Contribuições financeiras recebidas de eleitores e apoiadores']);
+        $ins(['parent_id' => $r, 'name' => 'Fundo Partidário (FEFC)',               'type' => 'revenue', 'order' => 2,
+            'description' => 'Recursos do Fundo Especial de Financiamento de Campanha repassados pelo partido']);
+        $ins(['parent_id' => $r, 'name' => 'Recursos Próprios do Candidato',        'type' => 'revenue', 'order' => 3,
+            'description' => 'Valores investidos diretamente pelo próprio candidato na campanha']);
+        $ins(['parent_id' => $r, 'name' => 'Rendimentos de Aplicações Financeiras', 'type' => 'revenue', 'order' => 4,
+            'description' => 'Juros e rendimentos gerados por recursos aplicados em conta ou investimentos']);
+        $ins(['parent_id' => $r, 'name' => 'Outras Receitas',                       'type' => 'revenue', 'order' => 5,
+            'description' => 'Entradas diversas não enquadradas nas categorias anteriores']);
 
-        $a12 = $ins(['parent_id' => $a1, 'name' => 'Bancos Conta Movimento',  'type' => 'asset', 'order' => 2]);
-        $ins(['parent_id' => $a12, 'name' => 'Banco A',                        'type' => 'asset', 'order' => 1]);
+        $r2 = $ins(['parent_id' => $r, 'name' => 'Caixa', 'type' => 'revenue', 'nature' => 'synthetic', 'order' => 6,
+            'description' => 'Dinheiro em espécie disponível no comitê ou gabinete']);
+        $ins(['parent_id' => $r2, 'name' => 'Caixa Geral', 'type' => 'revenue', 'order' => 1,
+            'description' => 'Fundo de caixa para pequenas despesas do dia a dia']);
 
-        $a13 = $ins(['parent_id' => $a1, 'name' => 'Contas a Receber',        'type' => 'asset', 'order' => 3]);
-        $ins(['parent_id' => $a13, 'name' => 'Clientes',                       'type' => 'asset', 'order' => 1]);
-        $ins(['parent_id' => $a13, 'name' => 'Outras Contas a Receber',        'type' => 'asset', 'order' => 2]);
+        $r3 = $ins(['parent_id' => $r, 'name' => 'Bancos', 'type' => 'revenue', 'nature' => 'synthetic', 'order' => 7,
+            'description' => 'Saldos disponíveis em contas bancárias']);
+        $ins(['parent_id' => $r3, 'name' => 'Conta Corrente', 'type' => 'revenue', 'order' => 1,
+            'description' => 'Saldo na conta corrente utilizada para movimentações da campanha']);
 
-        $a14 = $ins(['parent_id' => $a1, 'name' => 'Estoques',                'type' => 'asset', 'order' => 4]);
-        $ins(['parent_id' => $a14, 'name' => 'Mercadorias',                    'type' => 'asset', 'order' => 1]);
-        $ins(['parent_id' => $a14, 'name' => 'Produtos Acabados',              'type' => 'asset', 'order' => 2]);
-        $ins(['parent_id' => $a14, 'name' => 'Insumos',                        'type' => 'asset', 'order' => 3]);
-        $ins(['parent_id' => $a14, 'name' => 'Outros',                         'type' => 'asset', 'order' => 4]);
+        $r4 = $ins(['parent_id' => $r, 'name' => 'Aplicações Financeiras', 'type' => 'revenue', 'nature' => 'synthetic', 'order' => 8,
+            'description' => 'Recursos investidos temporariamente enquanto aguardam utilização']);
+        $ins(['parent_id' => $r4, 'name' => 'Renda Fixa', 'type' => 'revenue', 'order' => 1,
+            'description' => 'CDB, Tesouro Direto ou poupança com liquidez imediata']);
 
-        $a2 = $ins(['parent_id' => $a,  'name' => 'Não Circulante',           'type' => 'asset', 'order' => 2]);
+        // ── 2 DESPESAS ────────────────────────────────────────────────────────
+        $d = $ins(['parent_id' => null, 'name' => 'Despesas', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 2,
+            'description' => 'Todos os gastos do gabinete e da campanha']);
 
-        $a21 = $ins(['parent_id' => $a2, 'name' => 'Contas a Receber',        'type' => 'asset', 'order' => 1]);
-        $ins(['parent_id' => $a21, 'name' => 'Clientes',                       'type' => 'asset', 'order' => 1]);
-        $ins(['parent_id' => $a21, 'name' => 'Outras Contas',                  'type' => 'asset', 'order' => 2]);
+        $d1 = $ins(['parent_id' => $d, 'name' => 'Pessoal', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 1,
+            'description' => 'Gastos com equipe, colaboradores e obrigações trabalhistas']);
+        $ins(['parent_id' => $d1, 'name' => 'Assessores',    'type' => 'expense', 'order' => 1,
+            'description' => 'Remuneração de assessores políticos e técnicos']);
+        $ins(['parent_id' => $d1, 'name' => 'Estagiários',   'type' => 'expense', 'order' => 2,
+            'description' => 'Bolsas e auxílios pagos a estagiários']);
+        $ins(['parent_id' => $d1, 'name' => 'Encargos Sociais', 'type' => 'expense', 'order' => 3,
+            'description' => 'INSS, FGTS e demais encargos sobre a folha de pagamento']);
 
-        $a22 = $ins(['parent_id' => $a2, 'name' => 'Investimentos',           'type' => 'asset', 'order' => 2]);
-        $ins(['parent_id' => $a22, 'name' => 'Participações Societárias',      'type' => 'asset', 'order' => 1]);
+        $d2 = $ins(['parent_id' => $d, 'name' => 'Comunicação e Marketing', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 2,
+            'description' => 'Gastos com divulgação, imagem e presença digital']);
+        $ins(['parent_id' => $d2, 'name' => 'Marketing Digital',   'type' => 'expense', 'order' => 1,
+            'description' => 'Impulsionamento em redes sociais, Google Ads e campanhas online']);
+        $ins(['parent_id' => $d2, 'name' => 'Material Gráfico',    'type' => 'expense', 'order' => 2,
+            'description' => 'Panfletos, banners, camisetas, adesivos e demais impressos']);
+        $ins(['parent_id' => $d2, 'name' => 'Produção de Conteúdo', 'type' => 'expense', 'order' => 3,
+            'description' => 'Criação de vídeos, fotos, textos e identidade visual']);
+        $ins(['parent_id' => $d2, 'name' => 'Publicidade',         'type' => 'expense', 'order' => 4,
+            'description' => 'Espaços em rádio, TV, outdoor e mídia tradicional']);
 
-        $a23 = $ins(['parent_id' => $a2, 'name' => 'Imobilizado',             'type' => 'asset', 'order' => 3]);
-        $ins(['parent_id' => $a23, 'name' => 'Terrenos',                       'type' => 'asset', 'order' => 1]);
-        $ins(['parent_id' => $a23, 'name' => 'Máquinas e Ferramentas',         'type' => 'asset', 'order' => 2]);
-        $ins(['parent_id' => $a23, 'name' => 'Veículos',                       'type' => 'asset', 'order' => 3]);
-        $ins(['parent_id' => $a23, 'name' => '(-) Depreciação Acumulada',      'type' => 'asset', 'order' => 4]);
-        $ins(['parent_id' => $a23, 'name' => '(-) Amortização Acumulada',      'type' => 'asset', 'order' => 5]);
+        $d3 = $ins(['parent_id' => $d, 'name' => 'Eventos', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 3,
+            'description' => 'Custos com organização e realização de eventos políticos']);
+        $ins(['parent_id' => $d3, 'name' => 'Comícios',          'type' => 'expense', 'order' => 1,
+            'description' => 'Estrutura, sonorização e logística de comícios']);
+        $ins(['parent_id' => $d3, 'name' => 'Reuniões',          'type' => 'expense', 'order' => 2,
+            'description' => 'Espaço, coffee break e materiais para reuniões com lideranças']);
+        $ins(['parent_id' => $d3, 'name' => 'Eventos de Campanha', 'type' => 'expense', 'order' => 3,
+            'description' => 'Caminhadas, carreatas, lançamentos e demais eventos eleitorais']);
 
-        $a24 = $ins(['parent_id' => $a2, 'name' => 'Intangível',              'type' => 'asset', 'order' => 4]);
-        $ins(['parent_id' => $a24, 'name' => 'Marcas',                         'type' => 'asset', 'order' => 1]);
-        $ins(['parent_id' => $a24, 'name' => 'Softwares',                      'type' => 'asset', 'order' => 2]);
-        $ins(['parent_id' => $a24, 'name' => '(-) Amortização Acumulada',      'type' => 'asset', 'order' => 3]);
+        $d4 = $ins(['parent_id' => $d, 'name' => 'Transporte', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 4,
+            'description' => 'Gastos com deslocamento da equipe e do candidato']);
+        $ins(['parent_id' => $d4, 'name' => 'Combustível',       'type' => 'expense', 'order' => 1,
+            'description' => 'Abastecimento de veículos próprios utilizados na campanha']);
+        $ins(['parent_id' => $d4, 'name' => 'Aluguel de Veículos', 'type' => 'expense', 'order' => 2,
+            'description' => 'Locação de carros, vans e ônibus para deslocamentos']);
 
-        // ── 2 PASSIVO ─────────────────────────────────────────────────────────
-        $p = $ins(['parent_id' => null, 'name' => 'Passivo',           'type' => 'liability', 'order' => 2]);
-        $p1 = $ins(['parent_id' => $p,  'name' => 'Circulante',        'type' => 'liability', 'order' => 1]);
+        $d5 = $ins(['parent_id' => $d, 'name' => 'Administrativo', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 5,
+            'description' => 'Despesas operacionais do comitê e escritório do gabinete']);
+        $ins(['parent_id' => $d5, 'name' => 'Aluguel de Comitê/Escritório', 'type' => 'expense', 'order' => 1,
+            'description' => 'Locação do espaço físico do comitê de campanha ou gabinete']);
+        $ins(['parent_id' => $d5, 'name' => 'Energia Elétrica',  'type' => 'expense', 'order' => 2,
+            'description' => 'Conta de energia elétrica do comitê ou escritório']);
+        $ins(['parent_id' => $d5, 'name' => 'Água e Saneamento', 'type' => 'expense', 'order' => 3,
+            'description' => 'Conta de água e taxa de saneamento do imóvel']);
+        $ins(['parent_id' => $d5, 'name' => 'Telefonia e Internet', 'type' => 'expense', 'order' => 4,
+            'description' => 'Planos de telefone fixo, celular e acesso à internet']);
+        $ins(['parent_id' => $d5, 'name' => 'Material de Escritório', 'type' => 'expense', 'order' => 5,
+            'description' => 'Papelaria, cartuchos, pastas e insumos de escritório']);
 
-        $p11 = $ins(['parent_id' => $p1, 'name' => 'Impostos e Contribuições a Recolher', 'type' => 'liability', 'order' => 1]);
-        $ins(['parent_id' => $p11, 'name' => 'Simples a Recolher',     'type' => 'liability', 'order' => 1]);
-        $ins(['parent_id' => $p11, 'name' => 'INSS',                   'type' => 'liability', 'order' => 2]);
-        $ins(['parent_id' => $p11, 'name' => 'FGTS',                   'type' => 'liability', 'order' => 3]);
+        $d6 = $ins(['parent_id' => $d, 'name' => 'Jurídico', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 6,
+            'description' => 'Despesas com assessoria e representação jurídica eleitoral']);
+        $ins(['parent_id' => $d6, 'name' => 'Honorários Advocatícios', 'type' => 'expense', 'order' => 1,
+            'description' => 'Pagamento a advogados eleitorais e escritórios jurídicos']);
 
-        $p12 = $ins(['parent_id' => $p1, 'name' => 'Contas a Pagar',  'type' => 'liability', 'order' => 2]);
-        $ins(['parent_id' => $p12, 'name' => 'Fornecedores',           'type' => 'liability', 'order' => 1]);
-        $ins(['parent_id' => $p12, 'name' => 'Outras Contas',          'type' => 'liability', 'order' => 2]);
+        $d7 = $ins(['parent_id' => $d, 'name' => 'Pesquisa Eleitoral', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 7,
+            'description' => 'Contratação de pesquisas para embasar estratégia de campanha']);
+        $ins(['parent_id' => $d7, 'name' => 'Pesquisa de Intenção de Voto', 'type' => 'expense', 'order' => 1,
+            'description' => 'Levantamento quantitativo de preferência do eleitorado']);
+        $ins(['parent_id' => $d7, 'name' => 'Pesquisa de Rejeição',         'type' => 'expense', 'order' => 2,
+            'description' => 'Avaliação dos índices de rejeição do candidato por segmento']);
 
-        $p13 = $ins(['parent_id' => $p1, 'name' => 'Empréstimos Bancários', 'type' => 'liability', 'order' => 3]);
-        $ins(['parent_id' => $p13, 'name' => 'Banco A - Operação X',   'type' => 'liability', 'order' => 1]);
+        $d8 = $ins(['parent_id' => $d, 'name' => 'Contas a Pagar', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 8,
+            'description' => 'Valores devidos a fornecedores e prestadores de serviço']);
+        $ins(['parent_id' => $d8, 'name' => 'Fornecedores', 'type' => 'expense', 'order' => 1,
+            'description' => 'Faturas pendentes com gráficas, agências e demais fornecedores']);
+        $ins(['parent_id' => $d8, 'name' => 'Outras Contas', 'type' => 'expense', 'order' => 2,
+            'description' => 'Demais obrigações financeiras não classificadas']);
 
-        $p2 = $ins(['parent_id' => $p,  'name' => 'Não Circulante',   'type' => 'liability', 'order' => 2]);
-
-        $p21 = $ins(['parent_id' => $p2, 'name' => 'Empréstimos Bancários', 'type' => 'liability', 'order' => 1]);
-        $ins(['parent_id' => $p21, 'name' => 'Banco A - Operação X',  'type' => 'liability', 'order' => 1]);
-
-        $p3 = $ins(['parent_id' => $p,  'name' => 'Patrimônio Líquido', 'type' => 'liability', 'order' => 3]);
-
-        $p31 = $ins(['parent_id' => $p3, 'name' => 'Capital Social',  'type' => 'liability', 'order' => 1]);
-        $ins(['parent_id' => $p31, 'name' => 'Capital Social Subscrito',   'type' => 'liability', 'order' => 1]);
-        $ins(['parent_id' => $p31, 'name' => 'Capital Social a Realizar',  'type' => 'liability', 'order' => 2]);
-
-        $p32 = $ins(['parent_id' => $p3, 'name' => 'Reservas',        'type' => 'liability', 'order' => 2]);
-        $ins(['parent_id' => $p32, 'name' => 'Reservas de Capital',   'type' => 'liability', 'order' => 1]);
-        $ins(['parent_id' => $p32, 'name' => 'Reservas de Lucros',    'type' => 'liability', 'order' => 2]);
-
-        $p33 = $ins(['parent_id' => $p3, 'name' => 'Prejuízos Acumulados', 'type' => 'liability', 'order' => 3]);
-        $ins(['parent_id' => $p33, 'name' => 'Prejuízos Acumulados de Exercícios Anteriores', 'type' => 'liability', 'order' => 1]);
-        $ins(['parent_id' => $p33, 'name' => 'Prejuízos do Exercício Atual',                  'type' => 'liability', 'order' => 2]);
-
-        // ── 3 CUSTOS E DESPESAS ───────────────────────────────────────────────
-        $c = $ins(['parent_id' => null, 'name' => 'Custos e Despesas', 'type' => 'cost', 'order' => 3]);
-
-        $c1 = $ins(['parent_id' => $c,  'name' => 'Custo dos Produtos Vendidos',   'type' => 'cost', 'order' => 1]);
-        $c11 = $ins(['parent_id' => $c1, 'name' => 'Custos dos Materiais',         'type' => 'cost', 'order' => 1]);
-        $ins(['parent_id' => $c11, 'name' => 'Custos dos Materiais Aplicados',     'type' => 'cost', 'order' => 1]);
-        $c12 = $ins(['parent_id' => $c1, 'name' => 'Custos da Mão de Obra',        'type' => 'cost', 'order' => 2]);
-        $ins(['parent_id' => $c12, 'name' => 'Salários',                            'type' => 'cost', 'order' => 1]);
-        $ins(['parent_id' => $c12, 'name' => 'Encargos Sociais',                    'type' => 'cost', 'order' => 2]);
-
-        $c2 = $ins(['parent_id' => $c,  'name' => 'Custo das Mercadorias Vendidas', 'type' => 'cost', 'order' => 2]);
-        $c21 = $ins(['parent_id' => $c2, 'name' => 'Custo das Mercadorias',         'type' => 'cost', 'order' => 1]);
-        $ins(['parent_id' => $c21, 'name' => 'Custo das Mercadorias Vendidas',      'type' => 'cost', 'order' => 1]);
-
-        $c3 = $ins(['parent_id' => $c,  'name' => 'Custo dos Serviços Prestados',  'type' => 'cost', 'order' => 3]);
-        $c31 = $ins(['parent_id' => $c3, 'name' => 'Custo dos Serviços',           'type' => 'cost', 'order' => 1]);
-        $ins(['parent_id' => $c31, 'name' => 'Materiais Aplicados',                'type' => 'cost', 'order' => 1]);
-        $ins(['parent_id' => $c31, 'name' => 'Mão de Obra',                        'type' => 'cost', 'order' => 2]);
-        $ins(['parent_id' => $c31, 'name' => 'Encargos Sociais',                   'type' => 'cost', 'order' => 3]);
-
-        $c4 = $ins(['parent_id' => $c,  'name' => 'Despesas Operacionais',         'type' => 'expense', 'order' => 4]);
-        $c41 = $ins(['parent_id' => $c4, 'name' => 'Despesas Gerais',              'type' => 'expense', 'order' => 1]);
-        $ins(['parent_id' => $c41, 'name' => 'Mão de Obra',                        'type' => 'expense', 'order' => 1]);
-        $ins(['parent_id' => $c41, 'name' => 'Encargos Sociais',                   'type' => 'expense', 'order' => 2]);
-        $ins(['parent_id' => $c41, 'name' => 'Aluguéis',                           'type' => 'expense', 'order' => 3]);
-
-        $c5 = $ins(['parent_id' => $c,  'name' => 'Perdas de Capital',             'type' => 'expense', 'order' => 5]);
-        $c51 = $ins(['parent_id' => $c5, 'name' => 'Baixa de Bens do Ativo Não Circulante', 'type' => 'expense', 'order' => 1]);
-        $ins(['parent_id' => $c51, 'name' => 'Custos de Alienação de Investimentos', 'type' => 'expense', 'order' => 1]);
-        $ins(['parent_id' => $c51, 'name' => 'Custos de Alienação do Imobilizado',   'type' => 'expense', 'order' => 2]);
-
-        // ── 4 RECEITAS ────────────────────────────────────────────────────────
-        $r = $ins(['parent_id' => null, 'name' => 'Receitas',                      'type' => 'revenue', 'order' => 4]);
-
-        $r1 = $ins(['parent_id' => $r,  'name' => 'Receita Líquida',              'type' => 'revenue', 'order' => 1]);
-        $r11 = $ins(['parent_id' => $r1, 'name' => 'Receita Bruta de Vendas',     'type' => 'revenue', 'order' => 1]);
-        $ins(['parent_id' => $r11, 'name' => 'De Mercadorias',                     'type' => 'revenue', 'order' => 1]);
-        $ins(['parent_id' => $r11, 'name' => 'De Produtos',                        'type' => 'revenue', 'order' => 2]);
-        $ins(['parent_id' => $r11, 'name' => 'De Serviços Prestados',              'type' => 'revenue', 'order' => 3]);
-        $r12 = $ins(['parent_id' => $r1, 'name' => 'Deduções da Receita Bruta',   'type' => 'revenue', 'order' => 2]);
-        $ins(['parent_id' => $r12, 'name' => 'Devoluções',                         'type' => 'revenue', 'order' => 1]);
-        $ins(['parent_id' => $r12, 'name' => 'Serviços Cancelados',                'type' => 'revenue', 'order' => 2]);
-
-        $r2 = $ins(['parent_id' => $r,  'name' => 'Outras Receitas Operacionais', 'type' => 'revenue', 'order' => 2]);
-        $r21 = $ins(['parent_id' => $r2, 'name' => 'Vendas de Ativos Não Circulantes', 'type' => 'revenue', 'order' => 1]);
-        $ins(['parent_id' => $r21, 'name' => 'Receitas de Alienação de Investimentos', 'type' => 'revenue', 'order' => 1]);
-        $ins(['parent_id' => $r21, 'name' => 'Receitas de Alienação do Imobilizado',   'type' => 'revenue', 'order' => 2]);
+        $d9 = $ins(['parent_id' => $d, 'name' => 'Obrigações Trabalhistas', 'type' => 'expense', 'nature' => 'synthetic', 'order' => 9,
+            'description' => 'Valores devidos à equipe e aos órgãos previdenciários']);
+        $ins(['parent_id' => $d9, 'name' => 'Salários a Pagar',    'type' => 'expense', 'order' => 1,
+            'description' => 'Remunerações da equipe ainda não quitadas']);
+        $ins(['parent_id' => $d9, 'name' => 'Encargos a Recolher', 'type' => 'expense', 'order' => 2,
+            'description' => 'INSS e FGTS provisionados aguardando recolhimento']);
 
         DB::statement('SET search_path TO gabinete_master,maps,public');
     }

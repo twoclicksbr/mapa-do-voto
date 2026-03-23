@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -19,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import api from "@/lib/api";
-import { FinAccount, AccountType } from "./fin-accounts-tree";
+import { FinAccount, AccountType, AccountNature } from "./fin-accounts-tree";
 
 const TYPE_OPTIONS: { value: AccountType; label: string }[] = [
   { value: "asset",     label: "Ativo" },
@@ -44,16 +45,20 @@ export function FinAccountModal({
   onClose,
   onSaved,
 }: FinAccountModalProps) {
-  const [name,   setName]   = useState("");
-  const [type,   setType]   = useState<AccountType>("expense");
-  const [active, setActive] = useState(true);
+  const [name,        setName]        = useState("");
+  const [description, setDescription] = useState("");
+  const [type,        setType]        = useState<AccountType>("expense");
+  const [nature,      setNature]      = useState<AccountNature>("analytic");
+  const [active,      setActive]      = useState(true);
   const [loading, setLoading] = useState(false);
   const [errors,  setErrors]  = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
     setName(account?.name ?? "");
+    setDescription(account?.description ?? "");
     setType(account?.type ?? parentAccount?.type ?? "expense");
+    setNature(account?.nature ?? "analytic");
     setActive(account?.active ?? true);
     setErrors({});
   }, [open, account, parentAccount]);
@@ -65,7 +70,9 @@ export function FinAccountModal({
     try {
       const payload: Record<string, unknown> = {
         name,
+        description: description.trim() || null,
         type,
+        nature,
         active,
       };
 
@@ -107,7 +114,7 @@ export function FinAccountModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -126,6 +133,19 @@ export function FinAccountModal({
               {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
 
+            {/* Descrição */}
+            <div className="space-y-1.5">
+              <Label htmlFor="fa-description">Descrição</Label>
+              <Textarea
+                id="fa-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Descreva brevemente o uso desta conta..."
+                rows={2}
+              />
+              {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
+            </div>
+
             {/* Tipo */}
             <div className="space-y-1.5">
               <Label htmlFor="fa-type">Tipo <span className="text-destructive">*</span></Label>
@@ -142,6 +162,20 @@ export function FinAccountModal({
                 </SelectContent>
               </Select>
               {errors.type && <p className="text-xs text-destructive">{errors.type}</p>}
+            </div>
+
+            {/* Natureza */}
+            <div className="space-y-1.5">
+              <Label htmlFor="fa-nature">Natureza <span className="text-destructive">*</span></Label>
+              <Select value={nature} onValueChange={(v) => setNature(v as AccountNature)}>
+                <SelectTrigger id="fa-nature">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="analytic">Analítica</SelectItem>
+                  <SelectItem value="synthetic">Sintética</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Status */}

@@ -42,9 +42,7 @@ return new class extends Migration
             'updated_at' => $now,
         ], $data));
 
-        $ins(['name' => 'Caixa',               'main' => true, 'order' => 1]);
-        $ins(['name' => 'Conta Corrente',                       'order' => 2]);
-        $ins(['name' => 'Conta Poupança',                       'order' => 3]);
+        $ins(['name' => 'Nubank PJ', 'bank' => '260 - Nubank', 'agency' => '1', 'account' => '123456-5', 'main' => true, 'order' => 1]);
 
         DB::statement('SET search_path TO gabinete_master,maps,public');
     }

@@ -1,7 +1,8 @@
-import { ShieldCheck, Users, ReplaceAll, Phone, MapPin, FileText, BookmarkCheck, NotepadText } from 'lucide-react';
+import { ShieldCheck, Users, ReplaceAll, Phone, MapPin, FileText, BookmarkCheck, NotepadText, LayoutDashboard, Building2 } from 'lucide-react';
 import { MenuConfig } from '@/config/types';
 
 export const MENU_MEGA: MenuConfig = [
+  { title: 'Dashboard', section: 'settings-dashboard', icon: LayoutDashboard },
   {
     title: 'Cadastros',
     icon: NotepadText,
@@ -43,6 +44,6 @@ export const MENU_MEGA: MenuConfig = [
       },
     ],
   },
-  { title: 'Gabinetes', path: '/gabinetes' },
-  { title: 'Pessoas', section: 'pessoas' },
+  { title: 'Gabinetes', path: '/gabinetes', icon: Building2 },
+  { title: 'Pessoas', section: 'pessoas', icon: Users },
 ];

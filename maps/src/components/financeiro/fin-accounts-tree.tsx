@@ -21,14 +21,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-export type AccountType = "asset" | "liability" | "revenue" | "expense" | "cost";
+export type AccountType   = "asset" | "liability" | "revenue" | "expense" | "cost";
+export type AccountNature = "analytic" | "synthetic";
 
 export interface FinAccount {
   id: number;
   parent_id: number | null;
   code: string | null;
   name: string;
+  description: string | null;
   type: AccountType;
+  nature: AccountNature;
   order: number;
   active: boolean;
   children: FinAccount[];
@@ -174,13 +177,18 @@ function SortableRow({
         <span className="w-8 shrink-0" />
       )}
 
-      {/* name */}
-      <button
-        onClick={() => onEdit(node)}
-        className="font-medium text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 text-sm text-left flex-1 min-w-0 truncate transition-colors"
-      >
-        {node.name}
-      </button>
+      {/* name + description */}
+      <div className="flex flex-col flex-1 min-w-0">
+        <button
+          onClick={() => onEdit(node)}
+          className="font-medium text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 text-sm text-left truncate transition-colors"
+        >
+          {node.name}
+        </button>
+        {node.description && (
+          <span className="text-xs text-muted-foreground truncate">{node.description}</span>
+        )}
+      </div>
 
       {/* type */}
       <Badge variant={TYPE_VARIANTS[node.type]} appearance="light" size="sm" className="shrink-0">

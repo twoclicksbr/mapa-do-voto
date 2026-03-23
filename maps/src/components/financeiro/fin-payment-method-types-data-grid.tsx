@@ -22,6 +22,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -29,6 +30,7 @@ export interface FinPaymentMethodType {
   id: number;
   name: string;
   order: number;
+  active: boolean;
 }
 
 interface FinPaymentMethodTypesDataGridProps {
@@ -51,7 +53,7 @@ export function FinPaymentMethodTypesDataGrid({
   const [data, setData] = useState<FinPaymentMethodType[]>(types);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnOrder] = useState<string[]>(["drag", "select", "id", "name", "actions"]);
+  const [columnOrder] = useState<string[]>(["drag", "select", "id", "name", "active", "actions"]);
   const [rowSelection, setRowSelection] = useState({});
 
   useEffect(() => { setData(types); }, [types]);
@@ -131,6 +133,20 @@ export function FinPaymentMethodTypesDataGrid({
           </button>
         ),
         meta: { skeleton: <Skeleton className="h-5 w-40" /> },
+        enableSorting: true,
+        enableHiding: false,
+      },
+      {
+        accessorKey: "active",
+        id: "active",
+        header: ({ column }) => <DataGridColumnHeader title="Status" column={column} />,
+        cell: ({ row }) =>
+          row.original.active ? (
+            <Badge variant="success" appearance="light">Ativo</Badge>
+          ) : (
+            <Badge variant="destructive" appearance="light">Inativo</Badge>
+          ),
+        meta: { skeleton: <Skeleton className="h-6 w-16" />, headerClassName: "w-[10%]", cellClassName: "w-[10%]" },
         enableSorting: true,
         enableHiding: false,
       },
