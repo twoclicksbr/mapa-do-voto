@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 22/03/2026 (módulo Financeiro: fin_banks, fin_payment_method_types, fin_payment_methods, departments, fin_accounts, fin_titles, fin_extract, fin_wallets, fin_cost_centers, fin_title_compositions; FinMegaMenu + DataGrids/Modals no frontend) -->
+<!-- Atualizado em: 23/03/2026 (ações em massa no DataGrid de títulos: Status/Cancelar e Composição; fin-composition-modal.tsx novo) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -219,7 +219,10 @@ C:\Herd\mapa-do-voto\
 | `src/components/type-addresses/` | CRUD de tipos de endereço (DataGrid + Modal) |
 | `src/components/type-documents/` | CRUD de tipos de documento (DataGrid + Modal) |
 | `src/components/financeiro/fin-mega-menu.tsx` | NavigationMenu da aba Finanças — seções: Títulos a Pagar, Bancos, Modalidades, Tipos de Modalidade, Departamentos, Plano de Contas; persiste `finSection` no `localStorage` (`mapadovoto:finSection`) |
-| `src/components/financeiro/fin-titles-data-grid.tsx` | DataGrid de títulos financeiros (FinTitle) |
+| `src/components/financeiro/fin-titles-data-grid.tsx` | DataGrid de títulos financeiros (FinTitle). `onSelectionChange(count, allPending, selectedIds, allSamePeople, selectedTitles)` — usa `useRef` para evitar loop infinito com callbacks inline. Ações em massa: **Status → Cancelar** (visível só quando `allPending`); **Composição** (visível quando `allPending && allSamePeople`). |
+| `src/components/financeiro/fin-composition-modal.tsx` | Modal de composição de títulos. Campos: quantidade de registros, intervalo entre parcelas (dias), vencimento da 1ª parcela. Dois grids com scroll (5 linhas visíveis): "Títulos selecionados" e "Registros a gerar" (preview calculado em tempo real — valor dividido igualmente, datas calculadas com base no intervalo). |
+| `src/components/financeiro/fin-title-modal.tsx` | Modal criar/editar título financeiro (FinTitle) |
+| `src/components/financeiro/fin-installment-modal.tsx` | Modal de parcelamento: divide/repete valor em N parcelas com intervalo e vencimento configuráveis, preview de parcelas |
 | `src/components/financeiro/fin-banks-data-grid.tsx` | DataGrid de bancos com reordenação |
 | `src/components/financeiro/fin-bank-modal.tsx` | Modal criar/editar banco |
 | `src/components/financeiro/fin-payment-methods-data-grid.tsx` | DataGrid de modalidades de pagamento |

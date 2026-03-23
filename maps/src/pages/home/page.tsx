@@ -4,7 +4,7 @@ import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
@@ -41,6 +41,7 @@ import { PermissionActionsDataGrid, PermissionAction } from "@/components/permis
 import { PermissionActionsModal } from "@/components/permission-actions/permission-actions-modal";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { FinTitlesDataGrid, FinTitle } from "@/components/financeiro/fin-titles-data-grid";
+import { FinCompositionModal } from "@/components/financeiro/fin-composition-modal";
 import { FinBanksDataGrid, FinBank } from "@/components/financeiro/fin-banks-data-grid";
 import { FinBankModal } from "@/components/financeiro/fin-bank-modal";
 import { FinPaymentMethodsDataGrid, FinPaymentMethod } from "@/components/financeiro/fin-payment-methods-data-grid";
@@ -52,6 +53,7 @@ import { DepartmentsDataGrid, Department } from "@/components/financeiro/departm
 import { DepartmentModal } from "@/components/financeiro/department-modal";
 import { FinAccountsTree, FinAccount, ReorderItem } from "@/components/financeiro/fin-accounts-tree";
 import { FinAccountModal } from "@/components/financeiro/fin-account-modal";
+import { FinTitleModal } from "@/components/financeiro/fin-title-modal";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Home': Home,
@@ -67,11 +69,14 @@ const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Tipo de Endereço': BookmarkCheck,
   'Tipo de Pessoas': BookmarkCheck,
   'Permissões': ShieldCheck,
-  'Finanças': Landmark,
-  'Títulos a Pagar': Landmark,
-  'Bancos': CreditCard,
+  'Configurações': Settings,
+  'Dashboard': LayoutDashboard,
+  'Finanças': DollarSign,
+  'Títulos a Pagar': BanknoteArrowDown,
+  'Títulos a Receber': BanknoteArrowUp,
+  'Bancos': Landmark,
   'Modalidades': CreditCard,
-  'Tipos de Modalidade': CreditCard,
+  'Tipos de Modalidade': BookmarkCheck,
   'Departamentos': Building,
   'Plano de Contas': LayoutList,
 };
@@ -136,7 +141,7 @@ export function HomePage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [settingsSection, setSettingsSectionState] = useState<string>(
-    () => localStorage.getItem('mapadovoto:settingsSection') ?? ''
+    () => localStorage.getItem('mapadovoto:settingsSection') ?? 'settings-dashboard'
   );
   const setSettingsSection = (section: string) => {
     localStorage.setItem('mapadovoto:settingsSection', section);
@@ -180,7 +185,7 @@ export function HomePage() {
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
 
   const [finSection, setFinSectionState] = useState<string>(
-    () => localStorage.getItem('mapadovoto:finSection') ?? ''
+    () => localStorage.getItem('mapadovoto:finSection') ?? 'fin-dashboard'
   );
   const setFinSection = (section: string) => {
     localStorage.setItem('mapadovoto:finSection', section);
@@ -190,6 +195,22 @@ export function HomePage() {
   const [finTitles, setFinTitles] = useState<FinTitle[]>([]);
   const [finTitlesLoading, setFinTitlesLoading] = useState(false);
   const [finTitlesSelected, setFinTitlesSelected] = useState(0);
+  const [finTitlesAllPending, setFinTitlesAllPending] = useState(false);
+  const [finTitlesSelectedIds, setFinTitlesSelectedIds] = useState<number[]>([]);
+  const [finTitlesAllSamePeople, setFinTitlesAllSamePeople] = useState(false);
+  const [finTitlesSelectedItems, setFinTitlesSelectedItems] = useState<FinTitle[]>([]);
+  const [finCompositionModalOpen, setFinCompositionModalOpen] = useState(false);
+  const [finCompositionTitles, setFinCompositionTitles] = useState<FinTitle[]>([]);
+  const [finTitleModalOpen, setFinTitleModalOpen] = useState(false);
+  const [editingFinTitle, setEditingFinTitle] = useState<FinTitle | null>(null);
+  const [finTitleDefaultType, setFinTitleDefaultType] = useState<"income" | "expense">("expense");
+  const [finTitlesIncome, setFinTitlesIncome] = useState<FinTitle[]>([]);
+  const [finTitlesIncomeLoading, setFinTitlesIncomeLoading] = useState(false);
+  const [finTitlesIncomeSelected, setFinTitlesIncomeSelected] = useState(0);
+  const [finTitlesIncomeAllPending, setFinTitlesIncomeAllPending] = useState(false);
+  const [finTitlesIncomeSelectedIds, setFinTitlesIncomeSelectedIds] = useState<number[]>([]);
+  const [finTitlesIncomeAllSamePeople, setFinTitlesIncomeAllSamePeople] = useState(false);
+  const [finTitlesIncomeSelectedItems, setFinTitlesIncomeSelectedItems] = useState<FinTitle[]>([]);
 
   const [finBanks, setFinBanks] = useState<FinBank[]>([]);
   const [finBanksLoading, setFinBanksLoading] = useState(false);
@@ -332,13 +353,66 @@ export function HomePage() {
   };
 
   useEffect(() => {
-    if (!loggedIn) return;
+    if (!loggedIn || finSection !== 'fin-titles-expense') return;
     setFinTitlesLoading(true);
     api.get<FinTitle[]>('/fin-titles?type=expense')
       .then(res => setFinTitles(res.data))
       .catch(() => setFinTitles([]))
       .finally(() => setFinTitlesLoading(false));
-  }, [loggedIn]);
+  }, [loggedIn, finSection]);
+
+  useEffect(() => {
+    if (!loggedIn || finSection !== 'fin-titles-income') return;
+    setFinTitlesIncomeLoading(true);
+    api.get<FinTitle[]>('/fin-titles?type=income')
+      .then(res => setFinTitlesIncome(res.data))
+      .catch(() => setFinTitlesIncome([]))
+      .finally(() => setFinTitlesIncomeLoading(false));
+  }, [loggedIn, finSection]);
+
+  const handleFinTitleSaved = (title: FinTitle) => {
+    setFinTitleModalOpen(false);
+    setEditingFinTitle(null);
+    if (title.type === 'expense') {
+      setFinTitlesLoading(true);
+      api.get<FinTitle[]>('/fin-titles?type=expense')
+        .then(res => setFinTitles(res.data))
+        .catch(() => {})
+        .finally(() => setFinTitlesLoading(false));
+    } else {
+      setFinTitlesIncomeLoading(true);
+      api.get<FinTitle[]>('/fin-titles?type=income')
+        .then(res => setFinTitlesIncome(res.data))
+        .catch(() => {})
+        .finally(() => setFinTitlesIncomeLoading(false));
+    }
+  };
+
+  const handleFinTitleExpenseDelete = async (id: number) => {
+    await api.delete(`/fin-titles/${id}`);
+    setFinTitles(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleBulkCancelExpense = async () => {
+    await Promise.all(finTitlesSelectedIds.map(id => api.put(`/fin-titles/${id}`, { status: 'cancelled' })));
+    setFinTitles(prev => prev.map(t => finTitlesSelectedIds.includes(t.id) ? { ...t, status: 'cancelled' } : t));
+    setFinTitlesSelectedIds([]);
+    setFinTitlesSelected(0);
+    setFinTitlesAllPending(false);
+  };
+
+  const handleBulkCancelIncome = async () => {
+    await Promise.all(finTitlesIncomeSelectedIds.map(id => api.put(`/fin-titles/${id}`, { status: 'cancelled' })));
+    setFinTitlesIncome(prev => prev.map(t => finTitlesIncomeSelectedIds.includes(t.id) ? { ...t, status: 'cancelled' } : t));
+    setFinTitlesIncomeSelectedIds([]);
+    setFinTitlesIncomeSelected(0);
+    setFinTitlesIncomeAllPending(false);
+  };
+
+  const handleFinTitleIncomeDelete = async (id: number) => {
+    await api.delete(`/fin-titles/${id}`);
+    setFinTitlesIncome(prev => prev.filter(t => t.id !== id));
+  };
 
   useEffect(() => {
     if (!loggedIn || finSection !== 'fin-banks') return;
@@ -625,6 +699,19 @@ export function HomePage() {
         onClose={() => { setFinAccountModalOpen(false); setEditingFinAccount(null); setParentFinAccount(null); }}
         onSaved={handleFinAccountSaved}
       />
+      <FinTitleModal
+        open={finTitleModalOpen || !!editingFinTitle}
+        title={editingFinTitle}
+        defaultType={finTitleDefaultType}
+        onClose={() => { setFinTitleModalOpen(false); setEditingFinTitle(null); }}
+        onSaved={handleFinTitleSaved}
+      />
+      <FinCompositionModal
+        open={finCompositionModalOpen}
+        titles={finCompositionTitles}
+        onClose={() => { setFinCompositionModalOpen(false); setFinCompositionTitles([]); }}
+        onConfirm={async (_titles, _quantity, _interval, _firstDueDate) => {}}
+      />
       <PeopleModal
         open={peopleModalOpen || !!editingPerson}
         person={editingPerson}
@@ -683,8 +770,8 @@ export function HomePage() {
                   <TabsTrigger value="activity">Atendimentos</TabsTrigger>
                   <TabsTrigger value="metrics">Agenda</TabsTrigger>
                   <TabsTrigger value="reports">Alianças</TabsTrigger>
-                  <TabsTrigger value="alerts"><DollarSign className="size-3.5" />Finanças</TabsTrigger>
-                  <TabsTrigger value="settings"><Settings className="size-3.5" />Configurações</TabsTrigger>
+                  <TabsTrigger value="alerts" onClick={() => setFinSection('fin-dashboard')}><DollarSign className="size-3.5" />Finanças</TabsTrigger>
+                  <TabsTrigger value="settings" onClick={() => setSettingsSection('settings-dashboard')}><Settings className="size-3.5" />Configurações</TabsTrigger>
                 </TabsList>
               </div>
             </ToolbarHeading>
@@ -702,8 +789,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><Building2 className="size-5 text-muted-foreground" />Gabinetes <Badge variant="success" appearance="light" size="md">{formatRecordCount(tenants.length)}</Badge></h2>
-                  <SectionBreadcrumb items={['Home', 'Gabinetes']} />
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Building2 className="size-5 text-muted-foreground" />Gabinetes <Badge variant="success" appearance="light" size="md">{formatRecordCount(tenants.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Configurações', 'Gabinetes']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {tenantsSelected > 0 ? (
@@ -800,7 +887,7 @@ export function HomePage() {
           <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div>
-                <h2 className="text-lg font-semibold flex items-center gap-2"><Users className="size-5" />Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(people.length)}</Badge></h2>
+                <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Users className="size-5" />Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(people.length)}</Badge></h2>
                 <SectionBreadcrumb items={['Home', 'Pessoas']} />
               </div>
               <div className="flex items-center gap-2">
@@ -854,12 +941,28 @@ export function HomePage() {
         <TabsContent value="alerts" className="flex-1 min-h-0 mt-0 flex flex-col">
           <FinMegaMenu onNavigate={setFinSection} activeSection={finSection} />
 
-          {finSection === 'fin-payment-method-types' ? (
+          {finSection === 'fin-dashboard' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard className="size-5 text-muted-foreground" />Tipos de Modalidade <Badge variant="success" appearance="light" size="md">{formatRecordCount(finPaymentMethodTypes.length)}</Badge></h2>
-                  <SectionBreadcrumb items={['Home', 'Finanças', 'Tipos de Modalidade']} />
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><LayoutDashboard className="size-5 text-muted-foreground" />Dashboard Financeiro</h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Dashboard']} />
+                </div>
+              </div>
+              <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+                Em breve
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          ) : finSection === 'fin-payment-method-types' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5 text-muted-foreground" />Tipos de Modalidade <Badge variant="success" appearance="light" size="md">{formatRecordCount(finPaymentMethodTypes.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Modalidades', 'Tipos de Modalidade']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {finPaymentMethodTypesSelected > 0 ? (
@@ -911,8 +1014,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard className="size-5 text-muted-foreground" />Modalidades de Pagamento <Badge variant="success" appearance="light" size="md">{formatRecordCount(finPaymentMethods.length)}</Badge></h2>
-                  <SectionBreadcrumb items={['Home', 'Finanças', 'Modalidades']} />
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><CreditCard className="size-5 text-muted-foreground" />Modalidades de Pagamento <Badge variant="success" appearance="light" size="md">{formatRecordCount(finPaymentMethods.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Modalidades', 'Modalidades']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {finPaymentMethodsSelected > 0 ? (
@@ -965,7 +1068,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><Building className="size-5 text-muted-foreground" />Departamentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(departments.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Building className="size-5 text-muted-foreground" />Departamentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(departments.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Departamentos']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1019,10 +1122,14 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><LayoutList className="size-5 text-muted-foreground" />Plano de Contas <Badge variant="success" appearance="light" size="md">{formatRecordCount(finAccounts.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><LayoutList className="size-5 text-muted-foreground" />Plano de Contas <Badge variant="success" appearance="light" size="md">{formatRecordCount(finAccounts.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Plano de Contas']} />
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm">
+                    <Search className="size-4 mr-2" />
+                    Pesquisar
+                  </Button>
                   <Button variant="primary" size="sm" onClick={() => { setParentFinAccount(null); setFinAccountModalOpen(true); }}>
                     <Plus className="size-4 mr-2" />
                     Novo Registro
@@ -1048,7 +1155,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard className="size-5 text-muted-foreground" />Bancos <Badge variant="success" appearance="light" size="md">{formatRecordCount(finBanks.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Landmark className="size-5 text-muted-foreground" />Bancos <Badge variant="success" appearance="light" size="md">{formatRecordCount(finBanks.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Bancos']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1098,12 +1205,75 @@ export function HomePage() {
                 <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
               </div>
             </div>
+          ) : finSection === 'fin-titles-income' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5">
+                    <BanknoteArrowUp className="size-5 text-green-500" />
+                    Títulos a Receber
+                    <Badge variant="success" appearance="light" size="md">{formatRecordCount(finTitlesIncome.length)}</Badge>
+                  </h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Títulos a Receber']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {finTitlesIncomeSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({finTitlesIncomeSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {finTitlesIncomeAllPending && (
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuItem onClick={handleBulkCancelIncome}><Badge variant="destructive" appearance="light" size="sm">Cancelar</Badge></DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        )}
+                        {finTitlesIncomeAllPending && finTitlesIncomeAllSamePeople && (
+                          <DropdownMenuItem onClick={() => { setFinCompositionTitles(finTitlesIncomeSelectedItems); setFinCompositionModalOpen(true); }}>
+                            Composição
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => { setFinTitleDefaultType('income'); setFinTitleModalOpen(true); }}>
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <FinTitlesDataGrid
+                  titles={finTitlesIncome}
+                  isLoading={finTitlesIncomeLoading}
+                  onSelectionChange={(count, allPending, ids, allSamePeople, items) => { setFinTitlesIncomeSelected(count); setFinTitlesIncomeAllPending(allPending); setFinTitlesIncomeSelectedIds(ids); setFinTitlesIncomeAllSamePeople(allSamePeople); setFinTitlesIncomeSelectedItems(items); }}
+                  onEdit={(t) => { setEditingFinTitle(t); setFinTitleModalOpen(true); }}
+                  onDelete={handleFinTitleIncomeDelete}
+                />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
           ) : (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <Landmark className="size-5 text-muted-foreground" />
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5">
+                    <BanknoteArrowDown className="size-5 text-red-500" />
                     Títulos a Pagar
                     <Badge variant="success" appearance="light" size="md">{formatRecordCount(finTitles.length)}</Badge>
                   </h2>
@@ -1118,12 +1288,19 @@ export function HomePage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Cancelar</Badge></DropdownMenuItem>
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
+                        {finTitlesAllPending && (
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuItem onClick={handleBulkCancelExpense}><Badge variant="destructive" appearance="light" size="sm">Cancelar</Badge></DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        )}
+                        {finTitlesAllPending && finTitlesAllSamePeople && (
+                          <DropdownMenuItem onClick={() => { setFinCompositionTitles(finTitlesSelectedItems); setFinCompositionModalOpen(true); }}>
+                            Composição
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
@@ -1132,7 +1309,7 @@ export function HomePage() {
                         <Search className="size-4 mr-2" />
                         Pesquisar
                       </Button>
-                      <Button variant="primary" size="sm">
+                      <Button variant="primary" size="sm" onClick={() => { setFinTitleDefaultType('expense'); setFinTitleModalOpen(true); }}>
                         <Plus className="size-4 mr-2" />
                         Novo Registro
                       </Button>
@@ -1144,7 +1321,9 @@ export function HomePage() {
                 <FinTitlesDataGrid
                   titles={finTitles}
                   isLoading={finTitlesLoading}
-                  onSelectionChange={setFinTitlesSelected}
+                  onSelectionChange={(count, allPending, ids, allSamePeople, items) => { setFinTitlesSelected(count); setFinTitlesAllPending(allPending); setFinTitlesSelectedIds(ids); setFinTitlesAllSamePeople(allSamePeople); setFinTitlesSelectedItems(items); }}
+                  onEdit={(t) => { setEditingFinTitle(t); setFinTitleModalOpen(true); }}
+                  onDelete={handleFinTitleExpenseDelete}
                 />
               </div>
               <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
@@ -1157,11 +1336,27 @@ export function HomePage() {
 
         <TabsContent value="settings" className="flex-1 min-h-0 mt-0 flex flex-col">
           <AppMegaMenu onNavigate={setSettingsSection} activeSection={settingsSection} />
-          {settingsSection === 'type-people' ? (
+          {settingsSection === 'settings-dashboard' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><BookmarkCheck className="size-5" />Tipo de Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(typePeople.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Settings className="size-5 text-muted-foreground" />Dashboard de Configurações</h2>
+                  <SectionBreadcrumb items={['Home', 'Configurações', 'Dashboard']} />
+                </div>
+              </div>
+              <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+                Em breve
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
+                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
+                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              </div>
+            </div>
+          ) : settingsSection === 'type-people' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5" />Tipo de Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(typePeople.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Cadastros', 'Pessoas', 'Tipo de Pessoas']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1215,7 +1410,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><BookmarkCheck className="size-5" />Tipo de Contato <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeContacts.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5" />Tipo de Contato <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeContacts.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Cadastros', 'Submódulos', 'Contatos', 'Tipo de Contato']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1269,7 +1464,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><BookmarkCheck className="size-5" />Tipo de Endereço <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeAddresses.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5" />Tipo de Endereço <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeAddresses.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Cadastros', 'Submódulos', 'Endereços', 'Tipo de Endereço']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1323,7 +1518,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><BookmarkCheck className="size-5" />Tipo de Documentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeDocuments.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5" />Tipo de Documentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(typeDocuments.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Cadastros', 'Submódulos', 'Documentos', 'Tipo de Documentos']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1377,8 +1572,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><Users className="size-5" />Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(people.length)}</Badge></h2>
-                  <SectionBreadcrumb items={['Home', 'Pessoas']} />
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Users className="size-5" />Pessoas <Badge variant="success" appearance="light" size="md">{formatRecordCount(people.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Configurações', 'Pessoas']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {peopleSelected > 0 ? (
@@ -1430,8 +1625,8 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><Building2 className="size-5 text-muted-foreground" />Gabinetes <Badge variant="success" appearance="light" size="md">{formatRecordCount(tenants.length)}</Badge></h2>
-                  <SectionBreadcrumb items={['Home', 'Gabinetes']} />
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Building2 className="size-5 text-muted-foreground" />Gabinetes <Badge variant="success" appearance="light" size="md">{formatRecordCount(tenants.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Configurações', 'Gabinetes']} />
                 </div>
                 <div className="flex items-center gap-2">
                   {tenantsSelected > 0 ? (
@@ -1481,7 +1676,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2"><ShieldCheck className="size-5" />Permissões <Badge variant="success" appearance="light" size="md">{formatRecordCount(permissionActions.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><ShieldCheck className="size-5" />Permissões <Badge variant="success" appearance="light" size="md">{formatRecordCount(permissionActions.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Cadastros', 'Permissões']} />
                 </div>
                 <div className="flex items-center gap-2">
