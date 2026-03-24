@@ -7,6 +7,7 @@ use App\Http\Requests\FinTitleRequest;
 use App\Models\FinCostCenter;
 use App\Models\FinExtract;
 use App\Models\FinTitle;
+use App\Models\FinTitleComposition;
 use App\Models\FinWallet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -227,6 +228,88 @@ class FinTitleController extends Controller
     }
 
     // -------------------------------------------------------------------------
+    // Compose
+    // -------------------------------------------------------------------------
+
+    public function compose(Request $request)
+    {
+        $data = $request->validate([
+            'title_ids'      => 'required|array|min:1',
+            'title_ids.*'    => 'integer',
+            'quantity'       => 'required|integer|min:1',
+            'interval'       => 'required|integer|min:0',
+            'first_due_date' => 'required|date_format:Y-m-d',
+        ]);
+
+        $originals = FinTitle::whereIn('id', $data['title_ids'])
+            ->where('status', 'pending')
+            ->get();
+
+        if ($originals->count() !== count($data['title_ids'])) {
+            return response()->json(['message' => 'Um ou mais títulos não estão pendentes.'], 422);
+        }
+
+        $quantity  = (int) $data['quantity'];
+        $interval  = (int) $data['interval'];
+        $firstDate = $data['first_due_date'];
+        $total     = $originals->sum(fn ($t) => (float) $t->amount);
+        $ref       = $originals->first();
+
+        $base      = floor(($total / $quantity) * 100) / 100;
+        $remainder = round(($total - $base * $quantity) * 100) / 100;
+
+        $newTitles = DB::transaction(function () use ($originals, $quantity, $interval, $firstDate, $total, $base, $remainder, $ref) {
+            // Cancela originais
+            foreach ($originals as $o) {
+                $o->update(['status' => 'cancelled']);
+            }
+
+            $created = [];
+
+            for ($i = 0; $i < $quantity; $i++) {
+                $amount  = ($i === $quantity - 1) ? $base + $remainder : $base;
+                $d = new \DateTime($firstDate);
+                $d->modify("+".($i * $interval)." days");
+                $dueDate = $d->format('Y-m-d');
+
+                $newTitle = FinTitle::create([
+                    'type'               => $ref->type,
+                    'description'        => $ref->description,
+                    'amount'             => $amount,
+                    'issue_date'         => now()->format('Y-m-d'),
+                    'due_date'           => $dueDate,
+                    'account_id'         => $ref->account_id,
+                    'payment_method_id'  => $ref->payment_method_id,
+                    'bank_id'            => $ref->bank_id,
+                    'people_id'          => $ref->people_id,
+                    'installment_number' => $i + 1,
+                    'installment_total'  => $quantity,
+                    'status'             => 'pending',
+                ]);
+
+                // Registra composição
+                foreach ($originals as $o) {
+                    FinTitleComposition::create([
+                        'origin_title_id'      => $o->id,
+                        'destination_title_id' => $newTitle->id,
+                    ]);
+                }
+
+                $created[] = $newTitle;
+            }
+
+            return $created;
+        });
+
+        $result = collect($newTitles)->map(function ($t) {
+            $t->load(['account', 'paymentMethod', 'bank', 'people']);
+            return $this->format($t);
+        });
+
+        return response()->json($result, 201);
+    }
+
+    // -------------------------------------------------------------------------
     // Clone
     // -------------------------------------------------------------------------
 
@@ -324,17 +407,34 @@ class FinTitleController extends Controller
 
     private function formatDetail(FinTitle $title): array
     {
+        // Títulos originais (este é destino de uma composição)
+        $origins = $title->destinationCompositions
+            ->map(fn ($c) => $c->originTitle)
+            ->filter()
+            ->map(fn ($t) => $this->format($t))
+            ->values();
+
+        // Títulos gerados (este é origem de uma composição)
+        $destinations = $title->originCompositions
+            ->map(fn ($c) => $c->destinationTitle)
+            ->filter()
+            ->unique('id')
+            ->map(fn ($t) => $this->format($t))
+            ->values();
+
         return array_merge($this->format($title), [
-            'document_number' => $title->document_number,
-            'invoice_number'  => $title->invoice_number,
-            'barcode'         => $title->barcode,
-            'pix_key'         => $title->pix_key,
-            'cost_centers'    => $title->costCenters->map(fn ($cc) => [
+            'document_number'      => $title->document_number,
+            'invoice_number'       => $title->invoice_number,
+            'barcode'              => $title->barcode,
+            'pix_key'              => $title->pix_key,
+            'cost_centers'         => $title->costCenters->map(fn ($cc) => [
                 'id'             => $cc->id,
                 'department_id'  => $cc->department_id,
                 'department_name'=> $cc->department?->name,
                 'percentage'     => (float) $cc->percentage,
             ])->values(),
+            'composition_origins'      => $origins,
+            'composition_destinations' => $destinations,
         ]);
     }
 }

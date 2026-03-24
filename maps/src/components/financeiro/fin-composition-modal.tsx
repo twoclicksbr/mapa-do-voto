@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { FinTitle } from "./fin-titles-data-grid";
+import { BirthDatePicker } from "@/components/people/birth-date-picker";
 
 interface FinCompositionModalProps {
   open: boolean;
@@ -99,39 +100,36 @@ export function FinCompositionModal({ open, titles, onClose, onConfirm }: FinCom
         </DialogHeader>
         <DialogBody className="space-y-4">
 
-          {/* Linha 1: quantidade */}
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium whitespace-nowrap">Gerar quantos registros?</label>
-            <Input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-24"
-            />
-          </div>
-
-          {/* Linha 2: intervalo + vencimento */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Linha única: N° Parcelas | Intervalo das Parcelas | Vencimento 1ª Parcela */}
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Intervalo entre parcelas</label>
+              <label className="text-sm font-medium">N° Parcelas</label>
+              <Input
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Intervalo das Parcelas</label>
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
                   min={1}
                   value={interval}
                   onChange={(e) => setInterval(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="flex-1"
                 />
                 <span className="text-sm text-muted-foreground whitespace-nowrap">dias</span>
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Vencimento da 1ª parcela</label>
-              <Input
-                type="date"
+              <label className="text-sm font-medium">Vencimento 1ª Parcela</label>
+              <BirthDatePicker
                 value={firstDueDate}
-                onChange={(e) => setFirstDueDate(e.target.value)}
+                onChange={setFirstDueDate}
+                minYear={2020}
+                maxYear={2035}
               />
             </div>
           </div>

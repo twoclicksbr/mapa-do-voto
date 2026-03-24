@@ -150,6 +150,7 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
 
     // Financeiro — Títulos
     Route::get('/fin-titles', [FinTitleController::class, 'index']);
+    Route::post('/fin-titles/compose', [FinTitleController::class, 'compose']);
     Route::get('/fin-titles/{id}', [FinTitleController::class, 'show']);
     Route::post('/fin-titles', [FinTitleController::class, 'store']);
     Route::put('/fin-titles/{id}', [FinTitleController::class, 'update']);

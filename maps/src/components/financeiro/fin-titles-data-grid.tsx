@@ -19,7 +19,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowDownToLine, ChevronDown, ChevronRight, Eye, Pencil } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -98,7 +98,7 @@ interface FinTitlesDataGridProps {
   isLoading: boolean;
   onSelectionChange?: (count: number, allPending: boolean, selectedIds: number[], allSamePeople: boolean, selectedTitles: FinTitle[]) => void;
   onEdit?: (title: FinTitle) => void;
-  onDelete?: (id: number) => void;
+  onBaixar?: (title: FinTitle) => void;
 }
 
 export function FinTitlesDataGrid({
@@ -106,7 +106,7 @@ export function FinTitlesDataGrid({
   isLoading,
   onSelectionChange,
   onEdit,
-  onDelete,
+  onBaixar,
 }: FinTitlesDataGridProps) {
   const [data, setData] = useState<FinTitle[]>(titles);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -443,24 +443,26 @@ export function FinTitlesDataGrid({
                   className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700"
                   onClick={() => onEdit?.(row.original)}
                 >
-                  <Pencil className="size-4" />
+                  {row.original.status === "pending" ? <Pencil className="size-4" /> : <Eye className="size-4" />}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Editar</TooltipContent>
+              <TooltipContent>{row.original.status === "pending" ? "Editar" : "Visualizar"}</TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700"
-                  onClick={() => onDelete?.(row.original.id)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Excluir</TooltipContent>
-            </Tooltip>
+            {row.original.status === "pending" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="bg-green-50 text-green-600 border-green-200 hover:bg-green-100 hover:text-green-700"
+                    onClick={() => onBaixar?.(row.original)}
+                  >
+                    <ArrowDownToLine className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Baixar</TooltipContent>
+              </Tooltip>
+            )}
           </div>
         ),
         meta: {
@@ -472,7 +474,7 @@ export function FinTitlesDataGrid({
         enableHiding: false,
       },
     ],
-    [onEdit, onDelete]
+    [onEdit, onBaixar]
   );
 
   const table = useReactTable({

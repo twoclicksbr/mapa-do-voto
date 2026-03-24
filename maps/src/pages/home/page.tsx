@@ -204,6 +204,7 @@ export function HomePage() {
   const [finTitleModalOpen, setFinTitleModalOpen] = useState(false);
   const [editingFinTitle, setEditingFinTitle] = useState<FinTitle | null>(null);
   const [finTitleDefaultType, setFinTitleDefaultType] = useState<"income" | "expense">("expense");
+  const [finTitleInitialTab, setFinTitleInitialTab] = useState("geral");
   const [finTitlesIncome, setFinTitlesIncome] = useState<FinTitle[]>([]);
   const [finTitlesIncomeLoading, setFinTitlesIncomeLoading] = useState(false);
   const [finTitlesIncomeSelected, setFinTitlesIncomeSelected] = useState(0);
@@ -703,14 +704,30 @@ export function HomePage() {
         open={finTitleModalOpen || !!editingFinTitle}
         title={editingFinTitle}
         defaultType={finTitleDefaultType}
-        onClose={() => { setFinTitleModalOpen(false); setEditingFinTitle(null); }}
+        initialTab={finTitleInitialTab}
+        onClose={() => { setFinTitleModalOpen(false); setEditingFinTitle(null); setFinTitleInitialTab("geral"); }}
         onSaved={handleFinTitleSaved}
       />
       <FinCompositionModal
         open={finCompositionModalOpen}
         titles={finCompositionTitles}
         onClose={() => { setFinCompositionModalOpen(false); setFinCompositionTitles([]); }}
-        onConfirm={async (_titles, _quantity, _interval, _firstDueDate) => {}}
+        onConfirm={async (titles, quantity, interval, firstDueDate) => {
+          await api.post('/fin-titles/compose', {
+            title_ids:      titles.map(t => t.id),
+            quantity,
+            interval,
+            first_due_date: firstDueDate,
+          });
+          const type = titles[0]?.type ?? 'expense';
+          if (type === 'expense') {
+            setFinTitlesLoading(true);
+            api.get<FinTitle[]>('/fin-titles?type=expense').then(res => setFinTitles(res.data)).catch(() => {}).finally(() => setFinTitlesLoading(false));
+          } else {
+            setFinTitlesIncomeLoading(true);
+            api.get<FinTitle[]>('/fin-titles?type=income').then(res => setFinTitlesIncome(res.data)).catch(() => {}).finally(() => setFinTitlesIncomeLoading(false));
+          }
+        }}
       />
       <PeopleModal
         open={peopleModalOpen || !!editingPerson}
@@ -1210,7 +1227,7 @@ export function HomePage() {
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
                   <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5">
-                    <BanknoteArrowUp className="size-5 text-green-500" />
+                    <BanknoteArrowUp className="size-5" />
                     Títulos a Receber
                     <Badge variant="success" appearance="light" size="md">{formatRecordCount(finTitlesIncome.length)}</Badge>
                   </h2>
@@ -1259,8 +1276,8 @@ export function HomePage() {
                   titles={finTitlesIncome}
                   isLoading={finTitlesIncomeLoading}
                   onSelectionChange={(count, allPending, ids, allSamePeople, items) => { setFinTitlesIncomeSelected(count); setFinTitlesIncomeAllPending(allPending); setFinTitlesIncomeSelectedIds(ids); setFinTitlesIncomeAllSamePeople(allSamePeople); setFinTitlesIncomeSelectedItems(items); }}
-                  onEdit={(t) => { setEditingFinTitle(t); setFinTitleModalOpen(true); }}
-                  onDelete={handleFinTitleIncomeDelete}
+                  onEdit={(t) => { setFinTitleInitialTab("geral"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
+                  onBaixar={(t) => { setFinTitleInitialTab("baixar"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                 />
               </div>
               <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
@@ -1273,7 +1290,7 @@ export function HomePage() {
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
                   <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5">
-                    <BanknoteArrowDown className="size-5 text-red-500" />
+                    <BanknoteArrowDown className="size-5" />
                     Títulos a Pagar
                     <Badge variant="success" appearance="light" size="md">{formatRecordCount(finTitles.length)}</Badge>
                   </h2>
@@ -1322,8 +1339,8 @@ export function HomePage() {
                   titles={finTitles}
                   isLoading={finTitlesLoading}
                   onSelectionChange={(count, allPending, ids, allSamePeople, items) => { setFinTitlesSelected(count); setFinTitlesAllPending(allPending); setFinTitlesSelectedIds(ids); setFinTitlesAllSamePeople(allSamePeople); setFinTitlesSelectedItems(items); }}
-                  onEdit={(t) => { setEditingFinTitle(t); setFinTitleModalOpen(true); }}
-                  onDelete={handleFinTitleExpenseDelete}
+                  onEdit={(t) => { setFinTitleInitialTab("geral"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
+                  onBaixar={(t) => { setFinTitleInitialTab("baixar"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                 />
               </div>
               <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">

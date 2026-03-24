@@ -42,6 +42,55 @@ interface ApiAccount {
   children: ApiAccount[];
 }
 
+function fmtBRL(value: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+}
+
+function fmtDate(raw: string) {
+  const [y, m, d] = raw.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("pt-BR");
+}
+
+function CompositionTable({ label, rows }: { label: string; rows: FinTitle[] }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium">{label}</p>
+      <div className="border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/80">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Título</th>
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Parcela</th>
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Vencimento</th>
+              <th className="px-4 py-2 text-right font-medium text-muted-foreground">Valor</th>
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((t) => (
+              <tr key={t.id} className="hover:bg-muted/30 transition-colors">
+                <td className="px-4 py-2 font-mono text-muted-foreground">
+                  {t.invoice_number ?? `#${String(t.id).padStart(5, "0")}`}
+                </td>
+                <td className="px-4 py-2 tabular-nums text-muted-foreground">
+                  {t.installment_number && t.installment_total ? `${t.installment_number}/${t.installment_total}` : "—"}
+                </td>
+                <td className="px-4 py-2 tabular-nums">{t.due_date ? fmtDate(t.due_date) : "—"}</td>
+                <td className="px-4 py-2 text-right font-medium tabular-nums">{fmtBRL(t.amount)}</td>
+                <td className="px-4 py-2">
+                  <Badge variant={STATUS_VARIANTS[t.status] ?? "primary"} appearance="light" size="sm">
+                    {STATUS_OPTIONS.find((s) => s.value === t.status)?.label ?? t.status}
+                  </Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function flattenAccounts(accounts: ApiAccount[], depth = 0): RefAccount[] {
   return accounts.flatMap((a) => [
     { id: a.id, label: "\u2014 ".repeat(depth) + a.name, type: a.type, nature: a.nature },
@@ -108,6 +157,7 @@ interface FinTitleModalProps {
   open: boolean;
   title: FinTitle | null;
   defaultType: "income" | "expense";
+  initialTab?: string;
   onClose: () => void;
   onSaved: (title: FinTitle) => void;
 }
@@ -118,6 +168,7 @@ export function FinTitleModal({
   open,
   title,
   defaultType,
+  initialTab = "geral",
   onClose,
   onSaved,
 }: FinTitleModalProps) {
@@ -174,6 +225,8 @@ export function FinTitleModal({
   const [refLoading,           setRefLoading]           = useState(false);
   const [errors,               setErrors]               = useState<Record<string, string>>({});
   const [showInstallmentModal, setShowInstallmentModal] = useState(false);
+  const [compositionOrigins,      setCompositionOrigins]      = useState<FinTitle[]>([]);
+  const [compositionDestinations, setCompositionDestinations] = useState<FinTitle[]>([]);
 
   // ── Load reference data + (if editing) full detail ──────────────────────────
   useEffect(() => {
@@ -245,7 +298,7 @@ export function FinTitleModal({
       setPayPaymentMethodId(title.payment_method_id ? String(title.payment_method_id) : "");
       setPayErrors({});
 
-      // Load full detail for cost_centers
+      // Load full detail for cost_centers + compositions
       api
         .get(`/fin-titles/${title.id}`)
         .then((res) => {
@@ -264,6 +317,8 @@ export function FinTitleModal({
               })
             )
           );
+          setCompositionOrigins(d.composition_origins ?? []);
+          setCompositionDestinations(d.composition_destinations ?? []);
         })
         .catch(() => {});
     } else {
@@ -488,15 +543,18 @@ export function FinTitleModal({
 
         <form onSubmit={handleSubmit}>
           <DialogBody>
-          <Tabs defaultValue="geral">
+          <Tabs defaultValue={initialTab}>
             <TabsList variant="line" className="mb-4">
               <TabsTrigger value="geral">Geral</TabsTrigger>
               <TabsTrigger value="baixar">Baixar</TabsTrigger>
               <TabsTrigger value="observacoes">Observações</TabsTrigger>
               <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
+              {(compositionOrigins.length > 0 || compositionDestinations.length > 0) && (
+                <TabsTrigger value="composicao">Composição</TabsTrigger>
+              )}
             </TabsList>
 
-            <TabsContent value="geral" className="space-y-4">
+            <TabsContent value="geral" className="space-y-4 [&_input:read-only]:bg-muted/60 [&_input:disabled]:bg-muted/60 [&_button:disabled]:bg-muted/60">
 
             {/* Título/NF / Pessoa / Documento / N° Parcela */}
             <div className="grid grid-cols-12 gap-3">
@@ -855,7 +913,7 @@ export function FinTitleModal({
                 const canPay     = status === "pending";
                 const canReverse = ["paid", "partial"].includes(status);
                 return (
-                  <div className={`space-y-4${payReadOnly ? " [&_input:disabled]:bg-muted/60 [&_button:disabled]:bg-muted/60" : ""}`}>
+                  <div className={`space-y-4${payReadOnly ? " [&_input:disabled]:bg-muted/60 [&_input:disabled]:!opacity-100 [&_input:read-only]:bg-muted/60 [&_input:read-only]:!opacity-100 [&_button:disabled]:bg-muted/60 [&_button:disabled]:!opacity-100" : ""}`}>
                     {/* Row 1 — Juros / Multa / Desconto (% + valor calculado) */}
                     <div className="grid grid-cols-12 gap-3">
                       <div className="col-span-2 space-y-1.5">
@@ -1002,7 +1060,7 @@ export function FinTitleModal({
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                           <SelectContent className="max-h-48 overflow-y-auto">
-                            {accounts.filter((a) => a.type === "expense").map((a) => (
+                            {accounts.filter((a) => a.type === ((title?.type ?? defaultType) === "income" ? "revenue" : "expense")).map((a) => (
                               <SelectItem
                                 key={a.id}
                                 value={String(a.id)}
@@ -1100,6 +1158,15 @@ export function FinTitleModal({
 
             <TabsContent value="arquivos">
               <p className="text-sm text-muted-foreground italic">Em breve.</p>
+            </TabsContent>
+
+            <TabsContent value="composicao" className="space-y-4">
+              {compositionOrigins.length > 0 && (
+                <CompositionTable label="Títulos originais (cancelados)" rows={compositionOrigins} />
+              )}
+              {compositionDestinations.length > 0 && (
+                <CompositionTable label="Títulos gerados" rows={compositionDestinations} />
+              )}
             </TabsContent>
           </Tabs>
           </DialogBody>

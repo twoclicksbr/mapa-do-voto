@@ -125,9 +125,9 @@ export function BirthDatePicker({
           maxLength={10}
           readOnly={disabled}
           className={cn(
-            "flex w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 pr-9",
-            inputSize === "sm" ? "h-8" : "h-8.5",
-            disabled && "opacity-50 cursor-not-allowed",
+            "flex w-full bg-background border border-input shadow-xs shadow-black/5 transition-[color,box-shadow] text-foreground placeholder:text-muted-foreground/80 focus-visible:ring-ring/30 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] rounded-md pr-9",
+            inputSize === "sm" ? "h-7 px-2.5 text-xs" : "h-8.5 px-3 text-[0.8125rem] leading-(--text-sm--line-height)",
+            disabled && "opacity-60 cursor-not-allowed",
             className
           )}
         />
