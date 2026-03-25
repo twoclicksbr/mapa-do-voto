@@ -21,6 +21,8 @@ return new class extends Migration
             $table->date('issue_date');
             $table->date('due_date');
             $table->date('paid_at')->nullable();
+            $table->date('reversed_at')->nullable();
+            $table->date('cancelled_at')->nullable();
             $table->decimal('amount_paid', 15, 2)->nullable();
             $table->integer('installment_number')->nullable();
             $table->integer('installment_total')->nullable();

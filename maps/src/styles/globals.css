@@ -147,6 +147,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/** Prevent page-level scroll — app uses internal scrollable regions **/
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
 /** Custom Containers **/
 @utility container {
   @apply mx-auto max-w-none px-4 lg:px-5;

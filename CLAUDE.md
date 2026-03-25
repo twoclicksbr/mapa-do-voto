@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 23/03/2026 (ações em massa no DataGrid de títulos: Status/Cancelar e Composição; fin-composition-modal.tsx novo) -->
+<!-- Atualizado em: 25/03/2026 (extrato financeiro: source em fin_extract, reversed_at/cancelled_at em fin_titles; FinExtractDataGrid grid+timeline; FinTitlesFilterModal; PageFooter; DateSelector; reverse() clona título; 401 interceptor auth:logout; create person inline em FinTitleModal; expandedCellContent2 no DataGrid) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -160,7 +160,7 @@ Cada cargo faz aliança com **todos dentro da sua área de disputa**:
 - **Frontend:** React 19 + Vite + TypeScript + Metronic v9.4.5 (Layout 33) + Tailwind CSS 4
 - **Mapa:** Leaflet + react-leaflet + CartoDB Positron
 - **Backend:** Laravel 12 + Sanctum v4.3.1 (independente da TwoClicks)
-- **DB:** PostgreSQL 17 (único banco)
+- **DB:** PostgreSQL 17 (dois bancos: `cm_politico` + `cm_maps`)
 - **Auth:** Sanctum token-based (Bearer)
 
 ---
@@ -173,9 +173,13 @@ C:\Herd\mapa-do-voto\
 ├── maps\          → Vite + React + Metronic (app do mapa)
 ├── site\          → Next.js (landing page — não iniciada ainda)
 ├── tse\           → Scripts/dados de importação TSE
+├── mkt\           → Materiais de marketing (não versionado no deploy)
+├── start.bat      → Inicia todos os serviços locais (Herd + Next.js porta 3000 + Vite porta 5173) em janelas cmd separadas
 ├── run_import.bat → Script de importação TSE (Windows)
 └── .git
 ```
+
+> ⚠️ `cm_maps_dump.sql` (2.7GB) está na raiz — deve ser adicionado ao `.gitignore`.
 
 ---
 
@@ -195,13 +199,13 @@ C:\Herd\mapa-do-voto\
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças, Configurações. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Aba Configurações exibe `AppMegaMenu` com seções: Permissões (DataGrid + Modal com DnD), Pessoas (DataGrid + Modal), Tipos de Pessoa, Tipos de Contato, Tipos de Endereço, Tipos de Documento. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). Estado `finTitleInitialTab` controla qual aba do `FinTitleModal` abre: `onEdit` → `"geral"`, `onBaixar` → `"baixar"`; resetado para `"geral"` ao fechar. `FinCompositionModal.onConfirm` chama `POST /fin-titles/compose` e recarrega o DataGrid correspondente. |
+| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças, Configurações. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Aba Configurações exibe `AppMegaMenu` com seções: Permissões (DataGrid + Modal com DnD), Pessoas (DataGrid + Modal), Tipos de Pessoa, Tipos de Contato, Tipos de Endereço, Tipos de Documento. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). Estado `finTitleInitialTab` controla qual aba do `FinTitleModal` abre: `onEdit` → `"geral"`, `onBaixar` → `"baixar"`; resetado para `"geral"` ao fechar. `FinCompositionModal.onConfirm` chama `POST /fin-titles/compose` e recarrega o DataGrid correspondente. `FinTitlesFilterModal` abre ao clicar em Pesquisar nos DataGrids de títulos; filtragem client-side via `applyFinFilters()` + `useMemo`. Seção `fin-extract` exibe `FinExtractDataGrid` com toggle grid/timeline (`ExtractViewToggle`). Todos os footers inline foram substituídos pelo componente `PageFooter`. Layout: `html/body/#root` com `overflow: hidden`; containers internos usam `flex-1 min-h-0` |
 | `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch interno + heatmap + botões flutuantes. `CitySearch` interno: prop `stateUf`, busca normalizada (unaccent via `normalizeName`), exibe "CIDADE - UF". `StatsCard`: exibe "0 votos nesta cidade" quando city sem votos. `MapCore`: `focusedCityBoundsRef` guarda bounds da cidade focada (clique ou CitySearch); crosshair usa cidade quando disponível senão estado; `clearCityHighlight` e toggle "Exibir Cidades" voltam zoom ao estado via `polygonLayerRef` com maxZoom:7. Termômetro do heatmap: tooltip hover com valor abreviado (250/2.5k/1.5m votos) seguindo mouse verticalmente. `fmtShort()` formata números. |
 | `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — variants: `map`, `sidebar`, `modal`; no modal busca apenas id/name/photo_url sem party/role; dropdown com `onMouseDown`+`preventDefault` para funcionar dentro de Radix Dialog; placeholder "Digite nome, cargo, ano, cidade, UF ou partido"; clicar em qualquer lugar do campo foca o input |
 | `src/components/mapa-do-voto/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
 | `src/components/map/active-candidate-context.tsx` | Contexto global: activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, mapClickedCity (inclui city_id), focusCityOnMap, clearCityHighlight |
 | `src/components/auth/login-modal.tsx` | Modal de login automático; usa logo SVG `/media/logo/logo.svg`; exibe link "Crie sua conta!" quando gabinete não encontrado |
-| `src/components/auth/login-modal-context.tsx` | Contexto global do modal |
+| `src/components/auth/login-modal-context.tsx` | Contexto global do modal. Escuta o evento `auth:logout` (disparado pelo interceptor 401 do axios) — redefine user/loggedIn e reabre o modal de login |
 | `src/components/layout/active-tab-context.tsx` | Contexto `ActiveTabProvider`/`useActiveTab` — persiste aba ativa no `localStorage` (chave `mapadovoto:activeTab`); default: `overview` |
 | `src/components/gabinetes/gabinetes-data-grid.tsx` | Data grid de tenants: colunas ID, Nome (clicável → `onEdit`), Subdomínio (link externo), Validade (badge com alerta vencimento), Status, Ações (editar/excluir); prop `onEdit` |
 | `src/components/gabinetes/gabinete-create-modal.tsx` | Modal de criação de gabinete com **4 steps** + timeline horizontal: Step 1 Dados Pessoais (name, birth_date, type_people_id, active); Step 2 Acesso (email + senha com indicador de força 5 requisitos + confirmação); Step 3 grid 2 cols: Nome do Gabinete + Candidato (busca em `maps.candidates` via `/map-candidates/search`) / Subdomínio (2/3, check em tempo real) + Validade (1/3, `BirthDatePicker` minYear=hoje maxYear=hoje+10, default hoje+7d) + RadioGroup Plano (Mapa=`has_schema:false` default / Mapa+CRM=`has_schema:true`); Step 4 Candidaturas (multi-select cards via `/map-candidates/{id}/candidacies`). Submit: POST /people → POST /people/{id}/user → POST /tenants (com `name=gabineteName`, `has_schema`) → POST /people/{id}/candidacies. Rollback automático deleta person órfão se passo 2+ falhar. |
@@ -218,10 +222,12 @@ C:\Herd\mapa-do-voto\
 | `src/components/type-contacts/` | CRUD de tipos de contato (DataGrid + Modal) |
 | `src/components/type-addresses/` | CRUD de tipos de endereço (DataGrid + Modal) |
 | `src/components/type-documents/` | CRUD de tipos de documento (DataGrid + Modal) |
-| `src/components/financeiro/fin-mega-menu.tsx` | NavigationMenu da aba Finanças — seções: Títulos a Pagar, Bancos, Modalidades, Tipos de Modalidade, Departamentos, Plano de Contas; persiste `finSection` no `localStorage` (`mapadovoto:finSection`) |
-| `src/components/financeiro/fin-titles-data-grid.tsx` | DataGrid de títulos financeiros (FinTitle). `onSelectionChange(count, allPending, selectedIds, allSamePeople, selectedTitles)` — usa `useRef` para evitar loop infinito com callbacks inline. Ações em massa: **Status → Cancelar** (visível só quando `allPending`); **Composição** (visível quando `allPending && allSamePeople`). Ações por linha: `onEdit` (lápis) + `onBaixar` (ArrowDownToLine, verde — visível apenas quando `status === "pending"`). Botão Excluir removido. |
+| `src/components/financeiro/fin-mega-menu.tsx` | NavigationMenu da aba Finanças — seções: Títulos a Pagar, Bancos, Modalidades, Tipos de Modalidade, Departamentos, Plano de Contas, **Extrato**; persiste `finSection` no `localStorage` (`mapadovoto:finSection`) |
+| `src/components/financeiro/fin-titles-data-grid.tsx` | DataGrid de títulos financeiros (FinTitle). Interface inclui `reversed_at` e `cancelled_at`. `onSelectionChange(count, allPending, selectedIds, allSamePeople, selectedTitles)` — usa `useRef` para evitar loop infinito com callbacks inline. Ações em massa: **Status → Cancelar** (visível só quando `allPending`); **Composição** (visível quando `allPending && allSamePeople`). Ações por linha: `onEdit` (lápis) + `onBaixar` (ArrowDownToLine, verde — visível apenas quando `status === "pending"`). Botão Excluir removido. Linha expandida suporta `expandedCellContent2` (segunda sub-linha): para `reversed` exibe Data Estorno e Valor Estornado; para `cancelled` exibe Data Cancelamento. |
+| `src/components/financeiro/fin-extract-data-grid.tsx` | DataGrid do extrato financeiro. Dois modos de visualização: **grid** (TanStack Table, paginado) e **timeline** (linha do tempo cronológica). Colunas: Data, Pessoa, Conta, Banco, Modalidade, Origem (badge: Manual/Baixa/Estorno), Entrada, Saída. Exporta `FinExtractEntry`, `ExtractView`, `ExtractViewToggle`, `EXTRACT_VIEW_KEY`. Footer de totais: Entradas, Saídas, Saldo geral + breakdown por modalidade. View persiste em `localStorage` via `EXTRACT_VIEW_KEY = "mapadovoto:extractView"`. |
+| `src/components/financeiro/fin-titles-filter-modal.tsx` | Modal de pesquisa avançada de títulos. Filtros: Nº do Título (invoice_number), Pessoa (autocomplete), Nº Documento, Status (multi-select com badges), campo de data (seletor: Cadastro/Emissão/Vencimento/Baixa/Estorno/Cancelamento) + DateSelector com operadores is/before/after/between. Exporta `FinTitlesFilters`. Filtragem é client-side em `page.tsx` via `applyFinFilters()`. |
 | `src/components/financeiro/fin-composition-modal.tsx` | Modal de composição de títulos. Layout 3 colunas: N° Parcelas, Intervalo das Parcelas (dias), Vencimento 1ª Parcela (`BirthDatePicker` minYear=2020 maxYear=2035). Dois grids com scroll (5 linhas visíveis): "Títulos selecionados" e "Registros a gerar" (preview calculado em tempo real — valor dividido igualmente, datas calculadas com base no intervalo). Ao confirmar chama `POST /fin-titles/compose` e recarrega o DataGrid. |
-| `src/components/financeiro/fin-title-modal.tsx` | Modal criar/editar título financeiro (FinTitle). Props: `initialTab` (default `"geral"`) — controla qual aba abre; usado pelo botão Baixar do DataGrid para abrir direto na aba `"baixar"`. Aba Geral: inputs read-only estilizados com `bg-muted/60`. Aba Baixar: filtro de contas dinâmico — `income` filtra `revenue`, `expense` filtra `expense`; campos disabled exibem `!opacity-100`. |
+| `src/components/financeiro/fin-title-modal.tsx` | Modal criar/editar título financeiro (FinTitle). Props: `initialTab` (default `"geral"`) — controla qual aba abre; usado pelo botão Baixar do DataGrid para abrir direto na aba `"baixar"`. Aba Geral: inputs read-only estilizados com `bg-muted/60`. Aba Baixar: filtro de contas dinâmico — `income` filtra `revenue`, `expense` filtra `expense`; campos disabled exibem `!opacity-100`. Botão `+` ao lado do label "Pessoa" abre `PeopleModal` inline para criar pessoa sem sair do modal — após criação, insere na lista e seleciona automaticamente. Campo Valor usa `handleAmountKeyDown` (teclado numérico digit-by-digit com modo decimal) em vez de `onChange`; `caret-transparent`. |
 | `src/components/financeiro/fin-installment-modal.tsx` | Modal de parcelamento: divide/repete valor em N parcelas com intervalo e vencimento configuráveis, preview de parcelas |
 | `src/components/financeiro/fin-banks-data-grid.tsx` | DataGrid de bancos com reordenação |
 | `src/components/financeiro/fin-bank-modal.tsx` | Modal criar/editar banco |
@@ -234,11 +240,15 @@ C:\Herd\mapa-do-voto\
 | `src/components/financeiro/fin-accounts-tree.tsx` | Árvore hierárquica do plano de contas com reordenação (FinAccount, ReorderItem) |
 | `src/components/financeiro/fin-account-modal.tsx` | Modal criar/editar conta do plano de contas (aceita parentAccount) |
 | `src/components/ui/field.tsx` | Componentes de formulário semânticos: `Field`, `FieldLabel`, `FieldTitle`, `FieldGroup`, `FieldContent`, `FieldDescription`, `FieldError`, `FieldSeparator`, `FieldSet`, `FieldLegend` — baseados em `@radix-ui/react-label` |
-| `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s. Detecta `isProd` pelo hostname: em produção sempre usa `VITE_API_URL`; em dev usa `http://{subdomain}.mapadovoto-api.test/api` |
-| `src/lib/helpers.ts` | Utilitários: `formatDate` (fix timezone — strings `YYYY-MM-DD` parseadas com `T00:00:00` para evitar desvio UTC), `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros") |
+| `src/lib/api.ts` | axios com interceptor Bearer + timeout 30s. Detecta `isProd` pelo hostname: em produção sempre usa `VITE_API_URL`; em dev usa `http://{subdomain}.mapadovoto-api.test/api`. Interceptor de resposta: respostas 401 removem o token do localStorage e disparam `window.dispatchEvent(new Event('auth:logout'))` |
+| `src/lib/helpers.ts` | Utilitários: `formatDate` (fix timezone — strings `YYYY-MM-DD` parseadas com `T00:00:00` para evitar desvio UTC), `formatDateTime`, `formatRecordCount` (ex: "Encontrei 3 registros"), `throttle`, `debounce`, `uid`, `getInitials`, `timeAgo` |
 | `src/lib/party-colors.ts` | Cores + hex dos 30 partidos |
 | `src/lib/leaflet-icon-fix.ts` | Fix ícone Leaflet no Vite |
 | `src/routing/app-routing-setup.tsx` | Rotas |
+| `src/components/common/page-footer.tsx` | Rodapé reutilizável exibido em todas as seções — "ClickMaps \| Mapa do Voto © 2012 - ano \| Grupo: TwoClicks". Substitui os footers inline anteriores em `page.tsx` |
+| `src/components/reui/date-selector.tsx` | Seletor de data avançado (reui) — suporta operadores de filtro (is/before/after/between), tipos de período (dia/mês/trimestre/semestre/ano), calendário duplo para ranges, input de texto, scroll de anos. Exporta `DateSelector`, `DateSelectorValue`, `DateSelectorI18nConfig`, `formatDateValue` |
+| `src/components/patterns/p-date-selector-3.tsx` | Padrão de uso do `DateSelector` dentro de um Dialog (interno — referência) |
+| `src/components/reui/data-grid/data-grid-table.tsx` | Tabela do DataGrid com suporte a linha expandida dupla: `expandedCellContent` (primeira sub-linha, já existia) + `expandedCellContent2` (segunda sub-linha — renderizada apenas se ao menos uma célula retornar conteúdo não-nulo). Ambas iteram as células com `expandedColSpan` |
 
 ### Logo Mapa do Voto
 
@@ -248,7 +258,7 @@ C:\Herd\mapa-do-voto\
 
 Abas: **Mapa**, **Atendimentos**, **Agenda**, **Alianças**, **Finanças** (ícone `DollarSign`), **Configurações** (ícone `Settings`, visível para todos). Aba **Gabinetes** (`isMaster`) existe como `TabsContent` mas não tem `TabsTrigger` — acesso via lógica interna. Aba ativa persiste via `ActiveTabProvider` no `localStorage`.
 
-Aba **Finanças** exibe `<FinMegaMenu />` acima do conteúdo. Seção ativa persiste em `localStorage` (`mapadovoto:finSection`). Seções disponíveis: painel principal (Títulos a Pagar), `fin-banks`, `fin-payment-methods`, `fin-payment-method-types`, `fin-departments`, `fin-accounts`.
+Aba **Finanças** exibe `<FinMegaMenu />` acima do conteúdo. Seção ativa persiste em `localStorage` (`mapadovoto:finSection`). Seções disponíveis: painel principal (Títulos a Pagar), `fin-banks`, `fin-payment-methods`, `fin-payment-method-types`, `fin-departments`, `fin-accounts`, `fin-extract`.
 
 Abas **Gabinetes** e **Configurações** exibem `<AppMegaMenu />` (NavigationMenu do Layout 1) acima do conteúdo. Na aba Configurações, `activeSection={settingsSection}` destaca visualmente o botão do módulo aberto.
 
@@ -281,7 +291,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 ### Ambiente local
 
 - **URL:** `http://mapadovoto-api.test` (via Herd symlink)
-- **Laravel:** 12.53.0 | **PHP:** 8.4 | **PostgreSQL:** 17.7
+- **Laravel:** 12 | **PHP:** 8.4 (runtime) / `^8.2` (composer.json) | **PostgreSQL:** 17.7
 - **Bancos:** `cm_politico` (gabinete_master) + `cm_maps` (maps) | **Usuário:** `mapadovoto`
 
 ### Rotas da API
@@ -425,8 +435,8 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | `gabinete_master.fin_payment_methods` | Modalidades de pagamento (id, name, fin_bank_id, fin_payment_method_type_id, order, active) |
 | `gabinete_master.departments` | Departamentos para rateio de centro de custo (id, name, order, active) |
 | `gabinete_master.fin_accounts` | Plano de contas hierárquico (id, parent_id, code, name, type, order, active) — seed completo com Ativo/Passivo/Custos e Despesas/Receitas |
-| `gabinete_master.fin_titles` | Títulos financeiros a pagar/receber (id, type, description, amount, discount, interest, due_date, paid_at, amount_paid, installment_number, installment_total, account_id, payment_method_id, bank_id, people_id, document_number, invoice_number, barcode, pix_key, status) |
-| `gabinete_master.fin_extract` | Extrato financeiro — lançamentos gerados por baixas (id, title_id, account_id, type, amount, date, payment_method_id, bank_id) |
+| `gabinete_master.fin_titles` | Títulos financeiros a pagar/receber (id, type, description, amount, discount, interest, due_date, paid_at, reversed_at, cancelled_at, amount_paid, installment_number, installment_total, account_id, payment_method_id, bank_id, people_id, document_number, invoice_number, barcode, pix_key, status) |
+| `gabinete_master.fin_extract` | Extrato financeiro — lançamentos gerados por baixas ou manualmente (id, title_id nullable, account_id, type, amount, date, payment_method_id, bank_id, source: manual/baixa/estorno) |
 | `gabinete_master.fin_wallets` | Carteira por pessoa — saldo acumulado de pagamentos excedentes (id, people_id, balance, title_id) |
 | `gabinete_master.fin_cost_centers` | Rateio de centro de custo por título (id, title_id, department_id, percentage) |
 | `gabinete_master.fin_title_compositions` | Composição entre títulos — rastreia origem/destino de clones e parcelamentos (id, origin_title_id, destination_title_id) |
@@ -447,8 +457,15 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | `maps.parties` | 30 partidos (id, name, abbreviation, color_bg, color_text, color_gradient) |
 | `maps.candidacies` | Candidatura por eleição (id, sq_candidato unique, candidate_id, party_id, country_id, state_id, city_id, year, role, ballot_name, number, status) |
 | `maps.votes` | Votos por seção, particionada RANGE(year) (id, candidacy_id, country_id, state_id, city_id, zone_id, voting_location_id, section_id, year, round, qty_votes, vote_type) — partições: `votes_default`, `votes_2022`, `votes_2024` |
-| `maps.tse_votacao_secao_2024` | Staging bruta TSE 2024 (26 colunas text) |
-| `maps.tse_votacao_secao_2022` | Staging bruta TSE 2022 (26 colunas text) |
+| `maps.tse_votacao_secao_2024` | Staging bruta TSE 2024 (26 colunas text) — dados SP importados |
+| `maps.tse_votacao_secao_2022` | Staging bruta TSE 2022 (26 colunas text) — dados SP importados |
+| `maps.tse_votacao_secao_2020` | Staging bruta TSE 2020 (26 colunas text) — estrutura criada, sem dados |
+| `maps.tse_votacao_secao_2018` | Staging bruta TSE 2018 (26 colunas text) — estrutura criada, sem dados |
+| `maps.tse_votacao_secao_2016` | Staging bruta TSE 2016 (26 colunas text) — estrutura criada, sem dados |
+| `maps.tse_votacao_secao_2014` | Staging bruta TSE 2014 (26 colunas text) — estrutura criada, sem dados |
+| `maps.tse_votacao_secao_2012` | Staging bruta TSE 2012 (26 colunas text) — estrutura criada, sem dados |
+| `maps.tse_votacao_secao_2010` | Staging bruta TSE 2010 (26 colunas text) — estrutura criada, sem dados |
+| `maps.tse_votacao_secao_2008` | Staging bruta TSE 2008 (26 colunas text) — estrutura criada, sem dados |
 
 ### Models e relacionamentos
 
@@ -478,14 +495,16 @@ Todos os models têm `$table` explícito com schema qualificado.
 - `FinPaymentMethod` (`gabinete_master.fin_payment_methods`) — com SoftDeletes; `$fillable`: `name`, `fin_bank_id`, `fin_payment_method_type_id`, `order`, `active`; `belongsTo(FinBank)`, `belongsTo(FinPaymentMethodType)`
 - `Department` (`gabinete_master.departments`) — com SoftDeletes; `$fillable`: `name`, `order`, `active`
 - `FinAccount` (`gabinete_master.fin_accounts`) — com SoftDeletes; `$fillable`: `parent_id`, `code`, `name`, `type`, `order`, `active`; `belongsTo(FinAccount, 'parent_id')`, `hasMany(FinAccount, 'parent_id')`
-- `FinTitle` (`gabinete_master.fin_titles`) — com SoftDeletes; `$fillable`: todos os campos; casts: `amount/discount/interest/amount_paid` → decimal, `due_date/paid_at` → date; `belongsTo(FinAccount, 'account_id')`, `belongsTo(FinPaymentMethod)`, `belongsTo(FinBank)`, `belongsTo(People)`; `hasMany(FinCostCenter)`, `hasMany(FinTitleComposition, 'origin_title_id')`, `hasMany(FinTitleComposition, 'destination_title_id')`
-- `FinExtract` (`gabinete_master.fin_extract`) — sem SoftDeletes; `$fillable`: `title_id`, `account_id`, `type`, `amount`, `date`, `payment_method_id`, `bank_id`
+- `FinTitle` (`gabinete_master.fin_titles`) — com SoftDeletes; `$fillable`: todos os campos incluindo `reversed_at` e `cancelled_at`; casts: `amount/discount/interest/amount_paid` → decimal, `due_date/paid_at/reversed_at/cancelled_at` → date; boot: hook `updating` auto-preenche `cancelled_at = now()` quando `status` muda para `cancelled`; `belongsTo(FinAccount, 'account_id')`, `belongsTo(FinPaymentMethod)`, `belongsTo(FinBank)`, `belongsTo(People)`; `hasMany(FinCostCenter)`, `hasMany(FinTitleComposition, 'origin_title_id')`, `hasMany(FinTitleComposition, 'destination_title_id')`
+- `FinExtract` (`gabinete_master.fin_extract`) — sem SoftDeletes; `$fillable`: `title_id` (nullable), `account_id`, `type`, `amount`, `date`, `payment_method_id`, `bank_id`, `source` (manual/baixa/estorno)
 - `FinWallet` (`gabinete_master.fin_wallets`) — sem SoftDeletes; `$fillable`: `people_id`, `balance`, `title_id`
 - `FinCostCenter` (`gabinete_master.fin_cost_centers`) — sem SoftDeletes; `$fillable`: `title_id`, `department_id`, `percentage`; `belongsTo(Department)`
 - `FinTitleComposition` (`gabinete_master.fin_title_compositions`) — sem SoftDeletes; `$fillable`: `origin_title_id`, `destination_title_id`
 - `City` (`maps.cities`), `State` (`maps.states`), `Country` (`maps.countries`), `Zone` (`maps.zones`), `Section` (`maps.sections`), `VotingLocation` (`maps.voting_locations`), `Vote` (`maps.votes`), `Gender` (`maps.genders`)
 
 ### Seeders
+
+> ⚠️ Os arquivos de seeder **não estão versionados** no repositório (`api/database/seeders/` está vazio). Os dados abaixo foram executados em algum momento e existem no banco, mas os `.php` precisam ser recriados.
 
 - `DatabaseSeeder` — cria people + user (Alex / alex@mapadovoto.com, role=admin)
 - `PartySeeder` — 30 partidos com color_bg, color_text, color_gradient
@@ -511,8 +530,9 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `000001`–`000013` | `gabinete_master` | schema, tenants, PAT, cache, jobs, sessions, type_people, people (inclui birth_date + photo_path), users, permission_actions (inclui order + name_module + name_action), permissions, people_candidacies, split_candidacies |
 | `000051`–`000052` | `gabinete_master` | attendances, attendance_history |
 | `000053`–`000060` | `gabinete_master` | type_contacts, type_addresses, type_documents, contacts, addresses (campos ViaCEP + lat/lng), documents, notes, files |
-| `000061`–`000070` | `gabinete_master` (+ schemas tenant) | fin_banks (seed: 3 registros), fin_payment_method_types, fin_payment_methods, departments, fin_accounts (seed: plano de contas completo), fin_titles, fin_extract, fin_wallets, fin_cost_centers, fin_title_compositions — **aplicadas em todos os schemas tenant** (`has_schema=true`) |
-| `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes (inclui índices), tse_votacao_secao (2008–2024) |
+| `000061`–`000068` | `gabinete_master` (+ schemas tenant) | fin_banks (seed: 3 registros), fin_payment_method_types, fin_payment_methods, departments, fin_accounts (seed: plano de contas completo), fin_titles, fin_extract, fin_wallets, fin_cost_centers, fin_title_compositions — **aplicadas em todos os schemas tenant** (`has_schema=true`) |
+| `000069`–`000071` | `gabinete_master` (+ schemas tenant) | `000069`: adiciona `source` (varchar, default `'manual'`) em `fin_extract`; `000070`: adiciona `reversed_at` (date nullable) em `fin_titles`; `000071`: adiciona `cancelled_at` (date nullable) em `fin_titles` — aplicadas em todos os schemas tenant |
+| `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes (inclui índices), tse_votacao_secao (2008–2024 — 9 tabelas de staging, estrutura criada para todos os anos) |
 
 **Observações sobre migrations:**
 - `down()` das migrations de schema (000001, 000101) são **no-op** — schemas não são dropados; cada migration de tabela cuida dos seus próprios objetos
@@ -548,17 +568,17 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/FinBankController.php` | CRUD de bancos — `index`, `store`, `update` (aceita só `order`), `destroy` |
 | `api/app/Http/Controllers/FinPaymentMethodTypeController.php` | CRUD + `reorder` de tipos de modalidade |
 | `api/app/Http/Controllers/FinPaymentMethodController.php` | CRUD de modalidades de pagamento |
-| `api/app/Http/Controllers/FinExtractController.php` | `index` (listagem do extrato), `store` (lançamento manual) |
+| `api/app/Http/Controllers/FinExtractController.php` | `index` (listagem do extrato — eager-load `title.people`), `store` (lançamento manual — auto-set `source = 'manual'`). `format()` retorna `people_id`, `people_name`, `source` |
 | `api/app/Http/Controllers/DepartmentController.php` | CRUD de departamentos |
 | `api/app/Http/Controllers/FinWalletController.php` | `index`, `show($peopleId)` — saldo da carteira |
 | `api/app/Http/Controllers/FinAccountController.php` | CRUD + `reorder` do plano de contas hierárquico |
-| `api/app/Http/Controllers/FinTitleController.php` | `index` (filtros: type, status, people_id, account_id, bank_id, date_from/to), `show`, `store`, `update`, `destroy`, `compose` (cancela originais, gera N títulos divididos, registra `fin_title_compositions`), `pay` (baixa: gera extrato, credita carteira se excedente, gera título restante se parcial), `reverse` (estorno: cria título inverso), `clone` (copia título + cost_centers). `formatDetail()` inclui `composition_origins` (títulos que originaram este) e `composition_destinations` (títulos gerados a partir deste) |
+| `api/app/Http/Controllers/FinTitleController.php` | `index` (filtros: type, status, people_id, account_id, bank_id, date_from/to), `show`, `store`, `update`, `destroy`, `compose` (cancela originais, gera N títulos divididos, registra `fin_title_compositions`), `pay` (baixa: gera extrato com `source='baixa'`, credita carteira se excedente, gera título restante se parcial), `reverse` (estorno: seta `reversed_at`, gera `FinExtract` com `source='estorno'`, clona título original como `pending` copiando cost_centers), `clone` (copia título + cost_centers). `format()` inclui `reversed_at` e `cancelled_at`. `formatDetail()` inclui `composition_origins` e `composition_destinations` |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, PersonalAccessToken, Permission, PermissionAction, PersonFile, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |
 | `api/app/Providers/AppServiceProvider.php` | `Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class)` |
 | `api/database/migrations/` | migrations 2026_03_13_* numeradas 000001–000052 (gabinete) e 000101–000121 (maps) |
-| `api/database/seeders/` | DatabaseSeeder, PartySeeder, CandidacySeeder, PeopleCandidacySeeder |
+| `api/database/seeders/` | ⚠️ Diretório vazio — seeders não versionados (ver seção Seeders acima) |
 | `api/config/cors.php` | CORS — `allowed_origins: ['*']` |
 | `api/config/database.php` | `search_path: 'gabinete_master,maps,public'` |
 

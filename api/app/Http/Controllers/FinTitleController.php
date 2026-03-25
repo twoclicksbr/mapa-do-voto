@@ -154,6 +154,7 @@ class FinTitleController extends Controller
                 'date'              => $data['paid_at'],
                 'payment_method_id' => $data['payment_method_id'] ?? $title->payment_method_id,
                 'bank_id'           => $data['bank_id'] ?? $title->bank_id,
+                'source'            => 'baixa',
             ]);
 
             // Atualiza carteira se pagamento excede valor líquido
@@ -192,7 +193,7 @@ class FinTitleController extends Controller
 
     public function reverse(int $id)
     {
-        $title = FinTitle::findOrFail($id);
+        $title = FinTitle::with('costCenters')->findOrFail($id);
 
         if ($title->status === 'reversed') {
             return response()->json(['message' => 'Título já está estornado.'], 422);
@@ -203,7 +204,7 @@ class FinTitleController extends Controller
         }
 
         DB::transaction(function () use ($title) {
-            $title->update(['status' => 'reversed']);
+            $title->update(['status' => 'reversed', 'reversed_at' => now()->format('Y-m-d')]);
 
             $today = now()->format('Y-m-d');
 
@@ -220,6 +221,48 @@ class FinTitleController extends Controller
                 'people_id'         => $title->people_id,
                 'status'            => 'paid',
             ]);
+
+            // Gera extrato inverso do estorno — usa a data da baixa original
+            FinExtract::create([
+                'title_id'          => $title->id,
+                'account_id'        => $title->account_id,
+                'type'              => $title->type === 'income' ? 'out' : 'in',
+                'amount'            => $title->amount_paid ?? $title->amount,
+                'date'              => $title->paid_at?->format('Y-m-d') ?? $today,
+                'payment_method_id' => $title->payment_method_id,
+                'bank_id'           => $title->bank_id,
+                'source'            => 'estorno',
+            ]);
+
+            // Clona o título original como pendente para reprocessamento
+            $clone = FinTitle::create([
+                'type'               => $title->type,
+                'amount'             => $title->amount,
+                'discount'           => $title->discount,
+                'interest'           => $title->interest,
+                'multa'              => $title->multa,
+                'issue_date'         => $today,
+                'due_date'           => $title->due_date,
+                'installment_number' => $title->installment_number,
+                'installment_total'  => $title->installment_total,
+                'account_id'         => $title->account_id,
+                'payment_method_id'  => $title->payment_method_id,
+                'bank_id'            => $title->bank_id,
+                'people_id'          => $title->people_id,
+                'document_number'    => $title->document_number,
+                'invoice_number'     => $title->invoice_number,
+                'barcode'            => $title->barcode,
+                'pix_key'            => $title->pix_key,
+                'status'             => 'pending',
+            ]);
+
+            foreach ($title->costCenters as $cc) {
+                FinCostCenter::create([
+                    'title_id'      => $clone->id,
+                    'department_id' => $cc->department_id,
+                    'percentage'    => $cc->percentage,
+                ]);
+            }
         });
 
         $title->load(['account', 'paymentMethod', 'bank', 'people', 'costCenters.department']);
@@ -389,6 +432,8 @@ class FinTitleController extends Controller
             'issue_date'         => $title->issue_date?->format('Y-m-d'),
             'due_date'           => $title->due_date?->format('Y-m-d'),
             'paid_at'            => $title->paid_at?->format('Y-m-d'),
+            'reversed_at'        => $title->reversed_at?->format('Y-m-d'),
+            'cancelled_at'       => $title->cancelled_at?->format('Y-m-d'),
             'amount_paid'        => $title->amount_paid !== null ? (float) $title->amount_paid : null,
             'installment_number' => $title->installment_number,
             'installment_total'  => $title->installment_total,

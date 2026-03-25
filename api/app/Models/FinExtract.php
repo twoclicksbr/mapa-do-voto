@@ -17,6 +17,7 @@ class FinExtract extends Model
         'date',
         'payment_method_id',
         'bank_id',
+        'source',
     ];
 
     protected $casts = [

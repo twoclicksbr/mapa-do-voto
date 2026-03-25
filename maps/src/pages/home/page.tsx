@@ -1,10 +1,10 @@
-import { useRef, useState, useEffect, Fragment } from "react";
+import { useRef, useState, useEffect, useMemo, Fragment } from "react";
 import * as L from "leaflet";
 import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Search, Plus, MousePointerClick, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
@@ -54,6 +54,9 @@ import { DepartmentModal } from "@/components/financeiro/department-modal";
 import { FinAccountsTree, FinAccount, ReorderItem } from "@/components/financeiro/fin-accounts-tree";
 import { FinAccountModal } from "@/components/financeiro/fin-account-modal";
 import { FinTitleModal } from "@/components/financeiro/fin-title-modal";
+import { FinTitlesFilterModal, FinTitlesFilters } from "@/components/financeiro/fin-titles-filter-modal";
+import { FinExtractDataGrid, FinExtractEntry, ExtractViewToggle, ExtractView, EXTRACT_VIEW_KEY } from "@/components/financeiro/fin-extract-data-grid";
+import { PageFooter } from "@/components/common/page-footer";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Home': Home,
@@ -79,6 +82,7 @@ const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Tipos de Modalidade': BookmarkCheck,
   'Departamentos': Building,
   'Plano de Contas': LayoutList,
+  'Extrato': ScrollText,
 };
 
 function SectionBreadcrumb({ items }: { items: string[] }) {
@@ -212,6 +216,32 @@ export function HomePage() {
   const [finTitlesIncomeSelectedIds, setFinTitlesIncomeSelectedIds] = useState<number[]>([]);
   const [finTitlesIncomeAllSamePeople, setFinTitlesIncomeAllSamePeople] = useState(false);
   const [finTitlesIncomeSelectedItems, setFinTitlesIncomeSelectedItems] = useState<FinTitle[]>([]);
+  const [finTitlesFilterOpen, setFinTitlesFilterOpen] = useState(false);
+  const [finTitlesFilterType, setFinTitlesFilterType] = useState<'income' | 'expense'>('expense');
+  const [finTitlesFilters, setFinTitlesFilters] = useState<FinTitlesFilters>({});
+
+  const applyFinFilters = (list: FinTitle[]) => list.filter((t) => {
+    const f = finTitlesFilters;
+    if (f.invoiceNumber  && !t.invoice_number?.toLowerCase().includes(f.invoiceNumber.toLowerCase())) return false;
+    if (f.peopleId       && t.people_id !== f.peopleId) return false;
+    if (f.documentNumber && !t.document_number?.toLowerCase().includes(f.documentNumber.toLowerCase())) return false;
+    if (f.status?.length && !f.status.includes(t.status)) return false;
+    if (f.dateValue && f.dateField) {
+      const raw = (t as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const v = f.dateValue;
+        if (v.operator === "is"      && v.startDate && d.toDateString() !== v.startDate.toDateString()) return false;
+        if (v.operator === "before"  && v.startDate && d >= v.startDate)  return false;
+        if (v.operator === "after"   && v.startDate && d <= v.startDate)  return false;
+        if (v.operator === "between" && v.startDate && v.endDate && (d < v.startDate || d > v.endDate)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredFinTitles       = useMemo(() => applyFinFilters(finTitles),       [finTitles, finTitlesFilters]);
+  const filteredFinTitlesIncome = useMemo(() => applyFinFilters(finTitlesIncome), [finTitlesIncome, finTitlesFilters]);
 
   const [finBanks, setFinBanks] = useState<FinBank[]>([]);
   const [finBanksLoading, setFinBanksLoading] = useState(false);
@@ -242,6 +272,16 @@ export function HomePage() {
   const [finAccountModalOpen, setFinAccountModalOpen] = useState(false);
   const [editingFinAccount, setEditingFinAccount] = useState<FinAccount | null>(null);
   const [parentFinAccount, setParentFinAccount] = useState<FinAccount | null>(null);
+
+  const [finExtract, setFinExtract] = useState<FinExtractEntry[]>([]);
+  const [finExtractLoading, setFinExtractLoading] = useState(false);
+  const [finExtractView, setFinExtractViewState] = useState<ExtractView>(
+    () => (localStorage.getItem(EXTRACT_VIEW_KEY) as ExtractView) ?? "grid"
+  );
+  const setFinExtractView = (v: ExtractView) => {
+    localStorage.setItem(EXTRACT_VIEW_KEY, v);
+    setFinExtractViewState(v);
+  };
 
   useEffect(() => {
     if (!isMaster) return;
@@ -503,6 +543,15 @@ export function HomePage() {
       .finally(() => setFinAccountsLoading(false));
   }, [loggedIn, finSection]);
 
+  useEffect(() => {
+    if (!loggedIn || finSection !== 'fin-extract') return;
+    setFinExtractLoading(true);
+    api.get<FinExtractEntry[]>('/fin-extract')
+      .then(res => setFinExtract(res.data))
+      .catch(() => setFinExtract([]))
+      .finally(() => setFinExtractLoading(false));
+  }, [loggedIn, finSection]);
+
   const handleFinAccountsReorder = async (items: ReorderItem[]) => {
     await api.put('/fin-accounts/reorder', items);
   };
@@ -558,7 +607,7 @@ export function HomePage() {
   };
 
   return (
-    <div className="container-fluid flex flex-col h-full">
+    <div className="container-fluid flex flex-col flex-1 min-h-0">
       <LoginModal />
       <GabinetCreateModal
         open={createModalOpen}
@@ -708,6 +757,12 @@ export function HomePage() {
         onClose={() => { setFinTitleModalOpen(false); setEditingFinTitle(null); setFinTitleInitialTab("geral"); }}
         onSaved={handleFinTitleSaved}
       />
+      <FinTitlesFilterModal
+        open={finTitlesFilterOpen}
+        filters={finTitlesFilters}
+        onClose={() => setFinTitlesFilterOpen(false)}
+        onApply={(f) => setFinTitlesFilters(f)}
+      />
       <FinCompositionModal
         open={finCompositionModalOpen}
         titles={finCompositionTitles}
@@ -845,19 +900,16 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <GabinetesDataGrid tenants={tenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} onEdit={setEditingTenant} />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span> Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           </TabsContent>
         )}
 
-        <TabsContent value="overview" className="flex-1 min-h-0 mt-0">
-          <div className="rounded-lg overflow-hidden h-full flex flex-row">
+        <TabsContent value="overview" className="flex-1 min-h-0 mt-0 flex flex-col">
+          <div className="flex-1 min-h-0 rounded-lg overflow-hidden flex flex-row">
             <div className={isSplit ? "w-1/2 h-full" : "w-full h-full"}>
               <MapaDoVotoMap
                 mapRef={mapRef1}
@@ -879,6 +931,7 @@ export function HomePage() {
               </div>
             )}
           </div>
+          <PageFooter />
         </TabsContent>
 
         <TabsContent value="activity" className="flex-1 min-h-0 mt-0">
@@ -939,7 +992,7 @@ export function HomePage() {
                 )}
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 min-h-0 overflow-y-auto p-6">
               <PeopleDataGrid
                 people={people}
                 isLoading={peopleLoading}
@@ -948,10 +1001,7 @@ export function HomePage() {
                 onDelete={handlePeopleDelete}
               />
             </div>
-            <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-              <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-              <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-            </div>
+            <PageFooter />
           </div>
         </TabsContent>
 
@@ -969,10 +1019,7 @@ export function HomePage() {
               <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
                 Em breve
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : finSection === 'fin-payment-method-types' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1012,7 +1059,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <FinPaymentMethodTypesDataGrid
                   types={finPaymentMethodTypes}
                   isLoading={finPaymentMethodTypesLoading}
@@ -1022,10 +1069,7 @@ export function HomePage() {
                   onReorder={handleFinPaymentMethodTypeReorder}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : finSection === 'fin-payment-methods' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1066,7 +1110,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <FinPaymentMethodsDataGrid
                   methods={finPaymentMethods}
                   isLoading={finPaymentMethodsLoading}
@@ -1076,10 +1120,7 @@ export function HomePage() {
                   onReorder={handleFinPaymentMethodReorder}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : finSection === 'fin-departments' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1120,7 +1161,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <DepartmentsDataGrid
                   departments={departments}
                   isLoading={departmentsLoading}
@@ -1130,10 +1171,7 @@ export function HomePage() {
                   onReorder={handleDepartmentsReorder}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : finSection === 'fin-accounts' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1153,7 +1191,7 @@ export function HomePage() {
                   </Button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <FinAccountsTree
                   accounts={finAccounts}
                   isLoading={finAccountsLoading}
@@ -1163,10 +1201,7 @@ export function HomePage() {
                   onDelete={handleFinAccountDelete}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : finSection === 'fin-banks' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1207,7 +1242,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <FinBanksDataGrid
                   banks={finBanks}
                   isLoading={finBanksLoading}
@@ -1217,10 +1252,31 @@ export function HomePage() {
                   onReorder={handleFinBankReorder}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
+              <PageFooter />
+            </div>
+          ) : finSection === 'fin-extract' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5">
+                    <ScrollText className="size-5 text-muted-foreground" />
+                    Extrato
+                    <Badge variant="success" appearance="light" size="md">{formatRecordCount(finExtract.length)}</Badge>
+                  </h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Extrato']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="h-8">
+                    <Search className="size-4 mr-2" />
+                    Pesquisar
+                  </Button>
+                  <ExtractViewToggle view={finExtractView} onChange={setFinExtractView} />
+                </div>
               </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
+                <FinExtractDataGrid entries={finExtract} isLoading={finExtractLoading} view={finExtractView} />
+              </div>
+              <PageFooter />
             </div>
           ) : finSection === 'fin-titles-income' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1259,7 +1315,7 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => { setFinTitlesFilterType('income'); setFinTitlesFilterOpen(true); }}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
                       </Button>
@@ -1271,19 +1327,16 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <FinTitlesDataGrid
-                  titles={finTitlesIncome}
+                  titles={filteredFinTitlesIncome}
                   isLoading={finTitlesIncomeLoading}
                   onSelectionChange={(count, allPending, ids, allSamePeople, items) => { setFinTitlesIncomeSelected(count); setFinTitlesIncomeAllPending(allPending); setFinTitlesIncomeSelectedIds(ids); setFinTitlesIncomeAllSamePeople(allSamePeople); setFinTitlesIncomeSelectedItems(items); }}
                   onEdit={(t) => { setFinTitleInitialTab("geral"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                   onBaixar={(t) => { setFinTitleInitialTab("baixar"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1322,7 +1375,7 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => { setFinTitlesFilterType('expense'); setFinTitlesFilterOpen(true); }}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
                       </Button>
@@ -1334,19 +1387,16 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <FinTitlesDataGrid
-                  titles={finTitles}
+                  titles={filteredFinTitles}
                   isLoading={finTitlesLoading}
                   onSelectionChange={(count, allPending, ids, allSamePeople, items) => { setFinTitlesSelected(count); setFinTitlesAllPending(allPending); setFinTitlesSelectedIds(ids); setFinTitlesAllSamePeople(allSamePeople); setFinTitlesSelectedItems(items); }}
                   onEdit={(t) => { setFinTitleInitialTab("geral"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                   onBaixar={(t) => { setFinTitleInitialTab("baixar"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           )}
         </TabsContent>
@@ -1364,10 +1414,7 @@ export function HomePage() {
               <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
                 Em breve
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : settingsSection === 'type-people' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1408,7 +1455,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <TypePeopleDataGrid
                   typePeople={typePeople}
                   isLoading={typePeopleLoading}
@@ -1418,10 +1465,7 @@ export function HomePage() {
                   onReorder={handleTypePeopleReorder}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : settingsSection === 'type-contact' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1462,7 +1506,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <TypeContactsDataGrid
                   typeContacts={typeContacts}
                   isLoading={typeContactsLoading}
@@ -1472,10 +1516,7 @@ export function HomePage() {
                   onReorder={handleTypeContactsReorder}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : settingsSection === 'type-address' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1516,7 +1557,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <TypeAddressesDataGrid
                   typeAddresses={typeAddresses}
                   isLoading={typeAddressesLoading}
@@ -1526,10 +1567,7 @@ export function HomePage() {
                   onReorder={handleTypeAddressesReorder}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : settingsSection === 'type-document' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1570,7 +1608,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <TypeDocumentsDataGrid
                   typeDocuments={typeDocuments}
                   isLoading={typeDocumentsLoading}
@@ -1580,10 +1618,7 @@ export function HomePage() {
                   onReorder={handleTypeDocumentsReorder}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : settingsSection === 'pessoas' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1624,7 +1659,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <PeopleDataGrid
                   people={people}
                   isLoading={peopleLoading}
@@ -1633,10 +1668,7 @@ export function HomePage() {
                   onDelete={handlePeopleDelete}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : settingsSection === 'gabinetes' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1681,13 +1713,10 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <GabinetesDataGrid tenants={tenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} onEdit={setEditingTenant} />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : settingsSection === 'permission-actions' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
@@ -1727,7 +1756,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <PermissionActionsDataGrid
                   permissionActions={permissionActions}
                   isLoading={permissionActionsLoading}
@@ -1736,10 +1765,7 @@ export function HomePage() {
                   onAddToModule={(module) => { setEditingPermissionAction({ id: 0, module, action: '', description: null }); }}
                 />
               </div>
-              <div className="flex items-center justify-between px-6 py-3 border-t border-border text-xs text-muted-foreground">
-                <span><strong className="inline-flex items-center gap-1"><MapPin className="size-3" />ClickMaps</strong> | <strong className="inline-flex items-center gap-1"><MapPinned className="size-3" />Mapa do Voto</strong> &copy; 2012 - {new Date().getFullYear()}</span>
-                <span>Grupo: <strong className="inline-flex items-center gap-1"><MousePointerClick className="size-3" />TwoClicks</strong></span>
-              </div>
+              <PageFooter />
             </div>
           ) : (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden flex items-center justify-center border border-border">

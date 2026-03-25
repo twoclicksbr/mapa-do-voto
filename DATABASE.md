@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 22/03/2026 (módulo Financeiro: fin_banks, fin_payment_method_types, fin_payment_methods, departments, fin_accounts, fin_titles, fin_extract, fin_wallets, fin_cost_centers, fin_title_compositions)
+> Atualizado em: 25/03/2026 (fin_titles: +reversed_at, +cancelled_at — migrations 000070/000071; fin_extract: +source, title_id nullable — migration 000069)
 
 ---
 
@@ -531,7 +531,7 @@ Plano de contas hierárquico. Cada conta pode ter um `parent_id` formando uma á
 ---
 
 ### `gabinete_master.fin_titles`
-Títulos financeiros a pagar e a receber. Migração `000066`.
+Títulos financeiros a pagar e a receber. Migrações `000066`, `000070` (+reversed_at), `000071` (+cancelled_at).
 
 | Coluna | Tipo | Nullable | Descrição |
 |---|---|---|---|
@@ -543,6 +543,8 @@ Títulos financeiros a pagar e a receber. Migração `000066`.
 | `interest` | decimal(15,2) | NULL | Juros/multa |
 | `due_date` | date | NOT NULL | Vencimento |
 | `paid_at` | date | NULL | Data de pagamento/recebimento |
+| `reversed_at` | date | NULL | Data de estorno (preenchida automaticamente pelo `reverse()`) |
+| `cancelled_at` | date | NULL | Data de cancelamento (preenchida automaticamente ao setar `status = 'cancelled'`) |
 | `amount_paid` | decimal(15,2) | NULL | Valor efetivamente pago |
 | `installment_number` | integer | NULL | Nº da parcela (ex: 1) |
 | `installment_total` | integer | NULL | Total de parcelas (ex: 12) |
@@ -570,18 +572,19 @@ Títulos financeiros a pagar e a receber. Migração `000066`.
 ---
 
 ### `gabinete_master.fin_extract`
-Extrato financeiro — lançamentos gerados automaticamente pela baixa de títulos. Migração `000067`.
+Extrato financeiro — lançamentos gerados por baixas, estornos ou manualmente. Migrações `000067` (criação), `000069` (+source, title_id nullable).
 
 | Coluna | Tipo | Nullable | Descrição |
 |---|---|---|---|
 | `id` | bigint | NOT NULL | PK autoincrement |
-| `title_id` | bigint | NOT NULL | Referência a `fin_titles.id` |
+| `title_id` | bigint | NULL | Referência a `fin_titles.id` (nullable para lançamentos manuais sem título) |
 | `account_id` | bigint | NULL | Referência a `fin_accounts.id` |
 | `type` | varchar | NOT NULL | `in` (entrada) ou `out` (saída) |
 | `amount` | decimal(15,2) | NOT NULL | Valor do lançamento |
 | `date` | date | NOT NULL | Data do lançamento |
 | `payment_method_id` | bigint | NULL | Referência a `fin_payment_methods.id` |
 | `bank_id` | bigint | NULL | Referência a `fin_banks.id` |
+| `source` | varchar | NOT NULL | Origem: `manual` (lançamento avulso), `baixa` (gerado pelo `pay()`), `estorno` (gerado pelo `reverse()`) — default: `manual` |
 | `created_at` | timestamp | NULL | — |
 | `updated_at` | timestamp | NULL | — |
 

@@ -344,33 +344,52 @@ function DataGridTableBodyRowExpandded<TData>({ row }: { row: Row<TData> }) {
     const bodyCellSpacing = bodyCellSpacingVariants({
       size: props.tableLayout?.dense ? "dense" : "default",
     })
-    const renderedCells: ReactNode[] = []
-    let i = 0
-    while (i < visibleCells.length) {
-      const cell = visibleCells[i]
-      const rawSpan = (cell.column.columnDef.meta?.expandedColSpan as number | undefined) ?? 1
-      const colSpan = Math.min(rawSpan, visibleCells.length - i)
-      const isFirst = i === 0
-      const isLast  = i + colSpan >= visibleCells.length
-      renderedCells.push(
-        <td
-          key={cell.id}
-          colSpan={colSpan > 1 ? colSpan : undefined}
-          className={cn(
-            "align-middle bg-muted/60 border-b border-black/40",
-            bodyCellSpacing,
-            colSpan === 1 ? (cell.column.columnDef.meta?.cellClassName as string | undefined) : undefined,
-            (isFirst || isLast) ? props.tableClassNames?.edgeCell : ""
-          )}
-        >
-          {(cell.column.columnDef.meta?.expandedCellContent as
-            | ((row: TData) => ReactNode)
-            | undefined)?.(row.original)}
-        </td>
-      )
-      i += colSpan
+
+    const renderRow = (contentKey: "expandedCellContent" | "expandedCellContent2") => {
+      const renderedCells: ReactNode[] = []
+      let i = 0
+      while (i < visibleCells.length) {
+        const cell = visibleCells[i]
+        const rawSpan = (cell.column.columnDef.meta?.expandedColSpan as number | undefined) ?? 1
+        const colSpan = Math.min(rawSpan, visibleCells.length - i)
+        const isFirst = i === 0
+        const isLast  = i + colSpan >= visibleCells.length
+        renderedCells.push(
+          <td
+            key={cell.id}
+            colSpan={colSpan > 1 ? colSpan : undefined}
+            className={cn(
+              "align-middle bg-muted/60 border-b border-black/40",
+              bodyCellSpacing,
+              colSpan === 1 ? (cell.column.columnDef.meta?.cellClassName as string | undefined) : undefined,
+              (isFirst || isLast) ? props.tableClassNames?.edgeCell : ""
+            )}
+          >
+            {(cell.column.columnDef.meta?.[contentKey] as
+              | ((row: TData) => ReactNode)
+              | undefined)?.(row.original)}
+          </td>
+        )
+        i += colSpan
+      }
+      return renderedCells
     }
-    return <tr>{renderedCells}</tr>
+
+    const hasSecondRow = table
+      .getAllColumns()
+      .some((col) => col.columnDef.meta?.expandedCellContent2)
+
+    const secondRowVisible = hasSecondRow && visibleCells.some((cell) => {
+      const fn = cell.column.columnDef.meta?.expandedCellContent2 as ((row: TData) => ReactNode) | undefined
+      return fn?.(row.original) != null
+    })
+
+    return (
+      <Fragment>
+        <tr>{renderRow("expandedCellContent")}</tr>
+        {secondRowVisible && <tr>{renderRow("expandedCellContent2")}</tr>}
+      </Fragment>
+    )
   }
 
   // Legacy mode: single spanning <td>

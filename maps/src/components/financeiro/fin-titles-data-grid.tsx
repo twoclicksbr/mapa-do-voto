@@ -33,6 +33,8 @@ export interface FinTitle {
   issue_date: string | null;
   due_date: string;
   paid_at: string | null;
+  reversed_at: string | null;
+  cancelled_at: string | null;
   amount_paid: number | null;
   installment_number: number | null;
   installment_total: number | null;
@@ -155,7 +157,7 @@ export function FinTitlesDataGrid({
         id: "expand",
         header: () => null,
         cell: ({ row }) => {
-          const hasPay = ["paid", "partial", "reversed"].includes(row.original.status);
+          const hasPay = ["paid", "partial", "reversed", "cancelled"].includes(row.original.status);
           if (!hasPay) return null;
           return (
             <button
@@ -174,7 +176,28 @@ export function FinTitlesDataGrid({
           cellClassName: "w-[3%]",
           expandedColSpan: 7,
           expandedCellContent: (title: FinTitle) => {
-            if (!["paid", "partial", "reversed"].includes(title.status)) return null;
+            if (!["paid", "partial", "reversed", "cancelled"].includes(title.status)) return null;
+            const parts: React.ReactNode[] = [];
+            if (title.bank_name)
+              parts.push(<>Banco: <strong>{title.bank_name}</strong></>);
+            if (title.account_name)
+              parts.push(<>Conta Financeira: <strong>{title.account_name}</strong></>);
+            if (title.payment_method_name)
+              parts.push(<>Modalidade: <strong>{title.payment_method_name}</strong></>);
+            if (!parts.length) return null;
+            return (
+              <p className="text-xs text-muted-foreground text-right">
+                {parts.map((part, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <span className="mx-4 text-muted-foreground/50">|</span>}
+                    {part}
+                  </React.Fragment>
+                ))}
+              </p>
+            );
+          },
+          expandedCellContent2: (title: FinTitle) => {
+            if (title.status !== "reversed") return null;
             const parts: React.ReactNode[] = [];
             if (title.bank_name)
               parts.push(<>Banco: <strong>{title.bank_name}</strong></>);
@@ -361,6 +384,17 @@ export function FinTitlesDataGrid({
               </div>
             ) : null;
           },
+          expandedCellContent2: (title: FinTitle) => {
+            if (title.status === "reversed" && title.amount_paid != null) {
+              return (
+                <div className="space-y-0.5 text-xs">
+                  <p className="text-muted-foreground text-left">Valor Estornado</p>
+                  <p className="font-semibold tabular-nums text-right">{fmtBRL(title.amount_paid)}</p>
+                </div>
+              );
+            }
+            return null;
+          },
         },
         enableSorting: true,
         enableHiding: false,
@@ -391,7 +425,16 @@ export function FinTitlesDataGrid({
           headerClassName: "w-[12%]",
           cellClassName: "w-[12%]",
           expandedCellContent: (title: FinTitle) => {
-            if (!["paid", "partial", "reversed"].includes(title.status)) return null;
+            if (!["paid", "partial", "reversed", "cancelled"].includes(title.status)) return null;
+            if (title.status === "cancelled") {
+              const dataCancelamento = title.cancelled_at ? fmtDate(title.cancelled_at) : null;
+              return dataCancelamento ? (
+                <div className="space-y-0.5 text-xs">
+                  <p className="text-muted-foreground">Data Cancelamento</p>
+                  <p className="font-semibold">{dataCancelamento}</p>
+                </div>
+              ) : null;
+            }
             const dataBaixa = title.paid_at ? fmtDate(title.paid_at) : null;
             return dataBaixa ? (
               <div className="space-y-0.5 text-xs">
@@ -399,6 +442,17 @@ export function FinTitlesDataGrid({
                 <p className="font-semibold">{dataBaixa}</p>
               </div>
             ) : null;
+          },
+          expandedCellContent2: (title: FinTitle) => {
+            if (title.status === "reversed" && title.reversed_at) {
+              return (
+                <div className="space-y-0.5 text-xs">
+                  <p className="text-muted-foreground">Data Estorno</p>
+                  <p className="font-semibold">{fmtDate(title.reversed_at)}</p>
+                </div>
+              );
+            }
+            return null;
           },
         },
         enableSorting: true,

@@ -51,6 +51,16 @@ export function LoginModalProvider({ children }: { children: React.ReactNode }) 
       });
   }, [isLoggingOut]);
 
+  useEffect(() => {
+    const handle = () => {
+      setUser(null);
+      setLoggedIn(false);
+      setOpen(true);
+    };
+    window.addEventListener('auth:logout', handle);
+    return () => window.removeEventListener('auth:logout', handle);
+  }, []);
+
   const logout = async () => {
     setIsLoggingOut(true);
     try {

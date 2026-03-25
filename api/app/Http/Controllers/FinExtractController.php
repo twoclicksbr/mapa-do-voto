@@ -10,7 +10,7 @@ class FinExtractController extends Controller
 {
     public function index(Request $request)
     {
-        $query = FinExtract::with(['title', 'account', 'paymentMethod', 'bank'])
+        $query = FinExtract::with(['title.people', 'account', 'paymentMethod', 'bank'])
             ->orderBy('date', 'desc')
             ->orderBy('id', 'desc');
 
@@ -45,7 +45,10 @@ class FinExtractController extends Controller
 
     public function store(FinExtractRequest $request)
     {
-        $entry = FinExtract::create($request->validated());
+        $data = $request->validated();
+        $data['source'] = $data['source'] ?? 'manual';
+
+        $entry = FinExtract::create($data);
         $entry->load(['title', 'account', 'paymentMethod', 'bank']);
 
         return response()->json($this->format($entry), 201);
@@ -57,6 +60,8 @@ class FinExtractController extends Controller
             'id'                  => $entry->id,
             'title_id'            => $entry->title_id,
             'title_description'   => $entry->title?->description,
+            'people_id'           => $entry->title?->people_id,
+            'people_name'         => $entry->title?->people?->name,
             'account_id'          => $entry->account_id,
             'account_name'        => $entry->account?->name,
             'type'                => $entry->type,
@@ -66,6 +71,7 @@ class FinExtractController extends Controller
             'payment_method_name' => $entry->paymentMethod?->name,
             'bank_id'             => $entry->bank_id,
             'bank_name'           => $entry->bank?->name,
+            'source'              => $entry->source ?? 'manual',
             'created_at'          => $entry->created_at?->toISOString(),
         ];
     }

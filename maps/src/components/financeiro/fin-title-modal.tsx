@@ -22,6 +22,9 @@ import { Trash2, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BirthDatePicker } from "@/components/people/birth-date-picker";
+import { PeopleModal } from "@/components/people/people-modal";
+import { Person } from "@/components/people/people-data-grid";
+import { TypePeople } from "@/components/type-people/type-people-data-grid";
 import api from "@/lib/api";
 import { FinTitle } from "./fin-titles-data-grid";
 import { FinInstallmentModal, InstallmentConfig, addDays } from "./fin-installment-modal";
@@ -204,6 +207,13 @@ export function FinTitleModal({
   const [paymentMethods, setPaymentMethods] = useState<RefPaymentMethod[]>([]);
   const [banks,          setBanks]          = useState<RefBank[]>([]);
   const [departments,    setDepartments]    = useState<RefDepartment[]>([]);
+  const [typePeople,     setTypePeople]     = useState<TypePeople[]>([]);
+
+  // ── Create person inline ─────────────────────────────────────────────────────
+  const [showCreatePeople, setShowCreatePeople] = useState(false);
+
+  // ── Amount keyboard mode ─────────────────────────────────────────────────────
+  const [amountDecMode, setAmountDecMode] = useState(false);
 
   // ── Pay state ────────────────────────────────────────────────────────────────
   const [payNetAmount,       setPayNetAmount]        = useState("");
@@ -234,6 +244,8 @@ export function FinTitleModal({
     setErrors({});
 
     setRefLoading(true);
+    api.get<TypePeople[]>("/type-people").then((r) => setTypePeople(r.data)).catch(() => {});
+
     Promise.all([
       api.get<RefPerson[]>("/people"),
       api.get<ApiAccount[]>("/fin-accounts"),
@@ -323,6 +335,7 @@ export function FinTitleModal({
         .catch(() => {});
     } else {
       setAmount("");
+      setAmountDecMode(false);
       setDiscount("");
       setInterest("");
       setMulta("");
@@ -345,6 +358,61 @@ export function FinTitleModal({
       setCostCenters([]);
     }
   }, [open, title]);
+
+  // ── Amount keyboard handler ──────────────────────────────────────────────────
+  function handleAmountKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (isReadOnly) return;
+    const key = e.key;
+    const isDigit = key >= "0" && key <= "9";
+    const isComma = key === "," || key === ".";
+    const isBack  = key === "Backspace";
+    const isDel   = key === "Delete";
+    if (!isDigit && !isComma && !isBack && !isDel) return;
+    e.preventDefault();
+
+    // Parse current integer and decimal parts from displayed value
+    const commaIdx = amount.lastIndexOf(",");
+    const intDigits = (commaIdx >= 0 ? amount.slice(0, commaIdx) : amount).replace(/\D/g, "");
+    const decStr    = (commaIdx >= 0 ? amount.slice(commaIdx + 1) : "00").replace(/\D/g, "").padEnd(2, "0").slice(0, 2);
+    const intVal    = intDigits ? parseInt(intDigits, 10) : 0;
+
+    const rebuild = (iv: number, ds: string) =>
+      (iv > 0 ? iv.toLocaleString("pt-BR") : "0") + "," + ds;
+
+    if (isDel) {
+      setAmount("");
+      setAmountDecMode(false);
+      return;
+    }
+
+    if (isComma) {
+      if (!amountDecMode) setAmountDecMode(true);
+      return;
+    }
+
+    if (isBack) {
+      if (amountDecMode) {
+        const newDec = "0" + decStr.slice(0, 1); // shift left
+        if (newDec === "00") setAmountDecMode(false);
+        setAmount(intVal === 0 && newDec === "00" ? "" : rebuild(intVal, newDec));
+      } else {
+        const newIntStr = String(intVal).slice(0, -1);
+        if (!newIntStr) { setAmount(""); return; }
+        setAmount(parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00");
+      }
+      return;
+    }
+
+    if (isDigit) {
+      if (amountDecMode) {
+        const newDec = decStr.slice(1) + key; // shift right on cents
+        setAmount(rebuild(intVal, newDec));
+      } else {
+        const newIntStr = String(intVal === 0 ? "" : intVal) + key;
+        setAmount(parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00");
+      }
+    }
+  }
 
   // ── Build base payload ──────────────────────────────────────────────────────
   const buildPayload = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -572,9 +640,21 @@ export function FinTitleModal({
 
               {/* Pessoa — 6 cols */}
               <div className="col-span-6 space-y-1.5">
-                <Label htmlFor="ft-people">
-                  Pessoa <span className="text-destructive">*</span>
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="ft-people">
+                    Pessoa <span className="text-destructive">*</span>
+                  </Label>
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCreatePeople(true)}
+                      className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      title="Nova pessoa"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Input
                     id="ft-people"
@@ -767,9 +847,10 @@ export function FinTitleModal({
                     type="text"
                     inputMode="numeric"
                     value={amount}
-                    onChange={(e) => setAmount(maskCurrency(e.target.value))}
+                    onChange={() => {}}
+                    onKeyDown={handleAmountKeyDown}
                     placeholder="0,00"
-                    className="pl-9 text-right text-base font-bold"
+                    className="pl-9 text-right text-base font-bold caret-transparent"
                     readOnly={isReadOnly}
                   />
                 </div>
@@ -1202,6 +1283,23 @@ export function FinTitleModal({
         </form>
       </DialogContent>
     </Dialog>
+
+    <PeopleModal
+      open={showCreatePeople}
+      person={null}
+      typePeople={typePeople}
+      typeContacts={[]}
+      typeAddresses={[]}
+      typeDocuments={[]}
+      onClose={() => setShowCreatePeople(false)}
+      onSaved={(saved: Person) => {
+        const ref: RefPerson = { id: saved.id, name: saved.name };
+        setPeople((prev) => [...prev, ref]);
+        setPeopleId(String(saved.id));
+        setPeopleQuery(saved.name);
+        setShowCreatePeople(false);
+      }}
+    />
     </>
   );
 }

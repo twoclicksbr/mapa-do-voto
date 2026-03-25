@@ -22,6 +22,8 @@ class FinTitle extends Model
         'issue_date',
         'due_date',
         'paid_at',
+        'reversed_at',
+        'cancelled_at',
         'amount_paid',
         'installment_number',
         'installment_total',
@@ -43,8 +45,10 @@ class FinTitle extends Model
         'multa'        => 'decimal:8',
         'amount_paid'  => 'decimal:2',
         'issue_date'   => 'date:Y-m-d',
-        'due_date'     => 'date:Y-m-d',
-        'paid_at'      => 'date:Y-m-d',
+        'due_date'      => 'date:Y-m-d',
+        'paid_at'       => 'date:Y-m-d',
+        'reversed_at'   => 'date:Y-m-d',
+        'cancelled_at'  => 'date:Y-m-d',
     ];
 
     protected static function booted(): void
@@ -56,6 +60,12 @@ class FinTitle extends Model
                 $total   = $title->installment_total  ?? 1;
                 $title->invoice_number = "{$titleId}-{$num}/{$total}";
                 $title->saveQuietly();
+            }
+        });
+
+        static::updating(function (FinTitle $title) {
+            if ($title->isDirty('status') && $title->status === 'cancelled' && ! $title->cancelled_at) {
+                $title->cancelled_at = now()->format('Y-m-d');
             }
         });
     }
