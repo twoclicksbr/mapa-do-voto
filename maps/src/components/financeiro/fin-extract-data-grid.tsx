@@ -109,15 +109,22 @@ function calcModalityTotals(entries: FinExtractEntry[]): ModalityTotal[] {
 // Footer de totais
 // ---------------------------------------------------------------------------
 
-function ExtractFooter({ entries }: { entries: FinExtractEntry[] }) {
+function ExtractFooter({ entries, initialBalance }: { entries: FinExtractEntry[]; initialBalance: number | null }) {
   const general = useMemo(() => calcTotals(entries), [entries]);
   const byModality = useMemo(() => calcModalityTotals(entries), [entries]);
+  const finalBalance = initialBalance !== null ? initialBalance + general.totalIn - general.totalOut : null;
 
   return (
     <div className="border-t border-border bg-muted/30 px-6 py-4 space-y-4">
       {/* Totais gerais */}
       <div className="flex items-center gap-6 flex-wrap">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Geral</span>
+        {initialBalance !== null && (
+          <span className="text-sm">
+            <span className="text-muted-foreground mr-1.5">Saldo Inicial:</span>
+            <span className={`font-semibold ${initialBalance >= 0 ? "text-green-600" : "text-red-600"}`}>{fmtBRL(initialBalance)}</span>
+          </span>
+        )}
         <span className="text-sm">
           <span className="text-muted-foreground mr-1.5">Entradas:</span>
           <span className="font-semibold text-green-600">{fmtBRL(general.totalIn)}</span>
@@ -127,9 +134,9 @@ function ExtractFooter({ entries }: { entries: FinExtractEntry[] }) {
           <span className="font-semibold text-red-600">{fmtBRL(general.totalOut)}</span>
         </span>
         <span className="text-sm">
-          <span className="text-muted-foreground mr-1.5">Saldo:</span>
-          <span className={`font-semibold ${general.saldo >= 0 ? "text-green-600" : "text-red-600"}`}>
-            {fmtBRL(general.saldo)}
+          <span className="text-muted-foreground mr-1.5">{finalBalance !== null ? "Saldo Final:" : "Saldo:"}</span>
+          <span className={`font-semibold ${(finalBalance ?? general.saldo) >= 0 ? "text-green-600" : "text-red-600"}`}>
+            {fmtBRL(finalBalance ?? general.saldo)}
           </span>
         </span>
       </div>
@@ -138,16 +145,14 @@ function ExtractFooter({ entries }: { entries: FinExtractEntry[] }) {
       {byModality.length > 0 && (
         <div className="space-y-1">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Por Modalidade</span>
-          <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-1">
+          <div className="grid mt-1 gap-y-1.5 text-xs" style={{ gridTemplateColumns: "max-content max-content max-content max-content" }}>
             {byModality.map((m) => (
-              <div key={m.name} className="flex items-center gap-2 text-xs">
-                <span className="font-medium text-foreground">{m.name}</span>
-                <span className="text-green-600">+{fmtBRL(m.totalIn)}</span>
-                <span className="text-red-600">−{fmtBRL(m.totalOut)}</span>
-                <span className={`font-semibold ${m.saldo >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  ={fmtBRL(m.saldo)}
-                </span>
-              </div>
+              <>
+                <span key={m.name + "-name"} className="font-medium text-foreground pr-4">{m.name}</span>
+                <span key={m.name + "-in"} className="text-green-600 text-right pr-3">+{fmtBRL(m.totalIn)}</span>
+                <span key={m.name + "-out"} className="text-red-600 text-right pr-3">−{fmtBRL(m.totalOut)}</span>
+                <span key={m.name + "-saldo"} className={`font-semibold text-right ${m.saldo >= 0 ? "text-green-600" : "text-red-600"}`}>={fmtBRL(m.saldo)}</span>
+              </>
             ))}
           </div>
         </div>
@@ -160,7 +165,40 @@ function ExtractFooter({ entries }: { entries: FinExtractEntry[] }) {
 // Timeline view
 // ---------------------------------------------------------------------------
 
-function TimelineView({ entries }: { entries: FinExtractEntry[] }) {
+function TimelineCard({ entry }: { entry: FinExtractEntry }) {
+  const isIn = entry.type === "in";
+  return (
+    <div className="bg-background border border-border rounded-lg px-4 py-2.5 shadow-xs">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">
+            {entry.title_description ?? entry.people_name ?? "Lançamento manual"}
+          </p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-xs text-muted-foreground">{fmtDate(entry.date)}</span>
+            {entry.account_name && (
+              <span className="text-xs text-muted-foreground">· {entry.account_name}</span>
+            )}
+            {entry.bank_name && (
+              <span className="text-xs text-muted-foreground">· {entry.bank_name}</span>
+            )}
+            {entry.payment_method_name && (
+              <span className="text-xs text-muted-foreground">· {entry.payment_method_name}</span>
+            )}
+            <Badge variant={SOURCE_VARIANTS[entry.source]} appearance="light" size="xs">
+              {SOURCE_LABELS[entry.source]}
+            </Badge>
+          </div>
+        </div>
+        <span className={`text-sm font-semibold whitespace-nowrap ${isIn ? "text-green-600" : "text-red-600"}`}>
+          {isIn ? "+" : "−"}{fmtBRL(entry.amount)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function TimelineView({ entries, initialBalance }: { entries: FinExtractEntry[]; initialBalance: number | null }) {
   if (entries.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
@@ -170,56 +208,45 @@ function TimelineView({ entries }: { entries: FinExtractEntry[] }) {
   }
 
   return (
-    <div className="relative pl-8 space-y-0">
-      {/* linha vertical */}
-      <div className="absolute left-3.5 top-0 bottom-0 w-px bg-border" />
-
-      {entries.map((entry) => (
-        <div key={entry.id} className="relative flex gap-4 py-3">
-          {/* dot */}
-          <div
-            className={`absolute left-0 top-4 w-3.5 h-3.5 rounded-full border-2 border-background ring-2 ${
-              entry.type === "in"
-                ? "bg-green-500 ring-green-200"
-                : "bg-red-500 ring-red-200"
-            }`}
-            style={{ transform: "translateX(-0.25rem)" }}
-          />
-
-          {/* conteúdo */}
-          <div className="flex-1 min-w-0 bg-background border border-border rounded-lg px-4 py-2.5 shadow-xs">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {entry.title_description ?? "Lançamento manual"}
-                </p>
-                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <span className="text-xs text-muted-foreground">{fmtDate(entry.date)}</span>
-                  {entry.account_name && (
-                    <span className="text-xs text-muted-foreground">· {entry.account_name}</span>
-                  )}
-                  {entry.bank_name && (
-                    <span className="text-xs text-muted-foreground">· {entry.bank_name}</span>
-                  )}
-                  {entry.payment_method_name && (
-                    <span className="text-xs text-muted-foreground">· {entry.payment_method_name}</span>
-                  )}
-                  <Badge variant={SOURCE_VARIANTS[entry.source]} appearance="light" size="xs">
-                    {SOURCE_LABELS[entry.source]}
-                  </Badge>
-                </div>
-              </div>
-              <span
-                className={`text-sm font-semibold whitespace-nowrap ${
-                  entry.type === "in" ? "text-green-600" : "text-red-600"
-                }`}
-              >
-                {entry.type === "in" ? "+" : "−"}{fmtBRL(entry.amount)}
-              </span>
-            </div>
+    <div className="relative">
+      {/* Card de saldo inicial */}
+      {initialBalance !== null && (
+        <div className="flex justify-center py-2">
+          <div className="bg-background border border-border rounded-lg px-4 py-2.5 shadow-xs text-center">
+            <p className="text-xs text-muted-foreground mb-0.5">Saldo inicial</p>
+            <p className={`text-sm font-semibold tabular-nums ${initialBalance >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {initialBalance.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            </p>
           </div>
         </div>
-      ))}
+      )}
+
+      {entries.map((entry) => {
+        const isIn = entry.type === "in";
+        return (
+          <div key={entry.id} className="grid py-2" style={{ gridTemplateColumns: "1fr 2rem 1fr" }}>
+            {/* Coluna esquerda — saídas */}
+            <div className="pr-4 flex items-center justify-end">
+              {!isIn && <TimelineCard entry={entry} />}
+            </div>
+
+            {/* Centro — linha + dot */}
+            <div className="relative flex flex-col items-center">
+              <div className="absolute inset-x-1/2 top-0 bottom-0 w-px bg-border -translate-x-1/2" />
+              <div
+                className={`relative z-10 mt-3 w-3.5 h-3.5 rounded-full border-2 border-background ring-2 ${
+                  isIn ? "bg-green-500 ring-green-200" : "bg-red-500 ring-red-200"
+                }`}
+              />
+            </div>
+
+            {/* Coluna direita — entradas */}
+            <div className="pl-4 flex items-center">
+              {isIn && <TimelineCard entry={entry} />}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -367,11 +394,12 @@ export type ExtractView = "grid" | "timeline";
 
 interface FinExtractDataGridProps {
   entries: FinExtractEntry[];
+  initialBalance: number | null;
   isLoading: boolean;
   view: ExtractView;
 }
 
-export function FinExtractDataGrid({ entries, isLoading, view }: FinExtractDataGridProps) {
+export function FinExtractDataGrid({ entries, initialBalance, isLoading, view }: FinExtractDataGridProps) {
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       {view === "timeline" ? (
@@ -383,13 +411,13 @@ export function FinExtractDataGrid({ entries, isLoading, view }: FinExtractDataG
               ))}
             </div>
           ) : (
-            <TimelineView entries={entries} />
+            <TimelineView entries={entries} initialBalance={initialBalance} />
           )}
         </div>
       ) : (
         <GridView entries={entries} isLoading={isLoading} />
       )}
-      <ExtractFooter entries={entries} />
+      <ExtractFooter entries={entries} initialBalance={initialBalance} />
     </div>
   );
 }

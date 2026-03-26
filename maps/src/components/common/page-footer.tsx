@@ -15,7 +15,7 @@ export function PageFooter() {
           <span className="inline-flex items-center justify-center size-3.5 rounded-sm bg-[#3B82F6]">
             <MapPinned className="size-2 text-white" />
           </span>
-          Mapa do Voto
+          <span>{"Mapa"}<span className="font-normal">{"do"}</span>{"Voto"}</span>
         </strong>
         {' \u00a9 2012 - '}{new Date().getFullYear()}
       </span>

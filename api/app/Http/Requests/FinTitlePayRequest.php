@@ -19,6 +19,9 @@ class FinTitlePayRequest extends FormRequest
             'account_id'        => ['required', 'integer'],
             'payment_method_id' => ['required', 'integer'],
             'bank_id'           => ['required', 'integer'],
+            'interest'          => ['nullable', 'numeric', 'min:0'],
+            'multa'             => ['nullable', 'numeric', 'min:0'],
+            'discount'          => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

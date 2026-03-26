@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, StickyNote, Check, Folder, ClipboardList, PieChart, ArrowDownToLine, GitMerge } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BirthDatePicker } from "@/components/people/birth-date-picker";
@@ -27,7 +27,8 @@ import { Person } from "@/components/people/people-data-grid";
 import { TypePeople } from "@/components/type-people/type-people-data-grid";
 import api from "@/lib/api";
 import { FinTitle } from "./fin-titles-data-grid";
-import { FinInstallmentModal, InstallmentConfig, addDays } from "./fin-installment-modal";
+import { PeopleFilesTab } from "@/components/people/people-files-tab";
+import { FinInstallmentModal, InstallmentConfig } from "./fin-installment-modal";
 
 // ─── Reference types (fetched internally) ────────────────────────────────────
 
@@ -139,6 +140,105 @@ function parseCurrency(masked: string): number {
   return parseFloat(masked.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
+function makeCalcKeyDown(
+  valueProp: string,
+  setValue: (v: string) => void,
+  decMode: boolean,
+  setDecMode: (v: boolean) => void,
+  afterUpdate: (v: string) => void = () => {},
+  freshRef?: React.MutableRefObject<boolean>
+) {
+  return (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const key     = e.key;
+    const isDigit = key >= "0" && key <= "9";
+    const isComma = key === "," || key === ".";
+    const isBack  = key === "Backspace";
+    const isDel   = key === "Delete";
+    if (!isDigit && !isComma && !isBack && !isDel) return;
+    e.preventDefault();
+
+    // Primeira tecla após foco: começa do zero
+    let value = valueProp;
+    if (freshRef?.current) {
+      freshRef.current = false;
+      value = "";
+      setDecMode(false);
+    }
+
+    const commaIdx  = value.lastIndexOf(",");
+    const intDigits = (commaIdx >= 0 ? value.slice(0, commaIdx) : value).replace(/\D/g, "");
+    const decStr    = (commaIdx >= 0 ? value.slice(commaIdx + 1) : "00").replace(/\D/g, "").padEnd(2, "0").slice(0, 2);
+    const intVal    = intDigits ? parseInt(intDigits, 10) : 0;
+    const rebuild   = (iv: number, ds: string) => (iv > 0 ? iv.toLocaleString("pt-BR") : "0") + "," + ds;
+
+    let newVal = value;
+
+    if (isDel) {
+      newVal = "";
+      setDecMode(false);
+    } else if (isComma) {
+      if (!decMode) setDecMode(true);
+      return;
+    } else if (isBack) {
+      if (decMode) {
+        // Remove da direita: "95"→"90"→"00"
+        const newDec = decStr[1] !== "0" ? decStr[0] + "0" : "00";
+        if (newDec === "00") setDecMode(false);
+        newVal = intVal === 0 && newDec === "00" ? "" : rebuild(intVal, newDec);
+      } else {
+        const newIntStr = String(intVal).slice(0, -1);
+        if (!newIntStr) { setValue(""); afterUpdate(""); return; }
+        newVal = parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00";
+      }
+    } else if (isDigit) {
+      if (decMode) {
+        // Esquerda→direita: primeiro dígito=dezenas, segundo=centenas
+        newVal = rebuild(intVal, decStr[0] === "0" ? key + "0" : decStr[0] + key);
+      } else {
+        const newIntStr = String(intVal === 0 ? "" : intVal) + key;
+        newVal = parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00";
+      }
+    }
+
+    setValue(newVal);
+    afterUpdate(newVal);
+  };
+}
+
+function maskPercentNatural(value: string): string {
+  const cleaned = value.replace(/[^\d,]/g, "");
+  const [intRaw, ...decParts] = cleaned.split(",");
+  if (decParts.length === 0) return intRaw || "";
+  return (intRaw || "0") + "," + decParts.join("").slice(0, 2);
+}
+
+function maskPercentNaturalBlur(value: string): string {
+  if (!value) return "";
+  const cleaned = value.replace(/[^\d,]/g, "");
+  const [intRaw, decRaw] = cleaned.split(",");
+  return (intRaw || "0") + "," + (decRaw ?? "").padEnd(2, "0").slice(0, 2);
+}
+
+function maskCurrencyNatural(value: string): string {
+  const cleaned = value.replace(/[^\d,]/g, "");
+  const [intRaw, ...decParts] = cleaned.split(",");
+  const intNum = intRaw ? parseInt(intRaw.replace(/\./g, ""), 10) : 0;
+  const intFormatted = isNaN(intNum) ? "0" : intNum.toLocaleString("pt-BR");
+  if (decParts.length === 0) return intFormatted;
+  const decPart = decParts.join("").slice(0, 2);
+  return intFormatted + "," + decPart;
+}
+
+function maskCurrencyNaturalBlur(value: string): string {
+  if (!value) return "";
+  const cleaned = value.replace(/[^\d,]/g, "");
+  const [intRaw, decRaw] = cleaned.split(",");
+  const intNum = intRaw ? parseInt(intRaw.replace(/\./g, ""), 10) : 0;
+  const intFormatted = isNaN(intNum) ? "0" : intNum.toLocaleString("pt-BR");
+  const decFormatted = (decRaw ?? "").padEnd(2, "0").slice(0, 2);
+  return intFormatted + "," + decFormatted;
+}
+
 function numberToMask(value: number): string {
   return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -212,8 +312,6 @@ export function FinTitleModal({
   // ── Create person inline ─────────────────────────────────────────────────────
   const [showCreatePeople, setShowCreatePeople] = useState(false);
 
-  // ── Amount keyboard mode ─────────────────────────────────────────────────────
-  const [amountDecMode, setAmountDecMode] = useState(false);
 
   // ── Pay state ────────────────────────────────────────────────────────────────
   const [payNetAmount,       setPayNetAmount]        = useState("");
@@ -229,6 +327,14 @@ export function FinTitleModal({
   const [payPaymentMethodId, setPayPaymentMethodId]  = useState("");
   const [payLoading,         setPayLoading]          = useState(false);
   const [payErrors,          setPayErrors]           = useState<Record<string, string>>({});
+  const [payInterestDecMode,    setPayInterestDecMode]    = useState(false);
+  const [payMultaDecMode,       setPayMultaDecMode]       = useState(false);
+  const [payDiscountDecMode,    setPayDiscountDecMode]    = useState(false);
+  const [payNetDecMode,         setPayNetDecMode]         = useState(false);
+  const payInterestFreshRef = useRef(false);
+  const payMultaFreshRef    = useRef(false);
+  const payDiscountFreshRef = useRef(false);
+  const payNetFreshRef      = useRef(false);
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [loading,              setLoading]              = useState(false);
@@ -237,11 +343,16 @@ export function FinTitleModal({
   const [showInstallmentModal, setShowInstallmentModal] = useState(false);
   const [compositionOrigins,      setCompositionOrigins]      = useState<FinTitle[]>([]);
   const [compositionDestinations, setCompositionDestinations] = useState<FinTitle[]>([]);
+  const [notes,       setNotes]       = useState<{ id: number; value: string }[]>([]);
+  const [addingNote,  setAddingNote]  = useState(false);
+  const [noteValue,   setNoteValue]   = useState("");
 
   // ── Load reference data + (if editing) full detail ──────────────────────────
   useEffect(() => {
     if (!open) return;
     setErrors({});
+    setCompositionOrigins([]);
+    setCompositionDestinations([]);
 
     setRefLoading(true);
     api.get<TypePeople[]>("/type-people").then((r) => setTypePeople(r.data)).catch(() => {});
@@ -309,6 +420,10 @@ export function FinTitleModal({
       setPayBankId(title.bank_id ? String(title.bank_id) : "");
       setPayPaymentMethodId(title.payment_method_id ? String(title.payment_method_id) : "");
       setPayErrors({});
+      setPayInterestDecMode(false);
+      setPayMultaDecMode(false);
+      setPayDiscountDecMode(false);
+      setPayNetDecMode(false);
 
       // Load full detail for cost_centers + compositions
       api
@@ -333,9 +448,13 @@ export function FinTitleModal({
           setCompositionDestinations(d.composition_destinations ?? []);
         })
         .catch(() => {});
+
+      // Load notas
+      api.get<{ id: number; value: string }[]>(`/fin-titles/${title.id}/notes`)
+        .then((res) => setNotes(res.data))
+        .catch(() => {});
     } else {
       setAmount("");
-      setAmountDecMode(false);
       setDiscount("");
       setInterest("");
       setMulta("");
@@ -359,60 +478,6 @@ export function FinTitleModal({
     }
   }, [open, title]);
 
-  // ── Amount keyboard handler ──────────────────────────────────────────────────
-  function handleAmountKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (isReadOnly) return;
-    const key = e.key;
-    const isDigit = key >= "0" && key <= "9";
-    const isComma = key === "," || key === ".";
-    const isBack  = key === "Backspace";
-    const isDel   = key === "Delete";
-    if (!isDigit && !isComma && !isBack && !isDel) return;
-    e.preventDefault();
-
-    // Parse current integer and decimal parts from displayed value
-    const commaIdx = amount.lastIndexOf(",");
-    const intDigits = (commaIdx >= 0 ? amount.slice(0, commaIdx) : amount).replace(/\D/g, "");
-    const decStr    = (commaIdx >= 0 ? amount.slice(commaIdx + 1) : "00").replace(/\D/g, "").padEnd(2, "0").slice(0, 2);
-    const intVal    = intDigits ? parseInt(intDigits, 10) : 0;
-
-    const rebuild = (iv: number, ds: string) =>
-      (iv > 0 ? iv.toLocaleString("pt-BR") : "0") + "," + ds;
-
-    if (isDel) {
-      setAmount("");
-      setAmountDecMode(false);
-      return;
-    }
-
-    if (isComma) {
-      if (!amountDecMode) setAmountDecMode(true);
-      return;
-    }
-
-    if (isBack) {
-      if (amountDecMode) {
-        const newDec = "0" + decStr.slice(0, 1); // shift left
-        if (newDec === "00") setAmountDecMode(false);
-        setAmount(intVal === 0 && newDec === "00" ? "" : rebuild(intVal, newDec));
-      } else {
-        const newIntStr = String(intVal).slice(0, -1);
-        if (!newIntStr) { setAmount(""); return; }
-        setAmount(parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00");
-      }
-      return;
-    }
-
-    if (isDigit) {
-      if (amountDecMode) {
-        const newDec = decStr.slice(1) + key; // shift right on cents
-        setAmount(rebuild(intVal, newDec));
-      } else {
-        const newIntStr = String(intVal === 0 ? "" : intVal) + key;
-        setAmount(parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00");
-      }
-    }
-  }
 
   // ── Build base payload ──────────────────────────────────────────────────────
   const buildPayload = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -448,21 +513,17 @@ export function FinTitleModal({
     setShowInstallmentModal(false);
     setLoading(true);
     const total = parseInt(installmentNumber) || 1;
-    const baseAmount = parseCurrency(amount);
-    const perAmount = config.divide ? baseAmount / total : baseAmount;
 
     try {
-      let lastRes: FinTitle | null = null;
-      for (let i = 0; i < total; i++) {
-        const res = await api.post<FinTitle>("/fin-titles", buildPayload({
-          amount:             perAmount,
-          due_date:           addDays(config.firstDueDate, i * config.intervalDays),
-          installment_number: i + 1,
-          installment_total:  total,
-        }));
-        lastRes = res.data;
-      }
-      if (lastRes) onSaved(lastRes);
+      const base = buildPayload();
+      const res = await api.post<FinTitle[]>("/fin-titles/installments", {
+        ...base,
+        total,
+        divide:          config.divide,
+        interval:        config.intervalDays,
+        first_due_date:  config.firstDueDate,
+      });
+      if (res.data.length > 0) onSaved(res.data[0] as unknown as FinTitle);
       onClose();
     } catch {
       // silently ignore
@@ -488,6 +549,9 @@ export function FinTitleModal({
         account_id:        payAccountId ? parseInt(payAccountId) : null,
         payment_method_id: payPaymentMethodId ? parseInt(payPaymentMethodId) : null,
         bank_id:           payBankId ? parseInt(payBankId) : null,
+        interest:          parsePercent(payInterest),
+        multa:             parsePercent(payMulta),
+        discount:          parsePercent(payDiscount),
       });
       onSaved(res.data);
       onClose();
@@ -587,7 +651,7 @@ export function FinTitleModal({
   const totalInstallments = parseInt(installmentNumber) || 1;
   const typeLabel = (title?.type ?? defaultType) === "expense" ? "a Pagar" : "a Receber";
   const modalTitle = isEditing
-    ? `Editar Título ${typeLabel}`
+    ? (status === "pending" ? `Editar Título ${typeLabel}` : `Visualizar Título ${typeLabel}`)
     : `Novo Título ${typeLabel}`;
   const isReadOnly = isEditing && ["paid", "partial", "cancelled", "reversed"].includes(status);
   const canSubmit = !isReadOnly && !!amount && !!issueDate && !!dueDate && !!peopleId;
@@ -603,7 +667,7 @@ export function FinTitleModal({
       onClose={() => setShowInstallmentModal(false)}
       onConfirm={handleInstallmentConfirm}
     />
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setNotes([]); setAddingNote(false); setNoteValue(""); onClose(); } }}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>{modalTitle}</DialogTitle>
@@ -613,12 +677,13 @@ export function FinTitleModal({
           <DialogBody>
           <Tabs defaultValue={initialTab}>
             <TabsList variant="line" className="mb-4">
-              <TabsTrigger value="geral">Geral</TabsTrigger>
-              <TabsTrigger value="baixar">Baixar</TabsTrigger>
-              <TabsTrigger value="observacoes">Observações</TabsTrigger>
-              <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
+              <TabsTrigger value="geral"><ClipboardList className="size-3.5" />Dados</TabsTrigger>
+              <TabsTrigger value="centro-custo"><PieChart className="size-3.5" />Centro de Custo</TabsTrigger>
+              <TabsTrigger value="baixar"><ArrowDownToLine className="size-3.5" />Baixar</TabsTrigger>
+              <TabsTrigger value="notas"><StickyNote className="size-3.5" />Notas</TabsTrigger>
+              <TabsTrigger value="arquivos"><Folder className="size-3.5" />Arquivos</TabsTrigger>
               {(compositionOrigins.length > 0 || compositionDestinations.length > 0) && (
-                <TabsTrigger value="composicao">Composição</TabsTrigger>
+                <TabsTrigger value="composicao"><GitMerge className="size-3.5" />Composição</TabsTrigger>
               )}
             </TabsList>
 
@@ -845,12 +910,14 @@ export function FinTitleModal({
                   <Input
                     id="ft-amount"
                     type="text"
-                    inputMode="numeric"
+                    inputMode="decimal"
+                    autoComplete="off"
                     value={amount}
-                    onChange={() => {}}
-                    onKeyDown={handleAmountKeyDown}
+                    onChange={(e) => setAmount(maskCurrencyNatural(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={() => { if (amount) setAmount(maskCurrencyNaturalBlur(amount)); }}
                     placeholder="0,00"
-                    className="pl-9 text-right text-base font-bold caret-transparent"
+                    className="pl-9 text-right text-base font-bold"
                     readOnly={isReadOnly}
                   />
                 </div>
@@ -864,7 +931,9 @@ export function FinTitleModal({
               <p className="text-xs text-muted-foreground">Carregando dados...</p>
             )}
 
-            {/* Centros de Custo */}
+            </TabsContent>
+
+            <TabsContent value="centro-custo">
             <Card className="w-full p-0">
               <CardContent className="p-0">
                 <div className="flex items-center justify-between border-b px-4 py-3">
@@ -1004,12 +1073,13 @@ export function FinTitleModal({
                             type="text"
                             value={payInterest}
                             onChange={(e) => {
-                              const masked = maskPercent(e.target.value);
-                              setPayInterest(masked);
-                              const val = baseAmt * parsePercent(masked) / 100;
+                              const v = maskPercentNatural(e.target.value);
+                              setPayInterest(v);
+                              const val = baseAmt * parseCurrency(v) / 100;
                               setPayInterestVal(numberToMask(val));
-                              setPayNetAmount(numberToMask(baseAmt + val + baseAmt * parsePercent(payMulta) / 100 - baseAmt * parsePercent(payDiscount) / 100));
+                              setPayNetAmount(numberToMask(baseAmt + val + parseCurrency(payMultaVal) - parseCurrency(payDiscountVal)));
                             }}
+                            onBlur={() => { if (payInterest) setPayInterest(maskPercentNaturalBlur(payInterest)); }}
                             onFocus={(e) => e.target.select()}
                             disabled={payReadOnly}
                             className="pr-8 text-right"
@@ -1023,14 +1093,21 @@ export function FinTitleModal({
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
                           <Input
                             value={payInterestVal || "0,00"}
-                            onChange={(e) => {
-                              const masked = maskCurrency(e.target.value);
-                              setPayInterestVal(masked);
-                              if (baseAmt > 0) setPayInterest(maskPercent(((parseCurrency(masked) / baseAmt) * 100).toFixed(4).replace(/\.?0+$/, "").replace(".", ",")));
-                            }}
-                            onFocus={(e) => e.target.select()}
+                            onChange={() => {}}
+                            onKeyDown={makeCalcKeyDown(
+                              payInterestVal || "0,00",
+                              setPayInterestVal,
+                              payInterestDecMode,
+                              setPayInterestDecMode,
+                              (v) => {
+                                if (baseAmt > 0) setPayInterest(maskPercent(((parseCurrency(v) / baseAmt) * 100).toFixed(4).replace(/\.?0+$/, "").replace(".", ",")));
+                                setPayNetAmount(numberToMask(baseAmt + parseCurrency(v) + parseCurrency(payMultaVal) - parseCurrency(payDiscountVal)));
+                              },
+                              payInterestFreshRef
+                            )}
+                            onFocus={() => { payInterestFreshRef.current = true; }}
                             disabled={payReadOnly}
-                            className="pl-9 text-right"
+                            className="pl-9 text-right caret-transparent"
                           />
                         </div>
                       </div>
@@ -1041,12 +1118,13 @@ export function FinTitleModal({
                             type="text"
                             value={payMulta}
                             onChange={(e) => {
-                              const masked = maskPercent(e.target.value);
-                              setPayMulta(masked);
-                              const val = baseAmt * parsePercent(masked) / 100;
+                              const v = maskPercentNatural(e.target.value);
+                              setPayMulta(v);
+                              const val = baseAmt * parseCurrency(v) / 100;
                               setPayMultaVal(numberToMask(val));
-                              setPayNetAmount(numberToMask(baseAmt + baseAmt * parsePercent(payInterest) / 100 + val - baseAmt * parsePercent(payDiscount) / 100));
+                              setPayNetAmount(numberToMask(baseAmt + parseCurrency(payInterestVal) + val - parseCurrency(payDiscountVal)));
                             }}
+                            onBlur={() => { if (payMulta) setPayMulta(maskPercentNaturalBlur(payMulta)); }}
                             onFocus={(e) => e.target.select()}
                             disabled={payReadOnly}
                             className="pr-8 text-right"
@@ -1060,14 +1138,21 @@ export function FinTitleModal({
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
                           <Input
                             value={payMultaVal || "0,00"}
-                            onChange={(e) => {
-                              const masked = maskCurrency(e.target.value);
-                              setPayMultaVal(masked);
-                              if (baseAmt > 0) setPayMulta(maskPercent(((parseCurrency(masked) / baseAmt) * 100).toFixed(4).replace(/\.?0+$/, "").replace(".", ",")));
-                            }}
-                            onFocus={(e) => e.target.select()}
+                            onChange={() => {}}
+                            onKeyDown={makeCalcKeyDown(
+                              payMultaVal || "0,00",
+                              setPayMultaVal,
+                              payMultaDecMode,
+                              setPayMultaDecMode,
+                              (v) => {
+                                if (baseAmt > 0) setPayMulta(maskPercent(((parseCurrency(v) / baseAmt) * 100).toFixed(4).replace(/\.?0+$/, "").replace(".", ",")));
+                                setPayNetAmount(numberToMask(baseAmt + parseCurrency(payInterestVal) + parseCurrency(v) - parseCurrency(payDiscountVal)));
+                              },
+                              payMultaFreshRef
+                            )}
+                            onFocus={() => { payMultaFreshRef.current = true; }}
                             disabled={payReadOnly}
-                            className="pl-9 text-right"
+                            className="pl-9 text-right caret-transparent"
                           />
                         </div>
                       </div>
@@ -1078,12 +1163,13 @@ export function FinTitleModal({
                             type="text"
                             value={payDiscount}
                             onChange={(e) => {
-                              const masked = maskPercent(e.target.value);
-                              setPayDiscount(masked);
-                              const val = baseAmt * parsePercent(masked) / 100;
+                              const v = maskPercentNatural(e.target.value);
+                              setPayDiscount(v);
+                              const val = baseAmt * parseCurrency(v) / 100;
                               setPayDiscountVal(numberToMask(val));
-                              setPayNetAmount(numberToMask(baseAmt + baseAmt * parsePercent(payInterest) / 100 + baseAmt * parsePercent(payMulta) / 100 - val));
+                              setPayNetAmount(numberToMask(baseAmt + parseCurrency(payInterestVal) + parseCurrency(payMultaVal) - val));
                             }}
+                            onBlur={() => { if (payDiscount) setPayDiscount(maskPercentNaturalBlur(payDiscount)); }}
                             onFocus={(e) => e.target.select()}
                             disabled={payReadOnly}
                             className="pr-8 text-right"
@@ -1097,14 +1183,21 @@ export function FinTitleModal({
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
                           <Input
                             value={payDiscountVal || "0,00"}
-                            onChange={(e) => {
-                              const masked = maskCurrency(e.target.value);
-                              setPayDiscountVal(masked);
-                              if (baseAmt > 0) setPayDiscount(maskPercent(((parseCurrency(masked) / baseAmt) * 100).toFixed(4).replace(/\.?0+$/, "").replace(".", ",")));
-                            }}
-                            onFocus={(e) => e.target.select()}
+                            onChange={() => {}}
+                            onKeyDown={makeCalcKeyDown(
+                              payDiscountVal || "0,00",
+                              setPayDiscountVal,
+                              payDiscountDecMode,
+                              setPayDiscountDecMode,
+                              (v) => {
+                                if (baseAmt > 0) setPayDiscount(maskPercent(((parseCurrency(v) / baseAmt) * 100).toFixed(4).replace(/\.?0+$/, "").replace(".", ",")));
+                                setPayNetAmount(numberToMask(baseAmt + parseCurrency(payInterestVal) + parseCurrency(payMultaVal) - parseCurrency(v)));
+                              },
+                              payDiscountFreshRef
+                            )}
+                            onFocus={() => { payDiscountFreshRef.current = true; }}
                             disabled={payReadOnly}
-                            className="pl-9 text-right"
+                            className="pl-9 text-right caret-transparent"
                           />
                         </div>
                       </div>
@@ -1191,11 +1284,19 @@ export function FinTitleModal({
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
                           <Input
-                            value={payNetAmount}
-                            onChange={(e) => setPayNetAmount(maskCurrency(e.target.value))}
-                            onFocus={(e) => e.target.select()}
+                            value={payNetAmount || "0,00"}
+                            onChange={() => {}}
+                            onKeyDown={makeCalcKeyDown(
+                              payNetAmount || "0,00",
+                              setPayNetAmount,
+                              payNetDecMode,
+                              setPayNetDecMode,
+                              () => {},
+                              payNetFreshRef
+                            )}
+                            onFocus={() => { payNetFreshRef.current = true; }}
                             disabled={payReadOnly}
-                            className="pl-9 text-right font-bold"
+                            className="pl-9 text-right font-bold caret-transparent"
                           />
                         </div>
                         {payErrors.amount_paid && (
@@ -1233,12 +1334,49 @@ export function FinTitleModal({
               })()}
             </TabsContent>
 
-            <TabsContent value="observacoes">
-              <p className="text-sm text-muted-foreground italic">Em breve.</p>
+            <TabsContent value="notas" className="space-y-2">
+              {notes.length === 0 && !addingNote && (
+                <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma nota cadastrada.</p>
+              )}
+              {notes.map((n) => (
+                <div key={n.id} className="flex items-start gap-3 px-4 py-3 border border-border rounded-lg bg-background">
+                  <StickyNote className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <p className="flex-1 text-sm whitespace-pre-wrap">{n.value}</p>
+                </div>
+              ))}
+              {addingNote ? (
+                <div className="flex flex-col gap-2 p-3 border border-dashed border-border rounded-lg">
+                  <textarea
+                    className="w-full min-h-[80px] text-sm resize-none border border-border rounded-md p-2.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                    placeholder="Escreva uma nota..."
+                    value={noteValue}
+                    onChange={(e) => setNoteValue(e.target.value)}
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => { setAddingNote(false); setNoteValue(""); }}>
+                      Cancelar
+                    </Button>
+                    <Button size="sm" variant="primary" disabled={!noteValue.trim()} onClick={async () => {
+                      if (!noteValue.trim() || !title) return;
+                      const res = await api.post<{ id: number; value: string }>(`/fin-titles/${title.id}/notes`, { value: noteValue.trim() });
+                      setNotes((prev) => [...prev, res.data]);
+                      setAddingNote(false);
+                      setNoteValue("");
+                    }}>
+                      <Check className="size-3.5" /> Salvar nota
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => setAddingNote(true)}>
+                  <Plus className="size-3.5" /> Adicionar nota
+                </Button>
+              )}
             </TabsContent>
 
-            <TabsContent value="arquivos">
-              <p className="text-sm text-muted-foreground italic">Em breve.</p>
+            <TabsContent value="arquivos" className="p-5 mt-0 flex-1 overflow-y-auto">
+              {title && <PeopleFilesTab personId={title.id} basePath={`/files/fin_title/${title.id}`} />}
             </TabsContent>
 
             <TabsContent value="composicao" className="space-y-4">

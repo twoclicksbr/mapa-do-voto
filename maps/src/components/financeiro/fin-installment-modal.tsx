@@ -96,7 +96,6 @@ export function FinInstallmentModal({
 
           {/* Dividir ou repetir */}
           <div className="space-y-2">
-            <Label>Dividir o valor?</Label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -107,7 +106,7 @@ export function FinInstallmentModal({
                     : "border-input hover:bg-accent"
                 }`}
               >
-                <div className="font-medium">Sim — dividir</div>
+                <div className="font-medium">Dividir o Valor</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   Cada parcela = {fmtBRL(amount / total)}
                 </div>
@@ -121,7 +120,7 @@ export function FinInstallmentModal({
                     : "border-input hover:bg-accent"
                 }`}
               >
-                <div className="font-medium">Não — repetir</div>
+                <div className="font-medium">Repetir o Valor</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   Cada parcela = {fmtBRL(amount)}
                 </div>

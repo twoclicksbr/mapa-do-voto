@@ -14,6 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -216,6 +217,8 @@ export function HomePage() {
   const [finTitlesIncomeSelectedIds, setFinTitlesIncomeSelectedIds] = useState<number[]>([]);
   const [finTitlesIncomeAllSamePeople, setFinTitlesIncomeAllSamePeople] = useState(false);
   const [finTitlesIncomeSelectedItems, setFinTitlesIncomeSelectedItems] = useState<FinTitle[]>([]);
+  const [finTitlesClearKey, setFinTitlesClearKey] = useState(0);
+  const [finTitlesIncomeClearKey, setFinTitlesIncomeClearKey] = useState(0);
   const [finTitlesFilterOpen, setFinTitlesFilterOpen] = useState(false);
   const [finTitlesFilterType, setFinTitlesFilterType] = useState<'income' | 'expense'>('expense');
   const [finTitlesFilters, setFinTitlesFilters] = useState<FinTitlesFilters>({});
@@ -225,7 +228,27 @@ export function HomePage() {
     if (f.invoiceNumber  && !t.invoice_number?.toLowerCase().includes(f.invoiceNumber.toLowerCase())) return false;
     if (f.peopleId       && t.people_id !== f.peopleId) return false;
     if (f.documentNumber && !t.document_number?.toLowerCase().includes(f.documentNumber.toLowerCase())) return false;
-    if (f.status?.length && !f.status.includes(t.status)) return false;
+    if (f.status?.length          && !f.status.includes(t.status))                   return false;
+    if (f.bankId                  && t.bank_id            !== f.bankId)              return false;
+    if (f.accountId               && t.account_id         !== f.accountId)           return false;
+    if (f.paymentMethodId         && t.payment_method_id  !== f.paymentMethodId)     return false;
+    if (f.amountValue && f.amountField) {
+      const parsed = parseFloat(f.amountValue.replace(/\./g, "").replace(",", "."));
+      if (!isNaN(parsed)) {
+        const fieldMap: Record<string, number | null | undefined> = {
+          amount:        t.amount,
+          interest:      t.interest,
+          interest_pct:  t.interest,
+          discount:      t.discount,
+          discount_pct:  t.discount,
+          penalty:       t.multa,
+          penalty_pct:   t.multa,
+          amount_paid:   t.amount_paid,
+        };
+        const val = fieldMap[f.amountField];
+        if (val == null || Math.abs(Number(val) - parsed) > 0.001) return false;
+      }
+    }
     if (f.dateValue && f.dateField) {
       const raw = (t as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
@@ -274,6 +297,7 @@ export function HomePage() {
   const [parentFinAccount, setParentFinAccount] = useState<FinAccount | null>(null);
 
   const [finExtract, setFinExtract] = useState<FinExtractEntry[]>([]);
+  const [finExtractInitialBalance, setFinExtractInitialBalance] = useState<number | null>(null);
   const [finExtractLoading, setFinExtractLoading] = useState(false);
   const [finExtractView, setFinExtractViewState] = useState<ExtractView>(
     () => (localStorage.getItem(EXTRACT_VIEW_KEY) as ExtractView) ?? "grid"
@@ -435,19 +459,23 @@ export function HomePage() {
   };
 
   const handleBulkCancelExpense = async () => {
+    const today = new Date().toISOString().split('T')[0];
     await Promise.all(finTitlesSelectedIds.map(id => api.put(`/fin-titles/${id}`, { status: 'cancelled' })));
-    setFinTitles(prev => prev.map(t => finTitlesSelectedIds.includes(t.id) ? { ...t, status: 'cancelled' } : t));
+    setFinTitles(prev => prev.map(t => finTitlesSelectedIds.includes(t.id) ? { ...t, status: 'cancelled', cancelled_at: today } : t));
     setFinTitlesSelectedIds([]);
     setFinTitlesSelected(0);
     setFinTitlesAllPending(false);
+    setFinTitlesClearKey(k => k + 1);
   };
 
   const handleBulkCancelIncome = async () => {
+    const today = new Date().toISOString().split('T')[0];
     await Promise.all(finTitlesIncomeSelectedIds.map(id => api.put(`/fin-titles/${id}`, { status: 'cancelled' })));
-    setFinTitlesIncome(prev => prev.map(t => finTitlesIncomeSelectedIds.includes(t.id) ? { ...t, status: 'cancelled' } : t));
+    setFinTitlesIncome(prev => prev.map(t => finTitlesIncomeSelectedIds.includes(t.id) ? { ...t, status: 'cancelled', cancelled_at: today } : t));
     setFinTitlesIncomeSelectedIds([]);
     setFinTitlesIncomeSelected(0);
     setFinTitlesIncomeAllPending(false);
+    setFinTitlesIncomeClearKey(k => k + 1);
   };
 
   const handleFinTitleIncomeDelete = async (id: number) => {
@@ -546,9 +574,12 @@ export function HomePage() {
   useEffect(() => {
     if (!loggedIn || finSection !== 'fin-extract') return;
     setFinExtractLoading(true);
-    api.get<FinExtractEntry[]>('/fin-extract')
-      .then(res => setFinExtract(res.data))
-      .catch(() => setFinExtract([]))
+    api.get<{ entries: FinExtractEntry[]; initial_balance: number | null }>('/fin-extract')
+      .then(res => {
+        setFinExtract(res.data.entries);
+        setFinExtractInitialBalance(res.data.initial_balance);
+      })
+      .catch(() => { setFinExtract([]); setFinExtractInitialBalance(null); })
       .finally(() => setFinExtractLoading(false));
   }, [loggedIn, finSection]);
 
@@ -760,6 +791,7 @@ export function HomePage() {
       <FinTitlesFilterModal
         open={finTitlesFilterOpen}
         filters={finTitlesFilters}
+        titleType={finTitlesFilterType}
         onClose={() => setFinTitlesFilterOpen(false)}
         onApply={(f) => setFinTitlesFilters(f)}
       />
@@ -777,9 +809,11 @@ export function HomePage() {
           const type = titles[0]?.type ?? 'expense';
           if (type === 'expense') {
             setFinTitlesLoading(true);
+            setFinTitlesClearKey(k => k + 1);
             api.get<FinTitle[]>('/fin-titles?type=expense').then(res => setFinTitles(res.data)).catch(() => {}).finally(() => setFinTitlesLoading(false));
           } else {
             setFinTitlesIncomeLoading(true);
+            setFinTitlesIncomeClearKey(k => k + 1);
             api.get<FinTitle[]>('/fin-titles?type=income').then(res => setFinTitlesIncome(res.data)).catch(() => {}).finally(() => setFinTitlesIncomeLoading(false));
           }
         }}
@@ -1274,7 +1308,7 @@ export function HomePage() {
                 </div>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
-                <FinExtractDataGrid entries={finExtract} isLoading={finExtractLoading} view={finExtractView} />
+                <FinExtractDataGrid entries={finExtract} initialBalance={finExtractInitialBalance} isLoading={finExtractLoading} view={finExtractView} />
               </div>
               <PageFooter />
             </div>
@@ -1311,6 +1345,10 @@ export function HomePage() {
                             Composição
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setFinTitlesIncomeClearKey(k => k + 1)}>
+                          Desmarcar Todos
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
@@ -1327,10 +1365,11 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 flex flex-col p-6">
                 <FinTitlesDataGrid
                   titles={filteredFinTitlesIncome}
                   isLoading={finTitlesIncomeLoading}
+                  clearSelectionKey={finTitlesIncomeClearKey}
                   onSelectionChange={(count, allPending, ids, allSamePeople, items) => { setFinTitlesIncomeSelected(count); setFinTitlesIncomeAllPending(allPending); setFinTitlesIncomeSelectedIds(ids); setFinTitlesIncomeAllSamePeople(allSamePeople); setFinTitlesIncomeSelectedItems(items); }}
                   onEdit={(t) => { setFinTitleInitialTab("geral"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                   onBaixar={(t) => { setFinTitleInitialTab("baixar"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
@@ -1371,6 +1410,10 @@ export function HomePage() {
                             Composição
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setFinTitlesClearKey(k => k + 1)}>
+                          Desmarcar Todos
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
@@ -1387,10 +1430,11 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto p-6">
+              <div className="flex-1 min-h-0 flex flex-col p-6">
                 <FinTitlesDataGrid
                   titles={filteredFinTitles}
                   isLoading={finTitlesLoading}
+                  clearSelectionKey={finTitlesClearKey}
                   onSelectionChange={(count, allPending, ids, allSamePeople, items) => { setFinTitlesSelected(count); setFinTitlesAllPending(allPending); setFinTitlesSelectedIds(ids); setFinTitlesAllSamePeople(allSamePeople); setFinTitlesSelectedItems(items); }}
                   onEdit={(t) => { setFinTitleInitialTab("geral"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                   onBaixar={(t) => { setFinTitleInitialTab("baixar"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}

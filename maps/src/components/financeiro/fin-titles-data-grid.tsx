@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { DataGrid } from "@/components/reui/data-grid/data-grid";
 import { DataGridColumnHeader } from "@/components/reui/data-grid/data-grid-column-header";
 import { DataGridPagination } from "@/components/reui/data-grid/data-grid-pagination";
@@ -19,7 +19,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowDownToLine, ChevronDown, ChevronRight, Eye, Pencil } from "lucide-react";
+import { ArrowDownToLine, Eye, Pencil, SquareMinusIcon, SquarePlusIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -95,9 +95,105 @@ function dueDateVariant(raw: string, status: FinTitle["status"]): "destructive" 
   return "primary";
 }
 
+interface EventRow {
+  evento: string;
+  data: string | null;
+  valor: string | null;
+  banco: string | null;
+  conta: string | null;
+  modalidade: string | null;
+}
+
+function ExpandedContent({ title }: { title: FinTitle }) {
+  const rows = useMemo<EventRow[]>(() => {
+    const events: EventRow[] = [];
+
+    if (["paid", "partial", "reversed"].includes(title.status)) {
+      events.push({
+        evento:     title.status === "partial" ? "Baixa Parcial" : "Baixa",
+        data:       title.paid_at       ? fmtDate(title.paid_at)       : null,
+        valor:      title.amount_paid   != null ? fmtBRL(title.amount_paid) : null,
+        banco:      title.bank_name     ?? null,
+        conta:      title.account_name  ?? null,
+        modalidade: title.payment_method_name ?? null,
+      });
+    }
+
+    if (title.status === "reversed") {
+      events.push({
+        evento:     "Estorno",
+        data:       title.reversed_at   ? fmtDate(title.reversed_at)   : null,
+        valor:      title.amount_paid   != null ? fmtBRL(title.amount_paid) : null,
+        banco:      title.bank_name     ?? null,
+        conta:      title.account_name  ?? null,
+        modalidade: title.payment_method_name ?? null,
+      });
+    }
+
+    if (title.status === "cancelled") {
+      events.push({
+        evento:     "Cancelamento",
+        data:       title.cancelled_at  ? fmtDate(title.cancelled_at)  : null,
+        valor:      fmtBRL(title.amount),
+        banco:      null,
+        conta:      null,
+        modalidade: null,
+      });
+    }
+
+    return events;
+  }, [title]);
+
+  if (!rows.length) return null;
+
+  const cols: { key: keyof EventRow; label: string; width: string }[] = [
+    { key: "banco",      label: "Banco",            width: "22%" },
+    { key: "conta",      label: "Conta Financeira", width: "22%" },
+    { key: "modalidade", label: "Modalidade",       width: "22%" },
+    { key: "evento",     label: "Evento",           width: "14%" },
+    { key: "data",       label: "Data",             width: "10%" },
+    { key: "valor",      label: "Valor",            width: "10%" },
+  ];
+
+  return (
+    <div className="bg-background p-4 border-t border-border">
+      <div className="border rounded-lg overflow-hidden">
+        <table className="w-full text-sm table-fixed">
+          <colgroup>
+            {cols.map((c) => <col key={c.key} style={{ width: c.width }} />)}
+          </colgroup>
+          <thead className="bg-muted/40">
+            <tr className="border-b border-border">
+              {cols.map((c) => (
+                <th key={c.key} className="px-3 h-9 text-left text-xs font-normal text-secondary-foreground/80 border-e last:border-e-0">
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-b last:border-b-0">
+                {cols.map((c) => (
+                  <td key={c.key} className="px-3 py-2 text-sm border-e last:border-e-0">
+                    {c.key === "evento"
+                      ? <span className="font-semibold">{row[c.key]}</span>
+                      : row[c.key] ?? <span className="text-muted-foreground">—</span>}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 interface FinTitlesDataGridProps {
   titles: FinTitle[];
   isLoading: boolean;
+  clearSelectionKey?: number;
   onSelectionChange?: (count: number, allPending: boolean, selectedIds: number[], allSamePeople: boolean, selectedTitles: FinTitle[]) => void;
   onEdit?: (title: FinTitle) => void;
   onBaixar?: (title: FinTitle) => void;
@@ -106,6 +202,7 @@ interface FinTitlesDataGridProps {
 export function FinTitlesDataGrid({
   titles,
   isLoading,
+  clearSelectionKey,
   onSelectionChange,
   onEdit,
   onBaixar,
@@ -121,7 +218,6 @@ export function FinTitlesDataGrid({
   const [columnOrder] = useState<string[]>([
     "expand",
     "select",
-    "id",
     "invoice_number",
     "people_name",
     "installment",
@@ -138,7 +234,12 @@ export function FinTitlesDataGrid({
 
   useEffect(() => {
     setData(titles);
+    setExpanded({});
   }, [titles]);
+
+  useEffect(() => {
+    if (clearSelectionKey !== undefined) setRowSelection({});
+  }, [clearSelectionKey]);
 
   useEffect(() => {
     const selectedKeys = Object.keys(rowSelection);
@@ -160,63 +261,23 @@ export function FinTitlesDataGrid({
           const hasPay = ["paid", "partial", "reversed", "cancelled"].includes(row.original.status);
           if (!hasPay) return null;
           return (
-            <button
+            <Button
               onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
-              className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              size="icon"
+              variant="ghost"
+              className="opacity-70 hover:bg-transparent hover:opacity-100"
             >
               {row.getIsExpanded()
-                ? <ChevronDown className="size-4" />
-                : <ChevronRight className="size-4" />}
-            </button>
+                ? <SquareMinusIcon className="size-3.5" />
+                : <SquarePlusIcon className="size-3.5" />}
+            </Button>
           );
         },
         meta: {
           skeleton: <Skeleton className="h-4 w-4" />,
           headerClassName: "w-[3%]",
           cellClassName: "w-[3%]",
-          expandedColSpan: 7,
-          expandedCellContent: (title: FinTitle) => {
-            if (!["paid", "partial", "reversed", "cancelled"].includes(title.status)) return null;
-            const parts: React.ReactNode[] = [];
-            if (title.bank_name)
-              parts.push(<>Banco: <strong>{title.bank_name}</strong></>);
-            if (title.account_name)
-              parts.push(<>Conta Financeira: <strong>{title.account_name}</strong></>);
-            if (title.payment_method_name)
-              parts.push(<>Modalidade: <strong>{title.payment_method_name}</strong></>);
-            if (!parts.length) return null;
-            return (
-              <p className="text-xs text-muted-foreground text-right">
-                {parts.map((part, i) => (
-                  <React.Fragment key={i}>
-                    {i > 0 && <span className="mx-4 text-muted-foreground/50">|</span>}
-                    {part}
-                  </React.Fragment>
-                ))}
-              </p>
-            );
-          },
-          expandedCellContent2: (title: FinTitle) => {
-            if (title.status !== "reversed") return null;
-            const parts: React.ReactNode[] = [];
-            if (title.bank_name)
-              parts.push(<>Banco: <strong>{title.bank_name}</strong></>);
-            if (title.account_name)
-              parts.push(<>Conta Financeira: <strong>{title.account_name}</strong></>);
-            if (title.payment_method_name)
-              parts.push(<>Modalidade: <strong>{title.payment_method_name}</strong></>);
-            if (!parts.length) return null;
-            return (
-              <p className="text-xs text-muted-foreground text-right">
-                {parts.map((part, i) => (
-                  <React.Fragment key={i}>
-                    {i > 0 && <span className="mx-4 text-muted-foreground/50">|</span>}
-                    {part}
-                  </React.Fragment>
-                ))}
-              </p>
-            );
-          },
+          expandedContent: (title: FinTitle) => <ExpandedContent title={title} />,
         },
         enableSorting: false,
         enableHiding: false,
@@ -253,36 +314,20 @@ export function FinTitlesDataGrid({
         enableHiding: false,
       },
       {
-        accessorKey: "id",
-        id: "id",
-        header: ({ column }) => (
-          <DataGridColumnHeader title="ID" column={column} />
-        ),
-        cell: (info) => (
-          <span className="text-muted-foreground font-mono">
-            #{String(info.getValue() as number).padStart(5, "0")}
-          </span>
-        ),
-        meta: {
-          skeleton: <Skeleton className="h-5 w-14" />,
-          headerClassName: "w-[7%]",
-          cellClassName: "w-[7%]",
-        },
-        enableSorting: true,
-        enableHiding: false,
-      },
-      {
         accessorKey: "invoice_number",
         id: "invoice_number",
         header: ({ column }) => (
           <DataGridColumnHeader title="Título" column={column} />
         ),
         cell: ({ row }) => (
-          <span className="text-muted-foreground font-mono text-sm">
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit?.(row.original); }}
+            className="font-mono text-sm text-blue-600 hover:underline underline-offset-2"
+          >
             {row.original.invoice_number ?? (
-              <span className="italic text-xs">—</span>
+              <span className="italic text-xs text-muted-foreground">—</span>
             )}
-          </span>
+          </button>
         ),
         meta: {
           skeleton: <Skeleton className="h-5 w-16" />,
@@ -374,27 +419,6 @@ export function FinTitlesDataGrid({
           skeleton: <Skeleton className="h-5 w-24" />,
           headerClassName: "w-[8%]",
           cellClassName: "w-[8%]",
-          expandedCellContent: (title: FinTitle) => {
-            if (!["paid", "partial", "reversed"].includes(title.status)) return null;
-            const valorPago = title.amount_paid != null ? fmtBRL(title.amount_paid) : null;
-            return valorPago ? (
-              <div className="space-y-0.5 text-xs">
-                <p className="text-muted-foreground text-left">Valor Pago</p>
-                <p className="font-semibold tabular-nums text-right">{valorPago}</p>
-              </div>
-            ) : null;
-          },
-          expandedCellContent2: (title: FinTitle) => {
-            if (title.status === "reversed" && title.amount_paid != null) {
-              return (
-                <div className="space-y-0.5 text-xs">
-                  <p className="text-muted-foreground text-left">Valor Estornado</p>
-                  <p className="font-semibold tabular-nums text-right">{fmtBRL(title.amount_paid)}</p>
-                </div>
-              );
-            }
-            return null;
-          },
         },
         enableSorting: true,
         enableHiding: false,
@@ -424,36 +448,6 @@ export function FinTitlesDataGrid({
           skeleton: <Skeleton className="h-5 w-24" />,
           headerClassName: "w-[12%]",
           cellClassName: "w-[12%]",
-          expandedCellContent: (title: FinTitle) => {
-            if (!["paid", "partial", "reversed", "cancelled"].includes(title.status)) return null;
-            if (title.status === "cancelled") {
-              const dataCancelamento = title.cancelled_at ? fmtDate(title.cancelled_at) : null;
-              return dataCancelamento ? (
-                <div className="space-y-0.5 text-xs">
-                  <p className="text-muted-foreground">Data Cancelamento</p>
-                  <p className="font-semibold">{dataCancelamento}</p>
-                </div>
-              ) : null;
-            }
-            const dataBaixa = title.paid_at ? fmtDate(title.paid_at) : null;
-            return dataBaixa ? (
-              <div className="space-y-0.5 text-xs">
-                <p className="text-muted-foreground">Data Baixa</p>
-                <p className="font-semibold">{dataBaixa}</p>
-              </div>
-            ) : null;
-          },
-          expandedCellContent2: (title: FinTitle) => {
-            if (title.status === "reversed" && title.reversed_at) {
-              return (
-                <div className="space-y-0.5 text-xs">
-                  <p className="text-muted-foreground">Data Estorno</p>
-                  <p className="font-semibold">{fmtDate(title.reversed_at)}</p>
-                </div>
-              );
-            }
-            return null;
-          },
         },
         enableSorting: true,
         enableHiding: false,
@@ -495,7 +489,7 @@ export function FinTitlesDataGrid({
                   variant="outline"
                   size="icon"
                   className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700"
-                  onClick={() => onEdit?.(row.original)}
+                  onClick={(e) => { e.stopPropagation(); onEdit?.(row.original); }}
                 >
                   {row.original.status === "pending" ? <Pencil className="size-4" /> : <Eye className="size-4" />}
                 </Button>
@@ -509,7 +503,7 @@ export function FinTitlesDataGrid({
                     variant="outline"
                     size="icon"
                     className="bg-green-50 text-green-600 border-green-200 hover:bg-green-100 hover:text-green-700"
-                    onClick={() => onBaixar?.(row.original)}
+                    onClick={(e) => { e.stopPropagation(); onBaixar?.(row.original); }}
                   >
                     <ArrowDownToLine className="size-4" />
                   </Button>
@@ -536,6 +530,7 @@ export function FinTitlesDataGrid({
     data,
     pageCount: Math.ceil((data?.length || 0) / pagination.pageSize),
     getRowId: (row: FinTitle) => String(row.id),
+    getRowCanExpand: (row) => ["paid", "partial", "reversed", "cancelled"].includes(row.original.status),
     state: { pagination, sorting, columnOrder, rowSelection, expanded },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
@@ -554,23 +549,28 @@ export function FinTitlesDataGrid({
       table={table}
       recordCount={data?.length || 0}
       isLoading={isLoading}
-      tableClassNames={{ edgeCell: "px-5" }}
+      onRowClick={(title: FinTitle) => table.getRow(String(title.id))?.toggleSelected()}
+      tableClassNames={{ edgeCell: "px-5", bodyRow: "cursor-default" }}
       tableLayout={{
         width: "auto",
+        stripped: true,
         rowsDraggable: false,
         columnsPinnable: false,
         columnsMovable: false,
         columnsVisibility: false,
+        headerSticky: true,
       }}
     >
-      <div className="w-full space-y-2.5">
-        <div className="w-full border rounded-lg">
-          <ScrollArea>
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex-1 min-h-0 border rounded-lg overflow-hidden">
+          <ScrollArea className="h-full">
             <DataGridTable />
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
         </div>
-        <DataGridPagination rowsPerPageLabel="Registros por página" info=" " />
+        <div className="shrink-0 mt-2">
+          <DataGridPagination rowsPerPageLabel="Registros por página" info=" " />
+        </div>
       </div>
     </DataGrid>
   );

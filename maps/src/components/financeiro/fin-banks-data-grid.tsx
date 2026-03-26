@@ -35,6 +35,9 @@ export interface FinBank {
   main: boolean;
   order: number;
   active: boolean;
+  last_balance_data: string | null;
+  last_balance_valor: number | null;
+  current_balance: number | null;
 }
 
 interface FinBanksDataGridProps {
@@ -57,7 +60,7 @@ export function FinBanksDataGrid({
   const [data, setData] = useState<FinBank[]>(banks);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnOrder] = useState<string[]>(["drag", "select", "id", "name", "bank", "agency", "account", "active", "actions"]);
+  const [columnOrder] = useState<string[]>(["drag", "select", "id", "name", "bank", "agency", "account", "balance", "active", "actions"]);
   const [rowSelection, setRowSelection] = useState({});
 
   useEffect(() => { setData(banks); }, [banks]);
@@ -174,6 +177,23 @@ export function FinBanksDataGrid({
             {row.original.account ?? <span className="italic text-xs">—</span>}
           </span>
         ),
+        meta: { skeleton: <Skeleton className="h-5 w-24" />, headerClassName: "w-[14%]", cellClassName: "w-[14%]" },
+        enableSorting: false,
+        enableHiding: false,
+      },
+      {
+        id: "balance",
+        header: ({ column }) => <DataGridColumnHeader title="Saldo" column={column} />,
+        cell: ({ row }) => {
+          const b = row.original;
+          if (b.current_balance === null) return <span className="italic text-xs text-muted-foreground">—</span>;
+          const color = b.current_balance >= 0 ? "text-green-600" : "text-red-600";
+          return (
+            <span className={`font-medium tabular-nums text-sm ${color}`}>
+              {b.current_balance.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            </span>
+          );
+        },
         meta: { skeleton: <Skeleton className="h-5 w-24" />, headerClassName: "w-[14%]", cellClassName: "w-[14%]" },
         enableSorting: false,
         enableHiding: false,

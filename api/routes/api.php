@@ -22,12 +22,15 @@ use App\Http\Controllers\TypePeopleController;
 use App\Http\Controllers\PeopleCandidacyController;
 use App\Http\Controllers\PermissionActionController;
 use App\Http\Controllers\FinBankController;
+use App\Http\Controllers\FinBankBalanceController;
 use App\Http\Controllers\FinPaymentMethodController;
 use App\Http\Controllers\FinPaymentMethodTypeController;
 use App\Http\Controllers\FinExtractController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\FinWalletController;
 use App\Http\Controllers\FinTitleController;
+use App\Http\Controllers\FinTitleNoteController;
+use App\Http\Controllers\FileController;
 use App\Http\Controllers\FinAccountController;
 use Illuminate\Support\Facades\Route;
 
@@ -114,6 +117,12 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::put('/fin-banks/{id}', [FinBankController::class, 'update']);
     Route::delete('/fin-banks/{id}', [FinBankController::class, 'destroy']);
 
+    // Financeiro — Saldos de Banco
+    Route::get('/fin-banks/{bankId}/balances', [FinBankBalanceController::class, 'index']);
+    Route::post('/fin-banks/{bankId}/balances', [FinBankBalanceController::class, 'store']);
+    Route::put('/fin-banks/{bankId}/balances/{id}', [FinBankBalanceController::class, 'update']);
+    Route::delete('/fin-banks/{bankId}/balances/{id}', [FinBankBalanceController::class, 'destroy']);
+
     // Financeiro — Tipos de Modalidade de Pagamento
     Route::get('/fin-payment-method-types', [FinPaymentMethodTypeController::class, 'index']);
     Route::post('/fin-payment-method-types', [FinPaymentMethodTypeController::class, 'store']);
@@ -150,6 +159,7 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
 
     // Financeiro — Títulos
     Route::get('/fin-titles', [FinTitleController::class, 'index']);
+    Route::post('/fin-titles/installments', [FinTitleController::class, 'installments']);
     Route::post('/fin-titles/compose', [FinTitleController::class, 'compose']);
     Route::get('/fin-titles/{id}', [FinTitleController::class, 'show']);
     Route::post('/fin-titles', [FinTitleController::class, 'store']);
@@ -158,4 +168,11 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::post('/fin-titles/{id}/pay', [FinTitleController::class, 'pay']);
     Route::post('/fin-titles/{id}/reverse', [FinTitleController::class, 'reverse']);
     Route::post('/fin-titles/{id}/clone', [FinTitleController::class, 'clone']);
+    Route::get('/fin-titles/{id}/notes', [FinTitleNoteController::class, 'index']);
+    Route::post('/fin-titles/{id}/notes', [FinTitleNoteController::class, 'store']);
+    Route::delete('/fin-titles/{id}/notes/{noteId}', [FinTitleNoteController::class, 'destroy']);
+    Route::get('/files/{modulo}/{recordId}', [FileController::class, 'index']);
+    Route::post('/files/{modulo}/{recordId}', [FileController::class, 'store']);
+    Route::get('/files/{modulo}/{recordId}/{fileId}/download', [FileController::class, 'download']);
+    Route::delete('/files/{modulo}/{recordId}/{fileId}', [FileController::class, 'destroy']);
 });

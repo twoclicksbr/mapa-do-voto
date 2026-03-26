@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 25/03/2026 (fin_titles: +reversed_at, +cancelled_at — migrations 000070/000071; fin_extract: +source, title_id nullable — migration 000069)
+> Atualizado em: 26/03/2026 (fin_bank_balances — migration 000072: nova tabela de saldos pontuais por banco)
 
 ---
 
@@ -631,6 +631,22 @@ Rastreia composição entre títulos — gerada em clones e baixas parciais. Mig
 | `destination_title_id` | bigint | NOT NULL | Título gerado (clone ou saldo restante) |
 | `created_at` | timestamp | NULL | — |
 | `updated_at` | timestamp | NULL | — |
+
+---
+
+### `gabinete_master.fin_bank_balances`
+Saldos pontuais registrados por banco — usado para calcular saldo atual de cada banco. Migração `000072`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `fin_bank_id` | bigint | NOT NULL | FK → `fin_banks.id` |
+| `data` | date | NOT NULL | Data de referência do saldo |
+| `valor` | decimal(15,2) | NOT NULL | Valor do saldo na data |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+
+**Cálculo de saldo atual:** último saldo (`MAX(data)` por `fin_bank_id`) + soma líquida do `fin_extract` após essa data.
 
 ---
 

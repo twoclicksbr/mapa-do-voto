@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 25/03/2026 (extrato financeiro: source em fin_extract, reversed_at/cancelled_at em fin_titles; FinExtractDataGrid grid+timeline; FinTitlesFilterModal; PageFooter; DateSelector; reverse() clona título; 401 interceptor auth:logout; create person inline em FinTitleModal; expandedCellContent2 no DataGrid) -->
+<!-- Atualizado em: 26/03/2026 (fin_bank_balances: saldo de banco com CRUD inline; FinBankBalanceController; FileController genérico; FinTitleNoteController; fin-title-modal: abas Dados/Centro de Custo/Notas/Arquivos funcionais, amount→Modo Natural, makeCalcKeyDown; fin-titles-data-grid: ExpandedContent tabela eventos, clearSelectionKey; fin-titles-filter-modal: filtros banco/conta/modalidade/valor; fin-extract-data-grid: initialBalance + timeline 2 colunas; POST /fin-titles/installments; pay aceita interest/multa/discount; notas automáticas em pay/cancel/reverse) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -15,7 +15,42 @@ Sempre ler os dois arquivos abaixo ao iniciar uma nova conversa:
 
 ---
 
-## Regras do Claude Code
+## Inputs Monetários
+
+O projeto tem dois modos de input de valor monetário. Ao implementar um novo campo de valor, perguntar qual modo aplicar.
+
+### Modo Calculadora
+Dígitos empurram da direita para a esquerda (shift right nos centavos). Teclas aceitas: `0–9`, `,` ou `.` (entra em modo decimal), `Backspace`. `caret-transparent` no input (cursor invisível).
+
+**Comportamento:**
+- Digitar `1` → `0,01`
+- Digitar `1`, `2` → `0,12`
+- Digitar `1`, `2`, `3` → `1,23`
+- Digitar `,` → ativa `decMode`, próximos dígitos vão para centavos
+- `Backspace` → remove último dígito
+
+**Implementação:** `makeCalcKeyDown(valueProp, setValue, decMode, setDecMode, afterUpdate?, freshRef?)` em `fin-title-modal.tsx` — função reutilizável que retorna um handler `onKeyDown`. Estado `decMode` + `freshRef` (MutableRefObject<boolean>) por campo. Funções auxiliares: `maskCurrency(digits)` (formata string de dígitos puros), `parseCurrency(masked)` (converte máscara para float), `numberToMask(value)` (float → string formatada).
+
+**Onde usar:** campos de valor monetário na aba Baixar (juros R$, multa R$, desconto R$, valor líquido); saldo bancário no `fin-bank-modal.tsx`.
+
+---
+
+### Modo Natural
+O usuário digita normalmente; a vírgula separa inteiro dos centavos. Cada lado é independente. Auto-completa centavos ao sair do campo (`onBlur`).
+
+**Comportamento:**
+- `123` → `R$ 123,00`
+- `123,5` → `R$ 123,50`
+- `123,54` → `R$ 123,54`
+- `1234` → `R$ 1.234,00`
+- `1234,5` → `R$ 1.234,50`
+- `1234,54` → `R$ 1.234,54`
+
+**Implementação:** `maskCurrencyNatural(value)` — limpa não-numéricos exceto vírgula, separa em `[inteiro, centavos]`, formata inteiro com separador de milhar (`.`), completa centavos com zeros até 2 casas; `parseCurrency(masked)` para converter de volta a float.
+
+**Onde usar:** filtros, campo de valor principal de título financeiro (criação/edição), qualquer campo onde o usuário digita o valor diretamente sem interação dígito-a-dígito. Também existe `maskPercentNatural`/`maskPercentNaturalBlur` para campos de percentual (juros/multa/desconto em % na aba Baixar).
+
+---
 
 - NÃO fazer git add/commit/push sem ser solicitado
 - Implementar SOMENTE o que for pedido na tarefa
@@ -199,7 +234,7 @@ C:\Herd\mapa-do-voto\
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças, Configurações. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Aba Configurações exibe `AppMegaMenu` com seções: Permissões (DataGrid + Modal com DnD), Pessoas (DataGrid + Modal), Tipos de Pessoa, Tipos de Contato, Tipos de Endereço, Tipos de Documento. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). Estado `finTitleInitialTab` controla qual aba do `FinTitleModal` abre: `onEdit` → `"geral"`, `onBaixar` → `"baixar"`; resetado para `"geral"` ao fechar. `FinCompositionModal.onConfirm` chama `POST /fin-titles/compose` e recarrega o DataGrid correspondente. `FinTitlesFilterModal` abre ao clicar em Pesquisar nos DataGrids de títulos; filtragem client-side via `applyFinFilters()` + `useMemo`. Seção `fin-extract` exibe `FinExtractDataGrid` com toggle grid/timeline (`ExtractViewToggle`). Todos os footers inline foram substituídos pelo componente `PageFooter`. Layout: `html/body/#root` com `overflow: hidden`; containers internos usam `flex-1 min-h-0` |
+| `src/pages/home/page.tsx` | Página principal. Sistema de abas: Gabinetes (só `master`), Mapa, Atendimentos, Agenda, Alianças, Finanças, Configurações. Detecta `isMaster` pelo subdomínio. Aba Gabinetes carrega `GET /api/tenants` e exibe `GabinetesDataGrid`. Aba Configurações exibe `AppMegaMenu` com seções: Permissões (DataGrid + Modal com DnD), Pessoas (DataGrid + Modal), Tipos de Pessoa, Tipos de Contato, Tipos de Endereço, Tipos de Documento. Botão split só visível no `isMaster`. Navbar exibe dropdown de seleção de gabinete (redireciona para `{slug}.mapadovoto.com`). Estado `finTitleInitialTab` controla qual aba do `FinTitleModal` abre: `onEdit` → `"geral"`, `onBaixar` → `"baixar"`; resetado para `"geral"` ao fechar. `FinCompositionModal.onConfirm` chama `POST /fin-titles/compose` e recarrega o DataGrid correspondente. `FinTitlesFilterModal` abre ao clicar em Pesquisar nos DataGrids de títulos; prop `titleType` passada; filtragem client-side via `applyFinFilters()` + `useMemo` (inclui bankId, accountId, paymentMethodId, amountField/amountValue). `finTitlesClearKey`/`finTitlesIncomeClearKey` — incrementados após reload ou bulk cancel para resetar seleção via prop `clearSelectionKey`. Bulk cancel atualiza `cancelled_at` otimisticamente. Seção `fin-extract` exibe `FinExtractDataGrid` com `initialBalance` (carregado junto com os entries de `GET /fin-extract`). Todos os footers inline foram substituídos pelo componente `PageFooter`. Layout: `html/body/#root` com `overflow: hidden`; containers internos usam `flex-1 min-h-0` |
 | `src/components/map/mapa-do-voto-map.tsx` | Mapa Leaflet + CandidateCard + StatsCard (overlay flutuante) + CitySearch interno + heatmap + botões flutuantes. `CitySearch` interno: prop `stateUf`, busca normalizada (unaccent via `normalizeName`), exibe "CIDADE - UF". `StatsCard`: exibe "0 votos nesta cidade" quando city sem votos. `MapCore`: `focusedCityBoundsRef` guarda bounds da cidade focada (clique ou CitySearch); crosshair usa cidade quando disponível senão estado; `clearCityHighlight` e toggle "Exibir Cidades" voltam zoom ao estado via `polygonLayerRef` com maxZoom:7. Termômetro do heatmap: tooltip hover com valor abreviado (250/2.5k/1.5m votos) seguindo mouse verticalmente. `fmtShort()` formata números. |
 | `src/components/map/candidate-search.tsx` | Autocomplete com avatar, PartyBadge, CandidateInfo — variants: `map`, `sidebar`, `modal`; no modal busca apenas id/name/photo_url sem party/role; dropdown com `onMouseDown`+`preventDefault` para funcionar dentro de Radix Dialog; placeholder "Digite nome, cargo, ano, cidade, UF ou partido"; clicar em qualquer lugar do campo foca o input |
 | `src/components/mapa-do-voto/sidebar.tsx` | Painel lateral: stats reais, turno dinâmico, badge Status TSE flutuante |
@@ -215,6 +250,7 @@ C:\Herd\mapa-do-voto\
 | `src/components/people/people-data-grid.tsx` | DataGrid de pessoas: colunas ID, Avatar, Nome (clicável), Aniversário (com ícone `PartyPopper` pulsante no dia), Tipo, Status, Ações |
 | `src/components/people/people-modal.tsx` | Modal de pessoas: Create (small) + Detail (large 2 painéis). Abas: Geral, Contatos, Endereços, Documentos, Notas, Arquivos, Usuário, Permissões. Aba Endereços: layout 2 colunas com ViaCEP + mapa Leaflet. Campo Data de Nascimento usa `BirthDatePicker`. Aba Contatos: quando tipo selecionado for WhatsApp (`selectedType.name.toLowerCase() === 'whatsapp'`), exibe `PhoneInput` em vez de `Input`; valor salvo como dígitos puros. Aba Permissões: grid 3 colunas de Frame cards (um por módulo) com Checkbox de grupo + Checkbox por ação; usa `name_module`/`name_action` vindos da API |
 | `src/components/people/birth-date-picker.tsx` | Date picker customizado baseado no `@reui/p-calendar-26` — Popover + Calendar com navegação mês/ano, locale ptBR, formato DD/MM/YYYY; props opcionais `minYear` (default 1920) e `maxYear` (default ano atual); validação usa `startDate`/`endDate` dinâmicos; input estilizado com `shadow-xs`, `transition-[color,box-shadow]`, `focus-visible:ring-[3px]`; size sm: `h-7 px-2.5 text-xs`; disabled: `opacity-60` |
+| `src/components/people/people-files-tab.tsx` | Aba de arquivos reutilizável. Prop `basePath` opcional (default `/people/{personId}/files`) — permite usar o componente para qualquer entidade (ex: `basePath=/files/fin_title/{id}` no `FinTitleModal`). CRUD: upload, download, delete, lightbox de imagens; views grid/lista |
 | `src/components/reui/phone-input.tsx` | Input de telefone com seletor de país — usa `react-phone-number-input` + Popover + ScrollArea; `defaultCountry="BR"`; sem dependência de combobox |
 | `src/components/permission-actions/permission-actions-data-grid.tsx` | DataGrid de permission_actions: agrupado por módulo com expand/collapse, DnD (`@dnd-kit`) para reordenar módulos e ações dentro de módulos; persistência via `PUT /permission-actions/reorder` |
 | `src/components/permission-actions/permission-actions-modal.tsx` | Modal de criação/edição de permission_action: campos module (chave), name_module, action (chave), name_action, description |
@@ -223,14 +259,14 @@ C:\Herd\mapa-do-voto\
 | `src/components/type-addresses/` | CRUD de tipos de endereço (DataGrid + Modal) |
 | `src/components/type-documents/` | CRUD de tipos de documento (DataGrid + Modal) |
 | `src/components/financeiro/fin-mega-menu.tsx` | NavigationMenu da aba Finanças — seções: Títulos a Pagar, Bancos, Modalidades, Tipos de Modalidade, Departamentos, Plano de Contas, **Extrato**; persiste `finSection` no `localStorage` (`mapadovoto:finSection`) |
-| `src/components/financeiro/fin-titles-data-grid.tsx` | DataGrid de títulos financeiros (FinTitle). Interface inclui `reversed_at` e `cancelled_at`. `onSelectionChange(count, allPending, selectedIds, allSamePeople, selectedTitles)` — usa `useRef` para evitar loop infinito com callbacks inline. Ações em massa: **Status → Cancelar** (visível só quando `allPending`); **Composição** (visível quando `allPending && allSamePeople`). Ações por linha: `onEdit` (lápis) + `onBaixar` (ArrowDownToLine, verde — visível apenas quando `status === "pending"`). Botão Excluir removido. Linha expandida suporta `expandedCellContent2` (segunda sub-linha): para `reversed` exibe Data Estorno e Valor Estornado; para `cancelled` exibe Data Cancelamento. |
-| `src/components/financeiro/fin-extract-data-grid.tsx` | DataGrid do extrato financeiro. Dois modos de visualização: **grid** (TanStack Table, paginado) e **timeline** (linha do tempo cronológica). Colunas: Data, Pessoa, Conta, Banco, Modalidade, Origem (badge: Manual/Baixa/Estorno), Entrada, Saída. Exporta `FinExtractEntry`, `ExtractView`, `ExtractViewToggle`, `EXTRACT_VIEW_KEY`. Footer de totais: Entradas, Saídas, Saldo geral + breakdown por modalidade. View persiste em `localStorage` via `EXTRACT_VIEW_KEY = "mapadovoto:extractView"`. |
-| `src/components/financeiro/fin-titles-filter-modal.tsx` | Modal de pesquisa avançada de títulos. Filtros: Nº do Título (invoice_number), Pessoa (autocomplete), Nº Documento, Status (multi-select com badges), campo de data (seletor: Cadastro/Emissão/Vencimento/Baixa/Estorno/Cancelamento) + DateSelector com operadores is/before/after/between. Exporta `FinTitlesFilters`. Filtragem é client-side em `page.tsx` via `applyFinFilters()`. |
+| `src/components/financeiro/fin-titles-data-grid.tsx` | DataGrid de títulos financeiros (FinTitle). Interface inclui `reversed_at` e `cancelled_at`. `onSelectionChange(count, allPending, selectedIds, allSamePeople, selectedTitles)` — usa `useRef` para evitar loop infinito com callbacks inline. Prop `clearSelectionKey` — incrementar reseta seleção (usado após bulk cancel e reload). Ações em massa: **Status → Cancelar** (visível só quando `allPending`); **Composição** (visível quando `allPending && allSamePeople`). Ações por linha: `onEdit` (lápis) + `onBaixar` (ArrowDownToLine, verde — visível apenas quando `status === "pending"`). Botão Excluir removido. Coluna `id` removida. Linha expandida: componente `ExpandedContent` renderiza tabela de eventos (Banco, Conta Financeira, Modalidade, Evento, Data, Valor) para títulos paid/partial/reversed/cancelled — mostra linhas de Baixa, Estorno ou Cancelamento. Ícones `SquarePlusIcon`/`SquareMinusIcon` para expand/collapse. |
+| `src/components/financeiro/fin-extract-data-grid.tsx` | DataGrid do extrato financeiro. Dois modos de visualização: **grid** (TanStack Table, paginado) e **timeline** (duas colunas: saídas à esquerda, entradas à direita, dot central). Props: `entries`, `initialBalance` (saldo inicial da última `fin_bank_balances` por banco), `isLoading`, `view`. Colunas: Data, Pessoa, Conta, Banco, Modalidade, Origem (badge: Manual/Baixa/Estorno), Entrada, Saída. `TimelineCard` exibe título/pessoa, data, conta, banco, modalidade, badge origem. Footer: exibe **Saldo Inicial** (quando disponível), Entradas, Saídas, **Saldo Final** (= saldo inicial + entradas − saídas) ou "Saldo" (somente se não houver saldo inicial); breakdown por modalidade em grid 4 colunas alinhadas. Exporta `FinExtractEntry`, `ExtractView`, `ExtractViewToggle`, `EXTRACT_VIEW_KEY`. |
+| `src/components/financeiro/fin-titles-filter-modal.tsx` | Modal de pesquisa avançada de títulos. Prop `titleType: 'income' \| 'expense'`. Filtros: Nº do Título (invoice_number), Pessoa (autocomplete), Nº Documento, Status (multi-select com badges — popover com `tempStatuses`), campo de data (seletor: Cadastro/Emissão/Vencimento/Baixa/Estorno/Cancelamento) + DateSelector; **Banco** (select), **Conta Financeira** (select com `flattenAccounts` hierárquico), **Modalidade** (select), **Campo de valor** (select: Valor/Juros/Multa/Desconto/Valor Pago) + **Valor** (input). Exporta `FinTitlesFilters` (inclui `amountField`, `amountValue`, `bankId`, `accountId`, `paymentMethodId`). Filtragem client-side em `page.tsx` via `applyFinFilters()`. |
 | `src/components/financeiro/fin-composition-modal.tsx` | Modal de composição de títulos. Layout 3 colunas: N° Parcelas, Intervalo das Parcelas (dias), Vencimento 1ª Parcela (`BirthDatePicker` minYear=2020 maxYear=2035). Dois grids com scroll (5 linhas visíveis): "Títulos selecionados" e "Registros a gerar" (preview calculado em tempo real — valor dividido igualmente, datas calculadas com base no intervalo). Ao confirmar chama `POST /fin-titles/compose` e recarrega o DataGrid. |
-| `src/components/financeiro/fin-title-modal.tsx` | Modal criar/editar título financeiro (FinTitle). Props: `initialTab` (default `"geral"`) — controla qual aba abre; usado pelo botão Baixar do DataGrid para abrir direto na aba `"baixar"`. Aba Geral: inputs read-only estilizados com `bg-muted/60`. Aba Baixar: filtro de contas dinâmico — `income` filtra `revenue`, `expense` filtra `expense`; campos disabled exibem `!opacity-100`. Botão `+` ao lado do label "Pessoa" abre `PeopleModal` inline para criar pessoa sem sair do modal — após criação, insere na lista e seleciona automaticamente. Campo Valor usa `handleAmountKeyDown` (teclado numérico digit-by-digit com modo decimal) em vez de `onChange`; `caret-transparent`. |
-| `src/components/financeiro/fin-installment-modal.tsx` | Modal de parcelamento: divide/repete valor em N parcelas com intervalo e vencimento configuráveis, preview de parcelas |
-| `src/components/financeiro/fin-banks-data-grid.tsx` | DataGrid de bancos com reordenação |
-| `src/components/financeiro/fin-bank-modal.tsx` | Modal criar/editar banco |
+| `src/components/financeiro/fin-title-modal.tsx` | Modal criar/editar título financeiro (FinTitle). Props: `initialTab` (default `"geral"`) — controla qual aba abre; usado pelo botão Baixar do DataGrid para abrir direto na aba `"baixar"`. Título: "Editar"/"Novo"/"Visualizar" (quando status != pending). **Abas:** `Dados` (ícone ClipboardList — formulário principal), `Centro de Custo` (ícone PieChart — centro de custo em aba separada), `Baixar` (ícone ArrowDownToLine), `Notas` (ícone StickyNote — CRUD via `/fin-titles/{id}/notes`), `Arquivos` (ícone Folder — via `PeopleFilesTab` com `basePath=/files/fin_title/{id}`), `Composição` (ícone GitMerge — condicional). Aba Dados: inputs read-only estilizados com `bg-muted/60`. Campo Valor usa `maskCurrencyNatural`/`maskCurrencyNaturalBlur` (Modo Natural). Aba Baixar: filtro de contas dinâmico; campos de % (juros/multa/desconto) usam `maskPercentNatural`; campos de R$ usam `makeCalcKeyDown` (Modo Calculadora); `interest`/`multa`/`discount` enviados no payload do `pay`. Botão `+` ao lado de "Pessoa" abre `PeopleModal` inline. Parcelamento via `POST /fin-titles/installments` (batch atômico). `makeCalcKeyDown` helper reutilizável no arquivo. |
+| `src/components/financeiro/fin-installment-modal.tsx` | Modal de parcelamento: divide/repete valor em N parcelas com intervalo e vencimento configuráveis, preview de parcelas. Botões: "Dividir o Valor" / "Repetir o Valor" |
+| `src/components/financeiro/fin-banks-data-grid.tsx` | DataGrid de bancos com reordenação. Interface `FinBank` inclui `last_balance_data`, `last_balance_valor`, `current_balance` (retornados pela API). Coluna **Saldo** exibe `current_balance` em verde/vermelho. |
+| `src/components/financeiro/fin-bank-modal.tsx` | Modal criar/editar banco. Modo edição: seção **Saldos** com CRUD inline — lista histórico de saldos, formulário para adicionar (data + valor em Modo Calculadora), delete. Exibe saldo atual calculado (última balance + movimentações posteriores do extrato). Largura `max-w-md` no modo edição. |
 | `src/components/financeiro/fin-payment-methods-data-grid.tsx` | DataGrid de modalidades de pagamento |
 | `src/components/financeiro/fin-payment-method-modal.tsx` | Modal criar/editar modalidade |
 | `src/components/financeiro/fin-payment-method-types-data-grid.tsx` | DataGrid de tipos de modalidade com DnD |
@@ -373,6 +409,10 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | POST | `/api/fin-banks` | Bearer | — | Cria banco |
 | PUT | `/api/fin-banks/{id}` | Bearer | — | Atualiza banco (aceita só `order` para reordenar) |
 | DELETE | `/api/fin-banks/{id}` | Bearer | — | Soft delete do banco |
+| GET | `/api/fin-banks/{bankId}/balances` | Bearer | — | Lista saldos do banco ordenados por data desc |
+| POST | `/api/fin-banks/{bankId}/balances` | Bearer | — | Cria registro de saldo (data, valor) |
+| PUT | `/api/fin-banks/{bankId}/balances/{id}` | Bearer | — | Atualiza saldo |
+| DELETE | `/api/fin-banks/{bankId}/balances/{id}` | Bearer | — | Remove saldo |
 | GET | `/api/fin-payment-method-types` | Bearer | — | Lista tipos de modalidade de pagamento |
 | POST | `/api/fin-payment-method-types` | Bearer | — | Cria tipo de modalidade |
 | PUT | `/api/fin-payment-method-types/reorder` | Bearer | — | Reordena em lote: `[{id, order}]` |
@@ -382,7 +422,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | POST | `/api/fin-payment-methods` | Bearer | — | Cria modalidade de pagamento |
 | PUT | `/api/fin-payment-methods/{id}` | Bearer | — | Atualiza modalidade (aceita só `order` para reordenar) |
 | DELETE | `/api/fin-payment-methods/{id}` | Bearer | — | Soft delete da modalidade |
-| GET | `/api/fin-extract` | Bearer | — | Lista lançamentos do extrato financeiro |
+| GET | `/api/fin-extract` | Bearer | — | Lista lançamentos do extrato financeiro — retorna `{entries, initial_balance}` (saldo inicial da última `fin_bank_balances` por banco; null se sem registro) |
 | POST | `/api/fin-extract` | Bearer | — | Cria lançamento manualmente |
 | GET | `/api/departments` | Bearer | — | Lista departamentos ordenados por order |
 | POST | `/api/departments` | Bearer | — | Cria departamento |
@@ -398,12 +438,20 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | GET | `/api/fin-titles` | Bearer | — | Lista títulos com filtros: `type`, `status`, `people_id`, `account_id`, `bank_id`, `date_from`, `date_to` |
 | GET | `/api/fin-titles/{id}` | Bearer | — | Detalhe do título com cost_centers e composições |
 | POST | `/api/fin-titles` | Bearer | — | Cria título (aceita `cost_centers[]` com department_id/percentage) |
-| PUT | `/api/fin-titles/{id}` | Bearer | — | Atualiza título |
+| POST | `/api/fin-titles/installments` | Bearer | — | Cria N parcelas em lote atômico (transaction); body: campos base do título + `total`, `divide` (bool), `interval` (dias), `first_due_date`; parcelas 2+ recebem `invoice_number` baseado no ID da primeira (`{id}-{n}/{total}`) |
+| PUT | `/api/fin-titles/{id}` | Bearer | — | Atualiza título; ao mudar `status` para `cancelled` gera nota automática em `fin_titles` |
 | DELETE | `/api/fin-titles/{id}` | Bearer | — | Soft delete do título |
 | POST | `/api/fin-titles/compose` | Bearer | — | Composição de títulos: cancela originais e gera N novos com valor dividido, intervalo e data configuráveis; registra vínculos em `fin_title_compositions`; body: `{title_ids, quantity, interval, first_due_date}` |
-| POST | `/api/fin-titles/{id}/pay` | Bearer | — | Baixa o título: gera extrato, atualiza status (paid/partial); baixa parcial gera novo título com saldo restante; pagamento excedente credita carteira |
-| POST | `/api/fin-titles/{id}/reverse` | Bearer | — | Estorna título pago: status → reversed + gera título inverso (income↔expense) com status paid |
+| POST | `/api/fin-titles/{id}/pay` | Bearer | — | Baixa o título: aceita `interest`, `multa`, `discount` (percentuais opcionais — sobrescrevem os do título); gera extrato, atualiza status (paid/partial); baixa parcial gera novo título com saldo restante; pagamento excedente credita carteira; gera nota automática |
+| POST | `/api/fin-titles/{id}/reverse` | Bearer | — | Estorna título pago: status → reversed, gera `FinExtract` com `source='estorno'`, clona título original como `pending` copiando cost_centers; gera nota automática nos dois títulos |
 | POST | `/api/fin-titles/{id}/clone` | Bearer | — | Clona título (status pending) copiando cost_centers |
+| GET | `/api/fin-titles/{id}/notes` | Bearer | — | Lista notas do título (modulo=fin_titles, record_id={id}) ordenadas por order |
+| POST | `/api/fin-titles/{id}/notes` | Bearer | — | Cria nota no título; body: `{value}` |
+| DELETE | `/api/fin-titles/{id}/notes/{noteId}` | Bearer | — | Remove nota do título |
+| GET | `/api/files/{modulo}/{recordId}` | Bearer | — | Lista arquivos de qualquer entidade por `modulo` e `record_id` — retorna URL pública |
+| POST | `/api/files/{modulo}/{recordId}` | Bearer | — | Upload de arquivo genérico (max 50 MB); armazena em `{slug}/files/{modulo}/{recordId}/` |
+| GET | `/api/files/{modulo}/{recordId}/{fileId}/download` | Bearer | — | Download de arquivo genérico |
+| DELETE | `/api/files/{modulo}/{recordId}/{fileId}` | Bearer | — | Remove arquivo genérico |
 
 ### Schemas e Tabelas
 
@@ -440,6 +488,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | `gabinete_master.fin_wallets` | Carteira por pessoa — saldo acumulado de pagamentos excedentes (id, people_id, balance, title_id) |
 | `gabinete_master.fin_cost_centers` | Rateio de centro de custo por título (id, title_id, department_id, percentage) |
 | `gabinete_master.fin_title_compositions` | Composição entre títulos — rastreia origem/destino de clones e parcelamentos (id, origin_title_id, destination_title_id) |
+| `gabinete_master.fin_bank_balances` | Saldos pontuais de banco (id, fin_bank_id, data date, valor decimal(15,2), timestamps) — usado para calcular saldo atual: último valor + net do extrato após essa data |
 | `gabinete_master.cache` / `gabinete_master.jobs` | Infraestrutura Laravel |
 
 **Schema `maps`** — dados eleitorais TSE:
@@ -500,6 +549,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 - `FinWallet` (`gabinete_master.fin_wallets`) — sem SoftDeletes; `$fillable`: `people_id`, `balance`, `title_id`
 - `FinCostCenter` (`gabinete_master.fin_cost_centers`) — sem SoftDeletes; `$fillable`: `title_id`, `department_id`, `percentage`; `belongsTo(Department)`
 - `FinTitleComposition` (`gabinete_master.fin_title_compositions`) — sem SoftDeletes; `$fillable`: `origin_title_id`, `destination_title_id`
+- `FinBankBalance` (`gabinete_master.fin_bank_balances`) — sem SoftDeletes; `$fillable`: `fin_bank_id`, `data`, `valor`; casts: `data` → `date:Y-m-d`, `valor` → `decimal:2`; `belongsTo(FinBank, 'fin_bank_id')`
 - `City` (`maps.cities`), `State` (`maps.states`), `Country` (`maps.countries`), `Zone` (`maps.zones`), `Section` (`maps.sections`), `VotingLocation` (`maps.voting_locations`), `Vote` (`maps.votes`), `Gender` (`maps.genders`)
 
 ### Seeders
@@ -532,6 +582,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `000053`–`000060` | `gabinete_master` | type_contacts, type_addresses, type_documents, contacts, addresses (campos ViaCEP + lat/lng), documents, notes, files |
 | `000061`–`000068` | `gabinete_master` (+ schemas tenant) | fin_banks (seed: 3 registros), fin_payment_method_types, fin_payment_methods, departments, fin_accounts (seed: plano de contas completo), fin_titles, fin_extract, fin_wallets, fin_cost_centers, fin_title_compositions — **aplicadas em todos os schemas tenant** (`has_schema=true`) |
 | `000069`–`000071` | `gabinete_master` (+ schemas tenant) | `000069`: adiciona `source` (varchar, default `'manual'`) em `fin_extract`; `000070`: adiciona `reversed_at` (date nullable) em `fin_titles`; `000071`: adiciona `cancelled_at` (date nullable) em `fin_titles` — aplicadas em todos os schemas tenant |
+| `000072` | `gabinete_master` | Cria `fin_bank_balances` (id, fin_bank_id unsignedBigInteger, data date, valor decimal(15,2), timestamps) — tabela global, não replicada por tenant |
 | `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes (inclui índices), tse_votacao_secao (2008–2024 — 9 tabelas de staging, estrutura criada para todos os anos) |
 
 **Observações sobre migrations:**
@@ -565,14 +616,17 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/TypeDocumentController.php` | `index`, `store`, `update`, `destroy` — PUT aceita só `order` (name é `sometimes`); `validity` retorna `bool` |
 | `api/app/Http/Controllers/CandidateController.php` | `index` (candidaturas por gabinete/master), `search`, `stats`, `cities`. `isMaster()` usa `$request->attributes->get('tenant')->slug` com fallback por Host. `search()`: busca por nome, cargo, ano, partido, UF e cidade (`unaccent(c.name)`); exclui `cy.role NOT ILIKE 'VICE-%'`; para não-master busca `people_candidacies` via query separada e usa `WHERE cy.id IN (...)`. `searchPersons()`: busca em `maps.candidates` por nome (não candidaturas). `candidaciesByPerson()`: lista candidaturas de um `maps.candidate` pelo `candidate_id`, retorna `party_color_gradient`. `stats()`: CTE `party_ids` resolve candidacy_ids do partido antes da varredura principal — elimina LEFT JOIN em 18M+ linhas; `scope_by_round` usa `IN (SELECT id FROM party_ids)` em vez de JOIN |
 | `api/app/Http/Controllers/PeopleCandidacyController.php` | `store()`: vincula array de `candidacy_ids` à pessoa via `people_candidacies`; ignora duplicatas existentes |
-| `api/app/Http/Controllers/FinBankController.php` | CRUD de bancos — `index`, `store`, `update` (aceita só `order`), `destroy` |
+| `api/app/Http/Controllers/FinBankController.php` | CRUD de bancos — `index` (retorna `formatWithBalance`: inclui `last_balance_data`, `last_balance_valor`, `current_balance` calculado = último saldo + net do extrato após essa data), `store`, `update` (aceita só `order`), `destroy` |
+| `api/app/Http/Controllers/FinBankBalanceController.php` | CRUD de saldos de banco — `index`, `store`, `update`, `destroy` |
 | `api/app/Http/Controllers/FinPaymentMethodTypeController.php` | CRUD + `reorder` de tipos de modalidade |
 | `api/app/Http/Controllers/FinPaymentMethodController.php` | CRUD de modalidades de pagamento |
-| `api/app/Http/Controllers/FinExtractController.php` | `index` (listagem do extrato — eager-load `title.people`), `store` (lançamento manual — auto-set `source = 'manual'`). `format()` retorna `people_id`, `people_name`, `source` |
+| `api/app/Http/Controllers/FinExtractController.php` | `index` (retorna `{entries, initial_balance}` — saldo inicial = último `fin_bank_balances` por banco; filtrável por `bank_id`), `store` (lançamento manual — auto-set `source = 'manual'`). `format()` retorna `people_id`, `people_name`, `source` |
 | `api/app/Http/Controllers/DepartmentController.php` | CRUD de departamentos |
 | `api/app/Http/Controllers/FinWalletController.php` | `index`, `show($peopleId)` — saldo da carteira |
 | `api/app/Http/Controllers/FinAccountController.php` | CRUD + `reorder` do plano de contas hierárquico |
-| `api/app/Http/Controllers/FinTitleController.php` | `index` (filtros: type, status, people_id, account_id, bank_id, date_from/to), `show`, `store`, `update`, `destroy`, `compose` (cancela originais, gera N títulos divididos, registra `fin_title_compositions`), `pay` (baixa: gera extrato com `source='baixa'`, credita carteira se excedente, gera título restante se parcial), `reverse` (estorno: seta `reversed_at`, gera `FinExtract` com `source='estorno'`, clona título original como `pending` copiando cost_centers), `clone` (copia título + cost_centers). `format()` inclui `reversed_at` e `cancelled_at`. `formatDetail()` inclui `composition_origins` e `composition_destinations` |
+| `api/app/Http/Controllers/FinTitleController.php` | `index` (filtros: type, status, people_id, account_id, bank_id, date_from/to), `show`, `store`, `installments` (cria N parcelas em lote atômico), `update` (gera nota automática ao cancelar), `destroy`, `compose`, `pay` (aceita `interest`/`multa`/`discount` no request; gera extrato `source='baixa'`; gera nota automática), `reverse` (seta `reversed_at`, gera extrato `source='estorno'`, clona título como `pending` copiando cost_centers; gera nota automática nos dois títulos), `clone`. `format()` inclui `reversed_at`, `cancelled_at`, `document_number`. `formatDetail()` inclui `composition_origins` e `composition_destinations` |
+| `api/app/Http/Controllers/FinTitleNoteController.php` | Notas de títulos financeiros — `index` (lista por modulo=fin_titles, record_id), `store` (cria com max order+1), `destroy` |
+| `api/app/Http/Controllers/FileController.php` | Arquivos genéricos por modulo+recordId — `index` (lista com URL pública), `store` (upload: armazena em `{slug}/files/{modulo}/{recordId}/`), `download`, `destroy` |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, PersonalAccessToken, Permission, PermissionAction, PersonFile, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |

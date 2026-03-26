@@ -20,6 +20,10 @@ import { Search, ChevronDown, CalendarIcon, X } from "lucide-react";
 import api from "@/lib/api";
 
 interface RefPerson { id: number; name: string }
+interface RefBank   { id: number; name: string }
+interface ApiAccount { id: number; name: string; type: string; nature: string; children: ApiAccount[] }
+interface RefAccount { id: number; label: string; type: string; nature: string }
+interface RefPaymentMethod { id: number; name: string }
 
 export interface FinTitlesFilters {
   invoiceNumber?: string;
@@ -29,6 +33,11 @@ export interface FinTitlesFilters {
   status?: string[];
   dateField?: string;
   dateValue?: DateSelectorValue;
+  amountField?: string;
+  amountValue?: string;
+  bankId?: number;
+  accountId?: number;
+  paymentMethodId?: number;
 }
 
 const DATE_FIELD_LABELS: Record<string, string> = {
@@ -72,13 +81,22 @@ const EMPTY_FILTERS: FinTitlesFilters = {};
 interface FinTitlesFilterModalProps {
   open: boolean;
   filters: FinTitlesFilters;
+  titleType: 'income' | 'expense';
   onClose: () => void;
   onApply: (filters: FinTitlesFilters) => void;
+}
+
+function flattenAccounts(accounts: ApiAccount[], depth = 0): RefAccount[] {
+  return accounts.flatMap((a) => [
+    { id: a.id, label: "\u2014 ".repeat(depth) + a.name, type: a.type, nature: a.nature },
+    ...flattenAccounts(a.children ?? [], depth + 1),
+  ]);
 }
 
 export function FinTitlesFilterModal({
   open,
   filters,
+  titleType,
   onClose,
   onApply,
 }: FinTitlesFilterModalProps) {
@@ -90,11 +108,24 @@ export function FinTitlesFilterModal({
   const [people,         setPeople]         = useState<RefPerson[]>([]);
   const [documentNumber, setDocumentNumber] = useState("");
   const [statuses,       setStatuses]       = useState<string[]>([]);
+  const [statusPopover,  setStatusPopover]  = useState(false);
+  const [tempStatuses,   setTempStatuses]   = useState<string[]>([]);
   const [dateField,      setDateField]      = useState("due_date");
   const [dateValue,      setDateValue]      = useState<DateSelectorValue | undefined>();
   const [dateOpen,       setDateOpen]       = useState(false);
   const [dateInternal,   setDateInternal]   = useState<DateSelectorValue | undefined>();
-  const dropdownRef = useRef<HTMLUListElement>(null);
+  const [amountField,    setAmountField]    = useState("amount");
+  const [amountValue,    setAmountValue]    = useState("");
+  const [amountDecMode,  setAmountDecMode]  = useState(false);
+  const [amountDecStr,   setAmountDecStr]   = useState("");
+  const [banks,          setBanks]          = useState<RefBank[]>([]);
+  const [accounts,       setAccounts]       = useState<RefAccount[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<RefPaymentMethod[]>([]);
+  const [bankId,         setBankId]         = useState<string>("all");
+  const [accountId,      setAccountId]      = useState<string>("all");
+  const [paymentMethodId,setPaymentMethodId]= useState<string>("all");
+  const dropdownRef   = useRef<HTMLUListElement>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Carrega pessoas e inicializa campos ao abrir
   useEffect(() => {
@@ -106,18 +137,28 @@ export function FinTitlesFilterModal({
     setStatuses(filters.status ?? []);
     setDateField(filters.dateField ?? "due_date");
     setDateValue(filters.dateValue);
+    setAmountField(filters.amountField ?? "amount");
+    setAmountValue(filters.amountValue ?? "");
+    setAmountDecMode(false);
+    setAmountDecStr("");
+    setBankId(filters.bankId ? String(filters.bankId) : "all");
+    setAccountId(filters.accountId ? String(filters.accountId) : "all");
+    setPaymentMethodId(filters.paymentMethodId ? String(filters.paymentMethodId) : "all");
     api.get<RefPerson[]>("/people").then((r) => setPeople(r.data)).catch(() => {});
+    api.get<RefBank[]>("/fin-banks").then((r) => setBanks(r.data)).catch(() => {});
+    api.get<ApiAccount[]>("/fin-accounts").then((r) => setAccounts(flattenAccounts(r.data))).catch(() => {});
+    api.get<RefPaymentMethod[]>("/fin-payment-methods").then((r) => setPaymentMethods(r.data)).catch(() => {});
   }, [open]);
 
   useEffect(() => {
-    if (dateOpen) setDateInternal(dateValue);
+    if (dateOpen) setDateInternal(dateValue ?? { period: "day", operator: "between" });
   }, [dateOpen]);
 
   const filteredPeople = people.filter((p) =>
     p.name.toLowerCase().includes(peopleQuery.toLowerCase())
   );
 
-  const hasFilters = !!(invoiceNumber || peopleId || documentNumber || statuses.length || dateValue);
+  const hasFilters = !!(invoiceNumber || peopleId || documentNumber || statuses.length || dateValue || amountValue || bankId !== "all" || accountId !== "all" || paymentMethodId !== "all");
 
   const handleClear = () => {
     setInvoiceNumber("");
@@ -127,6 +168,13 @@ export function FinTitlesFilterModal({
     setStatuses([]);
     setDateField("due_date");
     setDateValue(undefined);
+    setAmountField("amount");
+    setAmountValue("");
+    setAmountDecMode(false);
+    setAmountDecStr("");
+    setBankId("all");
+    setAccountId("all");
+    setPaymentMethodId("all");
   };
 
   const handleApply = () => {
@@ -138,9 +186,77 @@ export function FinTitlesFilterModal({
       status:         statuses.length > 0 ? statuses : undefined,
       dateField:      dateField,
       dateValue:      dateValue,
+      amountField:      amountField,
+      amountValue:      amountValue || undefined,
+      bankId:           bankId !== "all" ? Number(bankId) : undefined,
+      accountId:        accountId !== "all" ? Number(accountId) : undefined,
+      paymentMethodId:  paymentMethodId !== "all" ? Number(paymentMethodId) : undefined,
     });
     onClose();
   };
+
+  function handleAmountKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const key     = e.key;
+    const isDigit = key >= "0" && key <= "9";
+    const isComma = key === "," || key === ".";
+    const isBack  = key === "Backspace";
+    const isDel   = key === "Delete";
+    if (!isDigit && !isComma && !isBack && !isDel) return;
+    e.preventDefault();
+
+    const commaIdx = amountValue.indexOf(",");
+    const intPart  = commaIdx >= 0 ? amountValue.slice(0, commaIdx) : amountValue;
+    const intVal   = parseInt(intPart.replace(/\D/g, ""), 10) || 0;
+
+    const rebuild = (iv: number, dec: string) =>
+      (iv > 0 ? iv.toLocaleString("pt-BR") : "0") + "," + dec.padEnd(2, "0");
+
+    if (isDel) {
+      setAmountValue(""); setAmountDecMode(false); setAmountDecStr(""); return;
+    }
+
+    if (isComma) {
+      if (!amountDecMode) {
+        setAmountDecMode(true);
+        setAmountDecStr("");
+        if (!amountValue.includes(","))
+          setAmountValue((intVal > 0 ? intVal.toLocaleString("pt-BR") : "0") + ",00");
+      }
+      return;
+    }
+
+    if (isBack) {
+      if (amountDecMode) {
+        if (amountDecStr.length > 0) {
+          const newDec = amountDecStr.slice(0, -1);
+          setAmountDecStr(newDec);
+          setAmountValue(rebuild(intVal, newDec));
+        } else {
+          setAmountDecMode(false);
+          setAmountDecStr("");
+          setAmountValue(intVal > 0 ? intVal.toLocaleString("pt-BR") + ",00" : "");
+        }
+      } else {
+        const newIntStr = String(intVal).slice(0, -1);
+        if (!newIntStr) { setAmountValue(""); return; }
+        setAmountValue(parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00");
+      }
+      return;
+    }
+
+    if (isDigit) {
+      if (amountDecMode) {
+        if (amountDecStr.length < 2) {
+          const newDec = amountDecStr + key;
+          setAmountDecStr(newDec);
+          setAmountValue(rebuild(intVal, newDec));
+        }
+      } else {
+        const newIntVal = parseInt(String(intVal === 0 ? "" : intVal) + key, 10);
+        setAmountValue(newIntVal.toLocaleString("pt-BR") + ",00");
+      }
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -256,7 +372,7 @@ export function FinTitlesFilterModal({
             {/* Status */}
             <div className="col-span-2 space-y-1.5">
               <Label>Status</Label>
-              <Popover>
+              <Popover open={statusPopover} onOpenChange={(v) => { if (v) setTempStatuses(statuses); setStatusPopover(v); }}>
                 <PopoverTrigger asChild>
                   <button className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs hover:bg-accent/50 transition-colors">
                     <span className="text-muted-foreground truncate">
@@ -274,9 +390,9 @@ export function FinTitlesFilterModal({
                     {STATUS_OPTIONS.map((s) => (
                       <label key={s.value} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent cursor-pointer">
                         <Checkbox
-                          checked={statuses.includes(s.value)}
+                          checked={tempStatuses.includes(s.value)}
                           onCheckedChange={(checked) =>
-                            setStatuses((prev) =>
+                            setTempStatuses((prev) =>
                               checked ? [...prev, s.value] : prev.filter((v) => v !== s.value)
                             )
                           }
@@ -286,6 +402,14 @@ export function FinTitlesFilterModal({
                         </Badge>
                       </label>
                     ))}
+                  </div>
+                  <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-border">
+                    <Button size="sm" variant="outline" onClick={() => { setTempStatuses(statuses); setStatusPopover(false); }}>
+                      Cancelar
+                    </Button>
+                    <Button size="sm" variant="primary" onClick={() => { setStatuses(tempStatuses); setStatusPopover(false); }}>
+                      Aplicar
+                    </Button>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -359,6 +483,125 @@ export function FinTitlesFilterModal({
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Pesquisar por valor */}
+            <div className="col-span-3 space-y-1.5">
+              <Label>Pesquisar por valor</Label>
+              <Select value={amountField} onValueChange={(v) => { setAmountField(v); setAmountValue(""); setAmountDecMode(false); setAmountDecStr(""); setTimeout(() => amountInputRef.current?.focus(), 150); }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="amount">Valor R$</SelectItem>
+                  <SelectItem value="interest_pct">Juros %</SelectItem>
+                  <SelectItem value="interest">Juros R$</SelectItem>
+                  <SelectItem value="penalty_pct">Multa %</SelectItem>
+                  <SelectItem value="penalty">Multa R$</SelectItem>
+                  <SelectItem value="discount_pct">Desconto %</SelectItem>
+                  <SelectItem value="discount">Desconto R$</SelectItem>
+                  <SelectItem value="amount_paid">Baixa R$</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Valor */}
+            <div className="col-span-2 space-y-1.5">
+              <Label>Valor</Label>
+              {amountField.endsWith("_pct") ? (
+                <div className="relative">
+                  <Input
+                    ref={amountInputRef}
+                    type="text"
+                    inputMode="decimal"
+                    value={amountValue}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\./g, "");
+                      if (!/^\d*(,\d*)?$/.test(raw)) return;
+                      const [intPart, decPart] = raw.split(",");
+                      const formatted = parseInt(intPart || "0", 10).toLocaleString("pt-BR") + (raw.includes(",") ? "," + (decPart ?? "") : "");
+                      setAmountValue(intPart === "" ? "" : formatted);
+                    }}
+                    placeholder="0"
+                    className="pr-8 text-right"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">%</span>
+                </div>
+              ) : (
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
+                  <Input
+                    ref={amountInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    value={amountValue}
+                    onChange={() => {}}
+                    onKeyDown={handleAmountKeyDown}
+                    placeholder="0,00"
+                    className="pl-9 text-right font-bold caret-transparent"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Linha 3 */}
+          <div className="grid grid-cols-3 gap-4">
+            {/* Banco */}
+            <div className="space-y-1.5">
+              <Label>Banco</Label>
+              <Select value={bankId} onValueChange={setBankId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {banks.map((b) => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Conta Financeira */}
+            <div className="space-y-1.5">
+              <Label>Conta Financeira</Label>
+              <Select value={accountId} onValueChange={setAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {accounts
+                    .filter((a) => a.type === (titleType === 'income' ? 'revenue' : 'expense'))
+                    .map((a) => (
+                      <SelectItem
+                        key={a.id}
+                        value={String(a.id)}
+                        disabled={a.nature === "synthetic"}
+                        className={a.nature === "synthetic" ? "text-muted-foreground font-semibold cursor-default" : undefined}
+                      >
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Modalidade */}
+            <div className="space-y-1.5">
+              <Label>Modalidade</Label>
+              <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {paymentMethods.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </DialogBody>

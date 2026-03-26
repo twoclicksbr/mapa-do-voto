@@ -71,6 +71,7 @@ interface LightboxImage {
 
 export interface PeopleFilesTabProps {
   personId: number;
+  basePath?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -104,7 +105,8 @@ function getFileTypeLabel(mimeType: string): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PeopleFilesTab({ personId }: PeopleFilesTabProps) {
+export function PeopleFilesTab({ personId, basePath }: PeopleFilesTabProps) {
+  const base = basePath ?? `/people/${personId}/files`;
   const [view, setView] = useState<ViewMode>("grid");
   const [remoteFiles, setRemoteFiles] = useState<RemoteFile[]>([]);
   const [localFiles, setLocalFiles] = useState<LocalFile[]>([]);
@@ -119,7 +121,7 @@ export function PeopleFilesTab({ personId }: PeopleFilesTabProps) {
   useEffect(() => {
     setLoading(true);
     api
-      .get(`/people/${personId}/files`)
+      .get(`${base}`)
       .then((res) => setRemoteFiles(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -131,7 +133,7 @@ export function PeopleFilesTab({ personId }: PeopleFilesTabProps) {
       const form = new FormData();
       form.append("file", file);
       try {
-        const res = await api.post(`/people/${personId}/files`, form, {
+        const res = await api.post(`${base}`, form, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         setLocalFiles((prev) => prev.filter((f) => f.localId !== localId));
@@ -209,14 +211,14 @@ export function PeopleFilesTab({ personId }: PeopleFilesTabProps) {
   const deleteRemote = async (id: number) => {
     setRemoteFiles((prev) => prev.filter((f) => f.id !== id));
     try {
-      await api.delete(`/people/${personId}/files/${id}`);
+      await api.delete(`${base}/${id}`);
     } catch {
-      api.get(`/people/${personId}/files`).then((res) => setRemoteFiles(res.data));
+      api.get(`${base}`).then((res) => setRemoteFiles(res.data));
     }
   };
 
   const downloadFile = async (fileId: number, name: string) => {
-    const res = await api.get(`/people/${personId}/files/${fileId}/download`, {
+    const res = await api.get(`${base}/${fileId}/download`, {
       responseType: "blob",
     });
     const blobUrl = URL.createObjectURL(res.data);

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Plus, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { FinBank } from "./fin-banks-data-grid";
 
@@ -59,11 +60,43 @@ const BR_BANKS: { code: string; name: string }[] = [
   { code: "364", name: "Gerencianet" },
 ];
 
+interface BankBalance {
+  id: number;
+  fin_bank_id: number;
+  data: string;
+  valor: number;
+}
+
 interface FinBankModalProps {
   open: boolean;
   bank: FinBank | null;
   onClose: () => void;
   onSaved: (bank: FinBank) => void;
+}
+
+function maskCurrency(digits: string): string {
+  const d = digits.replace(/\D/g, "");
+  if (!d) return "";
+  const cents = parseInt(d, 10);
+  return (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parseCurrency(masked: string): number {
+  return parseFloat(masked.replace(/\./g, "").replace(",", ".")) || 0;
+}
+
+function fmtBRL(value: number): string {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
 }
 
 export function FinBankModal({ open, bank, onClose, onSaved }: FinBankModalProps) {
@@ -76,9 +109,17 @@ export function FinBankModal({ open, bank, onClose, onSaved }: FinBankModalProps
   const [loading, setLoading]   = useState(false);
   const [errors, setErrors]     = useState<Record<string, string>>({});
 
-  const [bankQuery, setBankQuery]       = useState("");
+  const [bankQuery, setBankQuery]           = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const bankInputRef = useRef<HTMLInputElement>(null);
+
+  // Saldos
+  const [balances, setBalances]         = useState<BankBalance[]>([]);
+  const [balData, setBalData]           = useState(todayStr());
+  const [balValor, setBalValor]         = useState("");
+  const [balDecMode, setBalDecMode]     = useState(false);
+  const [balLoading, setBalLoading]     = useState(false);
+  const balFreshRef = useRef(false);
 
   const suggestions = bankQuery.trim().length > 0
     ? BR_BANKS.filter((b) =>
@@ -98,10 +139,21 @@ export function FinBankModal({ open, bank, onClose, onSaved }: FinBankModalProps
     setActive(bank?.active ?? true);
     setErrors({});
     setShowSuggestions(false);
+    setBalData(todayStr());
+    setBalValor("");
+    setBalDecMode(false);
+
+    if (bank) {
+      api.get<BankBalance[]>(`/fin-banks/${bank.id}/balances`).then((res) => {
+        setBalances(res.data);
+      }).catch(() => setBalances([]));
+    } else {
+      setBalances([]);
+    }
   }, [open, bank]);
 
-  const handleBankSelect = (bank: { code: string; name: string }) => {
-    const value = `${bank.code} - ${bank.name}`;
+  const handleBankSelect = (b: { code: string; name: string }) => {
+    const value = `${b.code} - ${b.name}`;
     setBankName(value);
     setBankQuery(value);
     setShowSuggestions(false);
@@ -111,6 +163,29 @@ export function FinBankModal({ open, bank, onClose, onSaved }: FinBankModalProps
     setBankQuery(value);
     setBankName(value);
     setShowSuggestions(true);
+  };
+
+  const handleAddBalance = async () => {
+    if (!bank || !balData || !balValor) return;
+    setBalLoading(true);
+    try {
+      const res = await api.post<BankBalance>(`/fin-banks/${bank.id}/balances`, {
+        data:  balData,
+        valor: parseCurrency(balValor),
+      });
+      setBalances((prev) => [res.data, ...prev]);
+      setBalValor("");
+      setBalDecMode(false);
+      setBalData(todayStr());
+    } finally {
+      setBalLoading(false);
+    }
+  };
+
+  const handleDeleteBalance = async (balanceId: number) => {
+    if (!bank) return;
+    await api.delete(`/fin-banks/${bank.id}/balances/${balanceId}`);
+    setBalances((prev) => prev.filter((b) => b.id !== balanceId));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -151,27 +226,28 @@ export function FinBankModal({ open, bank, onClose, onSaved }: FinBankModalProps
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className={bank ? "max-w-md" : "max-w-sm"}>
         <DialogHeader>
           <DialogTitle>{bank ? "Editar Banco" : "Novo Banco"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <DialogBody className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="fb-name">Nome da conta <span className="text-destructive">*</span></Label>
-              <Input
-                id="fb-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: Conta Corrente Principal"
-                autoFocus
-              />
-              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="fb-name">Nome da conta <span className="text-destructive">*</span></Label>
+                <Input
+                  id="fb-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ex: Conta Corrente Principal"
+                  autoFocus
+                />
+                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+              </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="fb-bank">Banco</Label>
-              <div className="relative">
+              <div className="space-y-1.5">
+                <Label htmlFor="fb-bank">Banco</Label>
+                <div className="relative">
                 <Input
                   id="fb-bank"
                   ref={bankInputRef}
@@ -199,7 +275,8 @@ export function FinBankModal({ open, bank, onClose, onSaved }: FinBankModalProps
                   </ul>
                 )}
               </div>
-              {errors.bank && <p className="text-xs text-destructive">{errors.bank}</p>}
+                {errors.bank && <p className="text-xs text-destructive">{errors.bank}</p>}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -232,6 +309,113 @@ export function FinBankModal({ open, bank, onClose, onSaved }: FinBankModalProps
                 <Switch id="fb-main" checked={main} onCheckedChange={setMain} />
               </div>
             </div>
+
+            {/* ── Saldos (só na edição) ─────────────────────────────────── */}
+            {bank && (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <Label>Saldos</Label>
+                  {bank.current_balance !== null && (
+                    <span className={`text-sm font-semibold tabular-nums ${bank.current_balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      Saldo atual: {bank.current_balance.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                  )}
+                </div>
+
+                {/* Formulário inline */}
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={balData}
+                    onChange={(e) => setBalData(e.target.value)}
+                    className="w-36"
+                  />
+                  <Input
+                    value={balValor || "0,00"}
+                    onChange={() => {}}
+                    onFocus={(e) => { balFreshRef.current = true; e.target.select(); }}
+                    onClick={(e) => e.currentTarget.select()}
+                    onKeyDown={(e) => {
+                      const key = e.key;
+                      const isDigit = key >= "0" && key <= "9";
+                      const isComma = key === "," || key === ".";
+                      const isBack  = key === "Backspace";
+                      const isDel   = key === "Delete";
+                      if (!isDigit && !isComma && !isBack && !isDel) return;
+                      e.preventDefault();
+
+                      let value = balValor;
+                      if (balFreshRef.current) { balFreshRef.current = false; value = ""; setBalDecMode(false); }
+
+                      const commaIdx  = value.lastIndexOf(",");
+                      const intDigits = (commaIdx >= 0 ? value.slice(0, commaIdx) : value).replace(/\D/g, "");
+                      const decStr    = (commaIdx >= 0 ? value.slice(commaIdx + 1) : "00").replace(/\D/g, "").padEnd(2, "0").slice(0, 2);
+                      const intVal    = intDigits ? parseInt(intDigits, 10) : 0;
+                      const rebuild   = (iv: number, ds: string) => (iv > 0 ? iv.toLocaleString("pt-BR") : "0") + "," + ds;
+
+                      let newVal = value;
+                      if (isDel) { newVal = ""; setBalDecMode(false); }
+                      else if (isComma) { if (!balDecMode) setBalDecMode(true); return; }
+                      else if (isBack) {
+                        if (balDecMode) {
+                          const newDec = decStr[1] !== "0" ? decStr[0] + "0" : "00";
+                          if (newDec === "00") setBalDecMode(false);
+                          newVal = intVal === 0 && newDec === "00" ? "" : rebuild(intVal, newDec);
+                        } else {
+                          const newIntStr = String(intVal).slice(0, -1);
+                          if (!newIntStr) { setBalValor(""); return; }
+                          newVal = parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00";
+                        }
+                      } else if (isDigit) {
+                        if (balDecMode) {
+                          newVal = rebuild(intVal, decStr[0] === "0" ? key + "0" : decStr[0] + key);
+                        } else {
+                          const newIntStr = String(intVal === 0 ? "" : intVal) + key;
+                          newVal = parseInt(newIntStr, 10).toLocaleString("pt-BR") + ",00";
+                        }
+                      }
+                      setBalValor(newVal);
+                    }}
+                    placeholder="0,00"
+                    className="flex-1 text-right caret-transparent"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={balLoading || !balValor || balValor === "0,00" || !balData}
+                    onClick={handleAddBalance}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+
+                {/* Lista */}
+                {balances.length > 0 ? (
+                  <div className="space-y-1 max-h-36 overflow-y-auto">
+                    {balances.map((b) => (
+                      <div key={b.id} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-muted/50 text-sm">
+                        <span className="text-muted-foreground">{fmtDate(b.data)}</span>
+                        <span className={`font-medium ${b.valor >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {fmtBRL(b.valor)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBalance(b.id)}
+                          className="text-muted-foreground hover:text-destructive transition-colors ml-2"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Nenhum saldo registrado.</p>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <Label htmlFor="fb-active">Status</Label>
               <div className="flex items-center gap-2">

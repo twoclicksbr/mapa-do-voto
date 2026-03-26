@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FinExtractRequest;
 use App\Models\FinExtract;
+use App\Models\FinBankBalance;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FinExtractController extends Controller
 {
@@ -40,7 +42,28 @@ class FinExtractController extends Controller
 
         $entries = $query->get();
 
-        return response()->json($entries->map(fn ($e) => $this->format($e)));
+        // Saldo inicial: último registro de fin_bank_balances por banco
+        if ($request->filled('bank_id')) {
+            $lastBalance = FinBankBalance::where('fin_bank_id', $request->bank_id)
+                ->orderBy('data', 'desc')
+                ->value('valor');
+            $initialBalance = $lastBalance ? (float) $lastBalance : null;
+        } else {
+            $initialBalance = (float) DB::selectOne("
+                SELECT COALESCE(SUM(b.valor), 0) AS total
+                FROM fin_bank_balances b
+                INNER JOIN (
+                    SELECT fin_bank_id, MAX(data) AS max_data
+                    FROM fin_bank_balances
+                    GROUP BY fin_bank_id
+                ) latest ON b.fin_bank_id = latest.fin_bank_id AND b.data = latest.max_data
+            ")->total ?: null;
+        }
+
+        return response()->json([
+            'entries'         => $entries->map(fn ($e) => $this->format($e)),
+            'initial_balance' => $initialBalance,
+        ]);
     }
 
     public function store(FinExtractRequest $request)
