@@ -572,7 +572,7 @@ Títulos financeiros a pagar e a receber. Migrações `000066`, `000070` (+rever
 ---
 
 ### `gabinete_master.fin_extract`
-Extrato financeiro — lançamentos gerados por baixas, estornos ou manualmente. Migrações `000067` (criação), `000069` (+source, title_id nullable).
+Extrato financeiro — lançamentos gerados por baixas, estornos ou manualmente. Migração `000067` (criação — inclui `title_id` nullable e `source` default `'manual'`).
 
 | Coluna | Tipo | Nullable | Descrição |
 |---|---|---|---|

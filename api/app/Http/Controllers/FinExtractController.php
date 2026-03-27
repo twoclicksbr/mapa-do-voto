@@ -42,22 +42,69 @@ class FinExtractController extends Controller
 
         $entries = $query->get();
 
-        // Saldo inicial: último registro de fin_bank_balances por banco
+        // Saldo inicial: calculado dinamicamente quando date_from for passado
+        $dateFrom = $request->filled('date_from') ? $request->date_from : null;
+
         if ($request->filled('bank_id')) {
-            $lastBalance = FinBankBalance::where('fin_bank_id', $request->bank_id)
-                ->orderBy('data', 'desc')
-                ->value('valor');
-            $initialBalance = $lastBalance ? (float) $lastBalance : null;
+            $bankId = $request->bank_id;
+
+            if ($dateFrom) {
+                $lastBalance = FinBankBalance::where('fin_bank_id', $bankId)
+                    ->whereDate('data', '<', $dateFrom)
+                    ->orderBy('data', 'desc')
+                    ->first();
+
+                if ($lastBalance) {
+                    $net = FinExtract::where('bank_id', $bankId)
+                        ->whereDate('date', '>=', $lastBalance->data->format('Y-m-d'))
+                        ->whereDate('date', '<', $dateFrom)
+                        ->get()
+                        ->sum(fn ($e) => $e->type === 'in' ? (float) $e->amount : -(float) $e->amount);
+
+                    $initialBalance = round((float) $lastBalance->valor + $net, 2);
+                } else {
+                    $initialBalance = null;
+                }
+            } else {
+                $lastBalance = FinBankBalance::where('fin_bank_id', $bankId)
+                    ->orderBy('data', 'desc')
+                    ->value('valor');
+                $initialBalance = $lastBalance ? (float) $lastBalance : null;
+            }
         } else {
-            $initialBalance = (float) DB::selectOne("
-                SELECT COALESCE(SUM(b.valor), 0) AS total
-                FROM fin_bank_balances b
-                INNER JOIN (
-                    SELECT fin_bank_id, MAX(data) AS max_data
-                    FROM fin_bank_balances
-                    GROUP BY fin_bank_id
-                ) latest ON b.fin_bank_id = latest.fin_bank_id AND b.data = latest.max_data
-            ")->total ?: null;
+            if ($dateFrom) {
+                $initialBalance = (float) DB::selectOne("
+                    SELECT COALESCE(SUM(saldo), 0) AS total
+                    FROM (
+                        SELECT
+                            b.fin_bank_id,
+                            b.valor + COALESCE((
+                                SELECT SUM(CASE WHEN e.type = 'in' THEN e.amount ELSE -e.amount END)
+                                FROM fin_extract e
+                                WHERE e.bank_id = b.fin_bank_id
+                                  AND e.date >= b.data
+                                  AND e.date < :date_from
+                            ), 0) AS saldo
+                        FROM fin_bank_balances b
+                        INNER JOIN (
+                            SELECT fin_bank_id, MAX(data) AS max_data
+                            FROM fin_bank_balances
+                            WHERE data < :date_from2
+                            GROUP BY fin_bank_id
+                        ) latest ON b.fin_bank_id = latest.fin_bank_id AND b.data = latest.max_data
+                    ) sub
+                ", ['date_from' => $dateFrom, 'date_from2' => $dateFrom])->total ?: null;
+            } else {
+                $initialBalance = (float) DB::selectOne("
+                    SELECT COALESCE(SUM(b.valor), 0) AS total
+                    FROM fin_bank_balances b
+                    INNER JOIN (
+                        SELECT fin_bank_id, MAX(data) AS max_data
+                        FROM fin_bank_balances
+                        GROUP BY fin_bank_id
+                    ) latest ON b.fin_bank_id = latest.fin_bank_id AND b.data = latest.max_data
+                ")->total ?: null;
+            }
         }
 
         return response()->json([

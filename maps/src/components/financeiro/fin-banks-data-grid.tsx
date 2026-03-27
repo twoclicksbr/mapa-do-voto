@@ -186,12 +186,19 @@ export function FinBanksDataGrid({
         header: ({ column }) => <DataGridColumnHeader title="Saldo" column={column} />,
         cell: ({ row }) => {
           const b = row.original;
-          if (b.current_balance === null) return <span className="italic text-xs text-muted-foreground">—</span>;
+          if (b.current_balance == null) return <span className="italic text-xs text-muted-foreground">—</span>;
           const color = b.current_balance >= 0 ? "text-green-600" : "text-red-600";
           return (
-            <span className={`font-medium tabular-nums text-sm ${color}`}>
-              {b.current_balance.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            </span>
+            <div className="flex flex-col gap-0.5">
+              {b.last_balance_data && (
+                <span className="text-xs text-muted-foreground">
+                  {new Date(b.last_balance_data + "T00:00:00").toLocaleDateString("pt-BR")}
+                </span>
+              )}
+              <span className={`font-medium tabular-nums text-sm ${color}`}>
+                {b.current_balance.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              </span>
+            </div>
           );
         },
         meta: { skeleton: <Skeleton className="h-5 w-24" />, headerClassName: "w-[14%]", cellClassName: "w-[14%]" },

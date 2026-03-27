@@ -20,7 +20,7 @@ class FinBankController extends Controller
     {
         $bank = FinBank::create($request->validated());
 
-        return response()->json($this->format($bank), 201);
+        return response()->json($this->formatWithBalance($bank), 201);
     }
 
     public function update(FinBankRequest $request, int $id)
@@ -28,7 +28,7 @@ class FinBankController extends Controller
         $bank = FinBank::findOrFail($id);
         $bank->update($request->validated());
 
-        return response()->json($this->format($bank));
+        return response()->json($this->formatWithBalance($bank));
     }
 
     public function destroy(int $id)

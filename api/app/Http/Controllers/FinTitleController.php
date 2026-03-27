@@ -225,10 +225,13 @@ class FinTitleController extends Controller
         $interest   = isset($data['interest']) ? (float) $data['interest'] : (float) ($title->interest ?? 0);
         $multa      = isset($data['multa'])    ? (float) $data['multa']    : (float) ($title->multa    ?? 0);
         $discount   = isset($data['discount']) ? (float) $data['discount'] : (float) ($title->discount ?? 0);
-        $netAmount  = $base
-                    + $base * ($interest / 100)
-                    + $base * ($multa    / 100)
-                    - $base * ($discount / 100);
+        $netAmount  = round(
+                          $base
+                        + $base * ($interest / 100)
+                        + $base * ($multa    / 100)
+                        - $base * ($discount / 100),
+                        2
+                    );
 
         $newPartialTitle = null;
 

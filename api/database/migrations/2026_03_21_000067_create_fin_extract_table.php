@@ -13,13 +13,14 @@ return new class extends Migration
 
         Schema::create('fin_extract', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('title_id');
+            $table->unsignedBigInteger('title_id')->nullable();
             $table->unsignedBigInteger('account_id')->nullable();
             $table->string('type'); // in, out
             $table->decimal('amount', 15, 2);
             $table->date('date');
             $table->unsignedBigInteger('payment_method_id')->nullable();
             $table->unsignedBigInteger('bank_id')->nullable();
+            $table->string('source')->default('manual'); // manual, baixa, estorno
             $table->timestamps();
         });
 

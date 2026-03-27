@@ -57,6 +57,8 @@ import { FinAccountModal } from "@/components/financeiro/fin-account-modal";
 import { FinTitleModal } from "@/components/financeiro/fin-title-modal";
 import { FinTitlesFilterModal, FinTitlesFilters } from "@/components/financeiro/fin-titles-filter-modal";
 import { FinExtractDataGrid, FinExtractEntry, ExtractViewToggle, ExtractView, EXTRACT_VIEW_KEY } from "@/components/financeiro/fin-extract-data-grid";
+import { FinExtractFilterModal, FinExtractFilters } from "@/components/financeiro/fin-extract-filter-modal";
+import { FinExtractModal } from "@/components/financeiro/fin-extract-modal";
 import { PageFooter } from "@/components/common/page-footer";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
@@ -222,10 +224,10 @@ export function HomePage() {
   const [finTitlesFilterOpen, setFinTitlesFilterOpen] = useState(false);
   const [finTitlesFilterType, setFinTitlesFilterType] = useState<'income' | 'expense'>('expense');
   const [finTitlesFilters, setFinTitlesFilters] = useState<FinTitlesFilters>({});
+  const [finTitlesIncomeFilters, setFinTitlesIncomeFilters] = useState<FinTitlesFilters>({});
 
-  const applyFinFilters = (list: FinTitle[]) => list.filter((t) => {
-    const f = finTitlesFilters;
-    if (f.invoiceNumber  && !t.invoice_number?.toLowerCase().includes(f.invoiceNumber.toLowerCase())) return false;
+  const applyFinFilters = (list: FinTitle[], f: FinTitlesFilters) => list.filter((t) => {
+    if (f.invoiceNumber  && !t.invoice_number?.toLowerCase().includes(f.invoiceNumber.toLowerCase()))  return false;
     if (f.peopleId       && t.people_id !== f.peopleId) return false;
     if (f.documentNumber && !t.document_number?.toLowerCase().includes(f.documentNumber.toLowerCase())) return false;
     if (f.status?.length          && !f.status.includes(t.status))                   return false;
@@ -263,8 +265,8 @@ export function HomePage() {
     return true;
   });
 
-  const filteredFinTitles       = useMemo(() => applyFinFilters(finTitles),       [finTitles, finTitlesFilters]);
-  const filteredFinTitlesIncome = useMemo(() => applyFinFilters(finTitlesIncome), [finTitlesIncome, finTitlesFilters]);
+  const filteredFinTitles       = useMemo(() => applyFinFilters(finTitles,       finTitlesFilters),       [finTitles, finTitlesFilters]);
+  const filteredFinTitlesIncome = useMemo(() => applyFinFilters(finTitlesIncome, finTitlesIncomeFilters), [finTitlesIncome, finTitlesIncomeFilters]);
 
   const [finBanks, setFinBanks] = useState<FinBank[]>([]);
   const [finBanksLoading, setFinBanksLoading] = useState(false);
@@ -306,6 +308,36 @@ export function HomePage() {
     localStorage.setItem(EXTRACT_VIEW_KEY, v);
     setFinExtractViewState(v);
   };
+  const [finExtractFilterOpen, setFinExtractFilterOpen] = useState(false);
+  const [finExtractFilters, setFinExtractFilters] = useState<FinExtractFilters>({});
+  const [finExtractModalOpen, setFinExtractModalOpen] = useState(false);
+
+  const applyExtractFilters = (list: FinExtractEntry[], f: FinExtractFilters) => list.filter((e) => {
+    if (f.peopleId  && e.people_id  !== f.peopleId)  return false;
+    if (f.type      && e.type       !== f.type)       return false;
+    if (f.sources?.length && !f.sources.includes(e.source)) return false;
+    if (f.bankId    && e.bank_id    !== f.bankId)     return false;
+    if (f.accountId && e.account_id !== f.accountId)  return false;
+    if (f.paymentMethodId && e.payment_method_id !== f.paymentMethodId) return false;
+    if (f.amountValue) {
+      const parsed = parseFloat(f.amountValue.replace(/\./g, "").replace(",", "."));
+      if (!isNaN(parsed) && Math.abs(e.amount - parsed) > 0.001) return false;
+    }
+    if (f.dateValue) {
+      const d = new Date(e.date.length === 10 ? e.date + "T00:00:00" : e.date);
+      const v = f.dateValue;
+      if (v.operator === "is"      && v.startDate && d.toDateString() !== v.startDate.toDateString()) return false;
+      if (v.operator === "before"  && v.startDate && d >= v.startDate)  return false;
+      if (v.operator === "after"   && v.startDate && d <= v.startDate)  return false;
+      if (v.operator === "between" && v.startDate && v.endDate && (d < v.startDate || d > v.endDate)) return false;
+    }
+    return true;
+  });
+
+  const filteredFinExtract = useMemo(
+    () => applyExtractFilters(finExtract, finExtractFilters),
+    [finExtract, finExtractFilters]
+  );
 
   useEffect(() => {
     if (!isMaster) return;
@@ -790,10 +822,27 @@ export function HomePage() {
       />
       <FinTitlesFilterModal
         open={finTitlesFilterOpen}
-        filters={finTitlesFilters}
+        filters={finTitlesFilterType === 'expense' ? finTitlesFilters : finTitlesIncomeFilters}
         titleType={finTitlesFilterType}
         onClose={() => setFinTitlesFilterOpen(false)}
-        onApply={(f) => setFinTitlesFilters(f)}
+        onApply={(f) => finTitlesFilterType === 'expense' ? setFinTitlesFilters(f) : setFinTitlesIncomeFilters(f)}
+      />
+      <FinExtractFilterModal
+        open={finExtractFilterOpen}
+        filters={finExtractFilters}
+        onClose={() => setFinExtractFilterOpen(false)}
+        onApply={(f) => setFinExtractFilters(f)}
+      />
+      <FinExtractModal
+        open={finExtractModalOpen}
+        onClose={() => setFinExtractModalOpen(false)}
+        onSaved={() => {
+          setFinExtractLoading(true);
+          api.get<{ entries: FinExtractEntry[]; initial_balance: number | null }>('/fin-extract')
+            .then((res) => { setFinExtract(res.data.entries); setFinExtractInitialBalance(res.data.initial_balance); })
+            .catch(() => {})
+            .finally(() => setFinExtractLoading(false));
+        }}
       />
       <FinCompositionModal
         open={finCompositionModalOpen}
@@ -1295,20 +1344,24 @@ export function HomePage() {
                   <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5">
                     <ScrollText className="size-5 text-muted-foreground" />
                     Extrato
-                    <Badge variant="success" appearance="light" size="md">{formatRecordCount(finExtract.length)}</Badge>
+                    <Badge variant="success" appearance="light" size="md">{formatRecordCount(filteredFinExtract.length)}</Badge>
                   </h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Extrato']} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="h-8">
+                  <Button variant="outline" size="sm" className="h-8" onClick={() => setFinExtractFilterOpen(true)}>
                     <Search className="size-4 mr-2" />
                     Pesquisar
+                  </Button>
+                  <Button variant="primary" size="sm" className="h-8" onClick={() => setFinExtractModalOpen(true)}>
+                    <Plus className="size-4 mr-2" />
+                    Novo Lançamento
                   </Button>
                   <ExtractViewToggle view={finExtractView} onChange={setFinExtractView} />
                 </div>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
-                <FinExtractDataGrid entries={finExtract} initialBalance={finExtractInitialBalance} isLoading={finExtractLoading} view={finExtractView} />
+                <FinExtractDataGrid entries={filteredFinExtract} initialBalance={finExtractInitialBalance} isLoading={finExtractLoading} view={finExtractView} />
               </div>
               <PageFooter />
             </div>
