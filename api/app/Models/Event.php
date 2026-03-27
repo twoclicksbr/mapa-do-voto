@@ -21,6 +21,8 @@ class Event extends Model
         'description',
         'start_at',
         'end_at',
+        'all_day',
+        'recurrence',
         'gcal_event_id',
         'active',
     ];
@@ -28,6 +30,7 @@ class Event extends Model
     protected $casts = [
         'start_at' => 'datetime',
         'end_at'   => 'datetime',
+        'all_day'  => 'boolean',
         'active'   => 'boolean',
     ];
 

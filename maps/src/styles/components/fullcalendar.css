@@ -24,6 +24,17 @@
   font-size: 1.0625rem;
   font-weight: 600;
   color: var(--foreground);
+  text-transform: lowercase;
+}
+
+.fc .fc-toolbar-title::first-letter {
+  text-transform: uppercase;
+}
+
+.fc .fc-toolbar-chunk {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* Botões base */
@@ -103,7 +114,7 @@
 
 /* ── Cabeçalho dos dias ──────────────────────────────────────────────── */
 .fc .fc-col-header-cell {
-  background: transparent;
+  background: var(--muted);
   border-bottom: 1px solid var(--border);
   padding: 0.375rem 0;
 }
@@ -123,18 +134,27 @@
   background: transparent;
 }
 
+.fc .fc-daygrid-day-top {
+  flex-direction: row;
+}
+
 .fc .fc-daygrid-day-number {
-  font-size: 0.8125rem;
-  font-weight: 400;
+  font-size: 0.875rem;
+  font-weight: 700;
   color: var(--foreground);
   text-decoration: none !important;
   padding: 0.5rem 0.625rem;
   line-height: 1;
 }
 
+.fc .fc-daygrid-day.fc-day-other {
+  background-color: var(--muted);
+}
+
 .fc .fc-day-other .fc-daygrid-day-number {
-  color: var(--muted-foreground);
-  opacity: 0.45;
+  font-weight: 800;
+  color: var(--foreground);
+  opacity: 1;
 }
 
 /* Círculo no dia atual */
@@ -188,6 +208,35 @@
   margin-right: 3px;
 }
 
+/* ── Eixo / coluna de horários ───────────────────────────────────────── */
+.fc .fc-timegrid-axis,
+.fc col:first-child {
+  vertical-align: middle;
+  width: 12.5% !important;
+  min-width: 12.5% !important;
+  max-width: 12.5% !important;
+}
+
+/* Label "dia" na linha all-day — oculta o texto padrão */
+.fc .fc-timegrid-axis-cushion {
+  font-size: 0;
+}
+
+/* Label "dia" injetado via JS no cabeçalho do timegrid */
+.fc th.fc-timegrid-axis .fc-timegrid-axis-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fc th.fc-timegrid-axis .fc-dia-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 /* ── Time grid ───────────────────────────────────────────────────────── */
 .fc .fc-timegrid-slot {
   height: 2.5rem;
@@ -197,6 +246,9 @@
   font-size: 0.6875rem;
   color: var(--muted-foreground);
   font-weight: 500;
+  text-align: center;
+  width: 100%;
+  display: block;
 }
 
 .fc .fc-timegrid-event {

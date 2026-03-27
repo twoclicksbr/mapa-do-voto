@@ -20,4 +20,9 @@ class EventPeople extends Model
     protected $casts = [
         'active' => 'boolean',
     ];
+
+    public function people(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(People::class, 'people_id');
+    }
 }

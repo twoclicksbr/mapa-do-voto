@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 26/03/2026 (módulo Agenda: event_types + events + event_people — migrations 000073-000075; CRUD backend EventTypeController + EventController; AgendaTab com FullCalendar + sidebar de eventos do dia; rotas /api/event-types e /api/events) -->
+<!-- Atualizado em: 27/03/2026 (Agenda: all_day em event_types + people_id nullable + recurrence em events — migrations 000077-000079; multi-pessoa em eventos via event_people; EventModal Google-style; APP_TIMEZONE=America/Sao_Paulo) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -287,7 +287,10 @@ C:\Herd\mapa-do-voto\
 | `src/components/reui/date-selector.tsx` | Seletor de data avançado (reui) — suporta operadores de filtro (is/before/after/between), tipos de período (dia/mês/trimestre/semestre/ano), calendário duplo para ranges, input de texto, scroll de anos. Exporta `DateSelector`, `DateSelectorValue`, `DateSelectorI18nConfig`, `formatDateValue` |
 | `src/components/patterns/p-date-selector-3.tsx` | Padrão de uso do `DateSelector` dentro de um Dialog (interno — referência) |
 | `src/components/reui/data-grid/data-grid-table.tsx` | Tabela do DataGrid com suporte a linha expandida dupla: `expandedCellContent` (primeira sub-linha, já existia) + `expandedCellContent2` (segunda sub-linha — renderizada apenas se ao menos uma célula retornar conteúdo não-nulo). Ambas iteram as células com `expandedColSpan` |
-| `src/components/agenda/agenda-tab.tsx` | Aba Agenda com FullCalendar (dayGridMonth / timeGridWeek / timeGridDay / listWeek). Sidebar esquerda: data de hoje + eventos do dia (GET `/events` filtrado por `start_from`/`start_to`) + legenda de tipos (GET `/event-types`). Calendário: eventos com `backgroundColor` = cor do tipo a 15% de opacidade, `borderColor` sólida, `textColor` sólida — clicar abre `EventDetailModal` com nome, tipo (badge colorido), datas, responsável, módulo e descrição. Deps: `@fullcalendar/react`, `@fullcalendar/daygrid`, `@fullcalendar/timegrid`, `@fullcalendar/interaction`, `@fullcalendar/list`, `@fullcalendar/core`. |
+| `src/components/agenda/agenda-tab.tsx` | Aba Agenda com FullCalendar (dayGridMonth / timeGridWeek / timeGridDay / listWeek). Sidebar esquerda: data de hoje + eventos do dia + legenda de tipos + botão `+` (`onNewEvent`). `ViewSwitcher` dropdown (Mês/Semana/Dia/Lista) — ao trocar, `changeView(view, new Date())` navega para hoje. `handleNewEvent` abre `EventModal` com próxima hora cheia (ex: 18:44 → 19:00). `dateClick` abre `EventModal` com data/hora do clique — allDay usa próxima hora cheia, timeGrid usa slot arredondado. Clicar num evento abre `EventModal` em modo edição. `EventDetailModal` removido (substituído pelo `EventModal`). |
+| `src/components/agenda/event-modal.tsx` | Modal de criação/edição de evento — layout Google Calendar. Título: input grande no topo. Campos em linhas com ícones: **Tipo** (dropdown customizado com dots coloridos + nav ↑↓ Enter Esc), **Data/Hora** (BirthDatePicker + select de horários em 30min; mudança no início preserva duração; allDay oculta horários), **Dia inteiro** (checkbox) + **Repetir** (select: none/daily/weekly/monthly/yearly), **Pessoas** (multi-select chips com foto/iniciais + autocomplete), **Descrição** (textarea). Props: `event` (null = criar), `initialDate` (date + time + allDay — para pré-preencher do clique no calendário), `eventTypes`. Helpers: `isoToDate`/`isoToTime` usam `new Date()` local; `getDurationMinutes`/`shiftDateTime` para deslocar fim ao mudar início. Payload envia `people_ids[]`, `all_day`, `recurrence`. |
+| `src/components/event-types/event-types-data-grid.tsx` | DataGrid de tipos de evento: colunas ID, Nome, Cor (dot), **Dia Inteiro** (badge Sim/—), Order, Status, Ações |
+| `src/components/event-types/event-types-modal.tsx` | Modal criar/editar tipo de evento: campos Nome, Cor, **Switch "Dia inteiro por padrão"** (all_day), Status |
 | `src/styles/components/fullcalendar.css` | Override de estilos do FullCalendar para o tema Metronic — botões outline, cabeçalho de dias sem fundo cinza, hoje com círculo primary, eventos com border-left 3px + fundo translúcido. Importado via `config.metronic.css`. |
 
 ### Logo Mapa do Voto
@@ -452,11 +455,11 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | GET | `/api/fin-titles/{id}/notes` | Bearer | — | Lista notas do título (modulo=fin_titles, record_id={id}) ordenadas por order |
 | POST | `/api/fin-titles/{id}/notes` | Bearer | — | Cria nota no título; body: `{value}` |
 | DELETE | `/api/fin-titles/{id}/notes/{noteId}` | Bearer | — | Remove nota do título |
-| GET | `/api/event-types` | Bearer | — | Lista tipos de evento ordenados por order |
+| GET | `/api/event-types` | Bearer | — | Lista tipos de evento ordenados por order — retorna `all_day` |
 | POST | `/api/event-types` | Bearer | — | Cria tipo de evento |
 | PUT | `/api/event-types/{id}` | Bearer | — | Atualiza tipo de evento; reordena automaticamente se order duplicado |
 | DELETE | `/api/event-types/{id}` | Bearer | — | Soft delete do tipo de evento |
-| GET | `/api/events` | Bearer | — | Lista eventos com filtros: `people_id`, `event_type_id`, `modulo`, `start_from`, `start_to`; retorna event_type {id, name, color} e people[] (event_people) |
+| GET | `/api/events` | Bearer | — | Lista eventos com filtros: `people_id`, `event_type_id`, `modulo`, `start_from`, `start_to`; retorna event_type {id, name, color}, `all_day`, `recurrence` e `people[]` com name + photo_sm |
 | GET | `/api/events/{id}` | Bearer | — | Detalhe do evento |
 | POST | `/api/events` | Bearer | — | Cria evento |
 | PUT | `/api/events/{id}` | Bearer | — | Atualiza evento |
@@ -502,8 +505,8 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | `gabinete_master.fin_cost_centers` | Rateio de centro de custo por título (id, title_id, department_id, percentage) |
 | `gabinete_master.fin_title_compositions` | Composição entre títulos — rastreia origem/destino de clones e parcelamentos (id, origin_title_id, destination_title_id) |
 | `gabinete_master.fin_bank_balances` | Saldos pontuais de banco (id, fin_bank_id, data date, valor decimal(15,2), timestamps) — usado para calcular saldo atual: último valor + net do extrato após essa data |
-| `gabinete_master.event_types` | Tipos de evento da agenda (id, name, color varchar, order, active, timestamps, deleted_at) — seeds: Aniversário (#FF6B6B), Financeiro (#4ECDC4), Compromisso (#45B7D1), Atendimento (#96CEB4) |
-| `gabinete_master.events` | Eventos da agenda (id, people_id bigint sem FK, event_type_id FK → event_types, modulo varchar NULL, name, description text NULL, start_at timestamp, end_at timestamp NULL, gcal_event_id varchar NULL, active, timestamps, deleted_at) |
+| `gabinete_master.event_types` | Tipos de evento da agenda (id, name, color varchar, **all_day boolean default false**, order, active, timestamps, deleted_at) — seeds: Aniversário (#3fb6ea), Financeiro (#4fb589), Compromisso (#fbb810), Atendimento (#ec637f) |
+| `gabinete_master.events` | Eventos da agenda (id, **people_id bigint NULL** sem FK, event_type_id FK → event_types, modulo varchar NULL, name, description text NULL, start_at timestamp, end_at timestamp NULL, **recurrence varchar default 'none'**, gcal_event_id varchar NULL, active, timestamps, deleted_at) |
 | `gabinete_master.event_people` | Pivot evento ↔ pessoa (id, event_id FK → events cascade delete, people_id bigint sem FK, active, timestamps, deleted_at) — UNIQUE(event_id, people_id) |
 | `gabinete_master.cache` / `gabinete_master.jobs` | Infraestrutura Laravel |
 
@@ -566,9 +569,9 @@ Todos os models têm `$table` explícito com schema qualificado.
 - `FinCostCenter` (`gabinete_master.fin_cost_centers`) — sem SoftDeletes; `$fillable`: `title_id`, `department_id`, `percentage`; `belongsTo(Department)`
 - `FinTitleComposition` (`gabinete_master.fin_title_compositions`) — sem SoftDeletes; `$fillable`: `origin_title_id`, `destination_title_id`
 - `FinBankBalance` (`gabinete_master.fin_bank_balances`) — sem SoftDeletes; `$fillable`: `fin_bank_id`, `data`, `valor`; casts: `data` → `date:Y-m-d`, `valor` → `decimal:2`; `belongsTo(FinBank, 'fin_bank_id')`
-- `EventType` (`gabinete_master.event_types`) — com SoftDeletes; `$fillable`: `name`, `color`, `order`, `active`; boot: auto-order no creating, shiftOrder no updating
-- `Event` (`gabinete_master.events`) — com SoftDeletes; `$fillable`: `people_id`, `event_type_id`, `modulo`, `name`, `description`, `start_at`, `end_at`, `gcal_event_id`, `active`; casts: `start_at`/`end_at` → `datetime`, `active` → `boolean`; `belongsTo(EventType)`, `belongsTo(People)`, `hasMany(EventPeople)`
-- `EventPeople` (`gabinete_master.event_people`) — com SoftDeletes; `$fillable`: `event_id`, `people_id`, `active`; cast `active` → `boolean`
+- `EventType` (`gabinete_master.event_types`) — com SoftDeletes; `$fillable`: `name`, `color`, `all_day`, `order`, `active`; casts: `all_day`/`active` → `boolean`; boot: auto-order no creating, shiftOrder no updating
+- `Event` (`gabinete_master.events`) — com SoftDeletes; `$fillable`: `people_id`, `event_type_id`, `modulo`, `name`, `description`, `start_at`, `end_at`, `all_day`, `recurrence`, `gcal_event_id`, `active`; casts: `start_at`/`end_at` → `datetime`, `all_day`/`active` → `boolean`; `belongsTo(EventType)`, `belongsTo(People)`, `hasMany(EventPeople)`
+- `EventPeople` (`gabinete_master.event_people`) — com SoftDeletes; `$fillable`: `event_id`, `people_id`, `active`; cast `active` → `boolean`; `belongsTo(People, 'people_id')`
 - `City` (`maps.cities`), `State` (`maps.states`), `Country` (`maps.countries`), `Zone` (`maps.zones`), `Section` (`maps.sections`), `VotingLocation` (`maps.voting_locations`), `Vote` (`maps.votes`), `Gender` (`maps.genders`)
 
 ### Seeders
@@ -605,6 +608,9 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `000073` | `gabinete_master` | Cria `event_types` (id, name, color, order default 1, active default true, timestamps, deleted_at) — seeds: Aniversário/Financeiro/Compromisso/Atendimento |
 | `000074` | `gabinete_master` | Cria `events` (id, people_id bigint sem FK, event_type_id FK → event_types, modulo nullable, name, description text nullable, start_at timestamp, end_at timestamp nullable, gcal_event_id nullable, active, timestamps, deleted_at) |
 | `000075` | `gabinete_master` | Cria `event_people` (id, event_id FK → events cascade delete, people_id bigint sem FK, active, timestamps, deleted_at) — UNIQUE(event_id, people_id) |
+| `000077` | `gabinete_master` | Adiciona `all_day boolean default false` em `event_types` |
+| `000078` | `gabinete_master` | Torna `people_id` nullable em `events` (era NOT NULL) |
+| `000079` | `gabinete_master` | Adiciona `recurrence varchar default 'none'` em `events` |
 | `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes (inclui índices), tse_votacao_secao (2008–2024 — 9 tabelas de staging, estrutura criada para todos os anos) |
 
 **Observações sobre migrations:**
@@ -649,8 +655,8 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/app/Http/Controllers/FinTitleController.php` | `index` (filtros: type, status, people_id, account_id, bank_id, date_from/to), `show`, `store`, `installments` (cria N parcelas em lote atômico), `update` (gera nota automática ao cancelar), `destroy`, `compose`, `pay` (aceita `interest`/`multa`/`discount` no request; gera extrato `source='baixa'`; gera nota automática), `reverse` (seta `reversed_at`, gera extrato `source='estorno'`, clona título como `pending` copiando cost_centers; gera nota automática nos dois títulos), `clone`. `format()` inclui `reversed_at`, `cancelled_at`, `document_number`. `formatDetail()` inclui `composition_origins` e `composition_destinations` |
 | `api/app/Http/Controllers/FinTitleNoteController.php` | Notas de títulos financeiros — `index` (lista por modulo=fin_titles, record_id), `store` (cria com max order+1), `destroy` |
 | `api/app/Http/Controllers/FileController.php` | Arquivos genéricos por modulo+recordId — `index` (lista com URL pública), `store` (upload: armazena em `{slug}/files/{modulo}/{recordId}/`), `download`, `destroy` |
-| `api/app/Http/Controllers/EventTypeController.php` | CRUD de tipos de evento — `index` (ordenado por order), `store`, `update`, `destroy`; `format()` retorna id, name, color, order, active |
-| `api/app/Http/Controllers/EventController.php` | CRUD de eventos — `index` (filtros: people_id, event_type_id, modulo, start_from, start_to; retorna event_type + people[]), `show`, `store`, `update`, `destroy`; `format()` inclui people_name, event_type{id,name,color}, people[] via eventPeople |
+| `api/app/Http/Controllers/EventTypeController.php` | CRUD de tipos de evento — `index` (ordenado por order), `store`, `update`, `destroy`; `format()` retorna id, name, color, **all_day**, order, active |
+| `api/app/Http/Controllers/EventController.php` | CRUD de eventos — `index` (filtros: people_id, event_type_id, modulo, start_from, start_to; retorna event_type + people[]), `show`, `store`, `update`, `destroy`; `syncPeople(Event, array)` upsert/delete em `event_people`; `format()` inclui `all_day`, `recurrence`, `people[]` com name + photo_sm via `eventPeople.people` |
 | `api/app/Http/Controllers/CityController.php` | search (`maps.cities`) |
 | `api/app/Http/Controllers/StateController.php` | geometry($uf) — retorna GeoJSON do estado |
 | `api/app/Models/` | People, User, PersonalAccessToken, Permission, PermissionAction, PersonFile, Party, Candidate, Candidacy, PeopleCandidacy, SplitCandidacy, City, State, Zone, Section, VotingLocation, Vote, Gender |
@@ -659,6 +665,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/database/seeders/` | ⚠️ Diretório vazio — seeders não versionados (ver seção Seeders acima) |
 | `api/config/cors.php` | CORS — `allowed_origins: ['*']` |
 | `api/config/database.php` | `search_path: 'gabinete_master,maps,public'` |
+| `api/config/app.php` | `timezone` lido via `env('APP_TIMEZONE', 'UTC')` — `.env` define `APP_TIMEZONE=America/Sao_Paulo` para timestamps corretos no fuso de Brasília |
 
 ### Frontend → Backend
 

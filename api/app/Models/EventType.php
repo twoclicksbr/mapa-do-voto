@@ -15,8 +15,14 @@ class EventType extends Model
     protected $fillable = [
         'name',
         'color',
+        'all_day',
         'order',
         'active',
+    ];
+
+    protected $casts = [
+        'all_day' => 'boolean',
+        'active'  => 'boolean',
     ];
 
     protected static function booted(): void

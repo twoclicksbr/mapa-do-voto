@@ -4,7 +4,7 @@ import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
@@ -61,6 +61,8 @@ import { FinExtractFilterModal, FinExtractFilters } from "@/components/financeir
 import { FinExtractModal } from "@/components/financeiro/fin-extract-modal";
 import { PageFooter } from "@/components/common/page-footer";
 import { AgendaTab } from "@/components/agenda/agenda-tab";
+import { EventTypesDataGrid, EventType } from "@/components/event-types/event-types-data-grid";
+import { EventTypesModal } from "@/components/event-types/event-types-modal";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Home': Home,
@@ -87,6 +89,8 @@ const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Departamentos': Building,
   'Plano de Contas': LayoutList,
   'Extrato': ScrollText,
+  'Agenda': CalendarDays,
+  'Tipos de Evento': BookmarkCheck,
 };
 
 function SectionBreadcrumb({ items }: { items: string[] }) {
@@ -161,6 +165,12 @@ export function HomePage() {
   const [typePeopleSelected, setTypePeopleSelected] = useState(0);
   const [typePeopleModalOpen, setTypePeopleModalOpen] = useState(false);
   const [editingTypePeople, setEditingTypePeople] = useState<TypePeople | null>(null);
+
+  const [eventTypes, setEventTypes] = useState<EventType[]>([]);
+  const [eventTypesLoading, setEventTypesLoading] = useState(false);
+  const [eventTypesSelected, setEventTypesSelected] = useState(0);
+  const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
+  const [editingEventType, setEditingEventType] = useState<EventType | null>(null);
 
   const [typeContacts, setTypeContacts] = useState<TypeContact[]>([]);
   const [typeContactsLoading, setTypeContactsLoading] = useState(false);
@@ -379,6 +389,25 @@ export function HomePage() {
       .then(res => setTypeDocuments(res.data))
       .finally(() => setTypeDocumentsLoading(false));
   }, [isMaster, loggedIn]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    setEventTypesLoading(true);
+    api.get<EventType[]>('/event-types')
+      .then(res => setEventTypes(res.data))
+      .finally(() => setEventTypesLoading(false));
+  }, [loggedIn]);
+
+  const handleEventTypesReorder = async (id: number, newOrder: number) => {
+    await api.put(`/event-types/${id}`, { order: newOrder });
+    const res = await api.get<EventType[]>('/event-types');
+    setEventTypes(res.data);
+  };
+
+  const handleEventTypesDelete = async (id: number) => {
+    await api.delete(`/event-types/${id}`);
+    setEventTypes(prev => prev.filter(et => et.id !== id));
+  };
 
   const handleTypePeopleReorder = async (id: number, newOrder: number) => {
     await api.put(`/type-people/${id}`, { order: newOrder });
@@ -702,6 +731,19 @@ export function HomePage() {
           setEditingPermissionAction(null);
         }}
       />
+      <EventTypesModal
+        open={eventTypesModalOpen || !!editingEventType}
+        eventType={editingEventType}
+        onClose={() => { setEventTypesModalOpen(false); setEditingEventType(null); }}
+        onSaved={(saved) => {
+          setEventTypes(prev => {
+            const idx = prev.findIndex(et => et.id === saved.id);
+            return idx >= 0 ? prev.map(et => et.id === saved.id ? saved : et) : [...prev, saved];
+          });
+          setEventTypesModalOpen(false);
+          setEditingEventType(null);
+        }}
+      />
       <TypePeopleModal
         open={typePeopleModalOpen || !!editingTypePeople}
         typePeople={editingTypePeople}
@@ -924,7 +966,7 @@ export function HomePage() {
                 <TabsList size="xs">
                   <TabsTrigger value="overview">Mapa</TabsTrigger>
                   <TabsTrigger value="activity">Atendimentos</TabsTrigger>
-                  <TabsTrigger value="metrics">Agenda</TabsTrigger>
+                  <TabsTrigger value="metrics"><CalendarDays className="size-3.5" />Agenda</TabsTrigger>
                   <TabsTrigger value="reports">Alianças</TabsTrigger>
                   <TabsTrigger value="alerts" onClick={() => setFinSection('fin-dashboard')}><DollarSign className="size-3.5" />Finanças</TabsTrigger>
                   <TabsTrigger value="settings" onClick={() => setSettingsSection('settings-dashboard')}><Settings className="size-3.5" />Configurações</TabsTrigger>
@@ -1859,6 +1901,57 @@ export function HomePage() {
                   onEdit={(pa) => setEditingPermissionAction(pa)}
                   onDelete={handlePermissionActionDelete}
                   onAddToModule={(module) => { setEditingPermissionAction({ id: 0, module, action: '', description: null }); }}
+                />
+              </div>
+              <PageFooter />
+            </div>
+          ) : settingsSection === 'event-types' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><CalendarDays className="size-5" />Tipos de Evento <Badge variant="success" appearance="light" size="md">{formatRecordCount(eventTypes.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Cadastros', 'Agenda', 'Tipos de Evento']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {eventTypesSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({eventTypesSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem><Badge variant="success" appearance="light" size="sm">Ativar</Badge></DropdownMenuItem>
+                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Inativar</Badge></DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm">
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => setEventTypesModalOpen(true)}>
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
+                <EventTypesDataGrid
+                  eventTypes={eventTypes}
+                  isLoading={eventTypesLoading}
+                  onSelectionChange={setEventTypesSelected}
+                  onEdit={(et) => setEditingEventType(et)}
+                  onDelete={handleEventTypesDelete}
+                  onReorder={handleEventTypesReorder}
                 />
               </div>
               <PageFooter />

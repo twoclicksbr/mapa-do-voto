@@ -14,8 +14,9 @@ import {
   DialogBody,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Clock, User, FileText, Plus } from "lucide-react";
+import { CalendarDays, Clock, User, FileText, Plus, ChevronDown } from "lucide-react";
 import api from "@/lib/api";
+import { EventModal, AgendaEventFull } from "./event-modal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ interface EventType {
   id: number;
   name: string;
   color: string;
+  all_day: boolean;
 }
 
 interface AgendaEvent {
@@ -35,6 +37,7 @@ interface AgendaEvent {
   people_name: string | null;
   start_at: string;
   end_at: string | null;
+  all_day: boolean;
   modulo: string | null;
   active: boolean;
 }
@@ -134,24 +137,26 @@ function AgendaSidebar({
   todayEvents,
   eventTypes,
   onEventClick,
+  onNewEvent,
 }: {
   todayEvents: AgendaEvent[];
   eventTypes: EventType[];
   onEventClick: (ev: AgendaEvent) => void;
+  onNewEvent: () => void;
 }) {
   const today = new Date();
   const dayName = today.toLocaleDateString("pt-BR", { weekday: "long" });
   const dateLabel = today.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <aside className="w-60 flex-shrink-0 border-r border-border flex flex-col overflow-hidden bg-card">
+    <aside className="w-60 flex-shrink-0 border-r border-border flex flex-col overflow-hidden bg-muted/40">
       {/* Date header */}
       <div className="px-4 pt-5 pb-3 flex items-start justify-between">
         <div>
           <p className="text-xs text-muted-foreground capitalize">{dayName}</p>
           <p className="text-sm font-semibold text-foreground">{dateLabel}</p>
         </div>
-        <button className="size-7 rounded-md flex items-center justify-center hover:bg-muted text-muted-foreground transition-colors">
+        <button onClick={onNewEvent} className="size-7 rounded-md flex items-center justify-center hover:bg-muted text-muted-foreground transition-colors">
           <Plus className="size-4" />
         </button>
       </div>
@@ -204,11 +209,91 @@ function AgendaSidebar({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+// ─── View Switcher ────────────────────────────────────────────────────────────
+
+const VIEWS = [
+  { key: "dayGridMonth",  label: "Mês" },
+  { key: "timeGridWeek",  label: "Semana" },
+  { key: "timeGridDay",   label: "Dia" },
+  { key: "listWeek",      label: "Lista" },
+] as const;
+
+function ViewSwitcher({
+  currentView,
+  onChange,
+}: {
+  currentView: string;
+  onChange: (view: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = VIEWS.find((v) => v.key === currentView) ?? VIEWS[0];
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 border border-border rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground bg-transparent hover:bg-muted hover:text-foreground transition-colors"
+      >
+        {current.label}
+        <ChevronDown className="size-3.5" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-md overflow-hidden min-w-[7rem]">
+          {VIEWS.map((v) => (
+            <button
+              key={v.key}
+              onClick={() => { onChange(v.key); setOpen(false); }}
+              className={[
+                "w-full text-left px-3 py-2 text-xs font-medium transition-colors",
+                v.key === currentView
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-muted",
+              ].join(" ")}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Dia label injection ───────────────────────────────────────────────────────
+
+function injectDiaLabel(wrapper: HTMLElement | null) {
+  if (!wrapper) return;
+  // The header axis cell is a <th class="fc-timegrid-axis"> (not fc-col-header-cell)
+  const frame = wrapper.querySelector<HTMLElement>(
+    "th.fc-timegrid-axis .fc-timegrid-axis-frame"
+  );
+  if (!frame) return;
+  if (frame.querySelector(".fc-dia-label")) return;
+  const span = document.createElement("span");
+  span.className = "fc-dia-label";
+  span.textContent = "hora";
+  frame.appendChild(span);
+}
+
 export function AgendaTab() {
   const calendarRef = useRef<FullCalendar>(null);
+  const wrapperRef  = useRef<HTMLDivElement>(null);
   const [selectedEvent, setSelectedEvent] = useState<AgendaEvent | null>(null);
   const [todayEvents,   setTodayEvents]   = useState<AgendaEvent[]>([]);
   const [eventTypes,    setEventTypes]    = useState<EventType[]>([]);
+  const [currentView,   setCurrentView]   = useState("dayGridMonth");
+  const [eventModalOpen,    setEventModalOpen]    = useState(false);
+  const [editingEvent,      setEditingEvent]      = useState<AgendaEventFull | null>(null);
+  const [clickedDate,       setClickedDate]       = useState<{ date: string; time?: string; allDay?: boolean } | null>(null);
 
   // Load sidebar data once
   useEffect(() => {
@@ -243,6 +328,7 @@ export function AgendaTab() {
               title:           ev.name,
               start:           ev.start_at,
               end:             ev.end_at ?? undefined,
+              allDay:          ev.all_day ?? false,
               backgroundColor: hexToRgba(color, 0.15),
               borderColor:     color,
               textColor:       color,
@@ -258,37 +344,97 @@ export function AgendaTab() {
   );
 
   const handleEventClick = useCallback((arg: EventClickArg) => {
-    setSelectedEvent(arg.event.extendedProps as AgendaEvent);
+    const ev = arg.event.extendedProps as AgendaEvent;
+    setEditingEvent(ev as unknown as AgendaEventFull);
+    setEventModalOpen(true);
   }, []);
 
-  const handleDatesSet = useCallback((_arg: DatesSetArg) => {}, []);
+  const handleDatesSet = useCallback((arg: DatesSetArg) => {
+    setCurrentView(arg.view.type);
+    setTimeout(() => injectDiaLabel(wrapperRef.current), 100);
+  }, []);
+
+  const handleChangeView = useCallback((view: string) => {
+    calendarRef.current?.getApi().changeView(view, new Date());
+    setCurrentView(view);
+  }, []);
+
+  const handleNewEvent = useCallback(() => {
+    const now = new Date();
+    const next = new Date(now);
+    if (now.getMinutes() > 0) { next.setHours(now.getHours() + 1); }
+    next.setMinutes(0, 0, 0);
+    const date = [next.getFullYear(), String(next.getMonth()+1).padStart(2,"0"), String(next.getDate()).padStart(2,"0")].join("-");
+    const time = `${String(next.getHours()).padStart(2,"0")}:00`;
+    setEditingEvent(null);
+    setClickedDate({ date, time });
+    setEventModalOpen(true);
+  }, []);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Card wrapper — two-column layout */}
-      <div className="flex-1 min-h-0 m-4 rounded-xl border border-border bg-card shadow-sm flex overflow-hidden">
+      <div className="flex-1 min-h-0 m-4 rounded-xl border border-border/60 bg-muted/20 shadow-sm flex overflow-hidden">
 
         <AgendaSidebar
           todayEvents={todayEvents}
           eventTypes={eventTypes}
           onEventClick={setSelectedEvent}
+          onNewEvent={handleNewEvent}
         />
 
         {/* Calendar */}
-        <div className="flex-1 min-w-0 overflow-auto p-5">
+        <div ref={wrapperRef} className="flex-1 min-w-0 overflow-auto p-5 relative">
+          <div className="absolute top-5 right-5 z-10 flex items-center gap-2">
+            <ViewSwitcher currentView={currentView} onChange={handleChangeView} />
+            <button
+              onClick={handleNewEvent}
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground rounded-md px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              <Plus className="size-4" />
+              Novo Evento
+            </button>
+          </div>
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
             locale={ptBrLocale}
             initialView="dayGridMonth"
             headerToolbar={{
-              left:   "prev,next today",
-              center: "title",
-              right:  "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+              left:   "prev,next today title",
+              center: "",
+              right:  "",
+            }}
+            slotLabelInterval="00:30:00"
+            slotLabelContent={(arg) => {
+              const h = String(arg.date.getHours()).padStart(2, "0");
+              const m = arg.date.getMinutes() === 30 ? "30" : "00";
+              return `${h}:${m}`;
             }}
             events={loadEvents}
             datesSet={handleDatesSet}
             eventClick={handleEventClick}
+            dateClick={(arg) => {
+              const d = arg.date;
+              const date = [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-");
+              let time: string;
+              if (arg.allDay) {
+                // Mês: usa próxima hora cheia baseada na hora atual
+                const now = new Date();
+                const nextHour = now.getMinutes() > 0 ? now.getHours() + 1 : now.getHours();
+                time = `${String(nextHour).padStart(2,"0")}:00`;
+              } else {
+                // Semana/Dia: usa o slot clicado arredondado
+                const mins = d.getMinutes();
+                const roundedMins = mins < 15 ? "00" : mins < 45 ? "30" : "00";
+                const roundedHour = mins >= 45 ? d.getHours() + 1 : d.getHours();
+                time = `${String(roundedHour).padStart(2,"0")}:${roundedMins}`;
+              }
+              setClickedDate({ date, time, allDay: false });
+              setEditingEvent(null);
+              setEventModalOpen(true);
+            }}
+            allDaySlot={false}
             editable={false}
             selectable={false}
             dayMaxEvents={4}
@@ -300,6 +446,22 @@ export function AgendaTab() {
       </div>
 
       <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+
+      <EventModal
+        open={eventModalOpen}
+        event={editingEvent}
+        eventTypes={eventTypes}
+        initialDate={editingEvent ? null : clickedDate}
+        onClose={() => { setEventModalOpen(false); setEditingEvent(null); setClickedDate(null); }}
+        onSaved={() => {
+          calendarRef.current?.getApi().refetchEvents();
+          // Reload sidebar today events
+          const today = todayIso();
+          api.get<AgendaEvent[]>("/events", { params: { start_from: `${today}T00:00:00`, start_to: `${today}T23:59:59` } })
+            .then((r) => setTodayEvents(r.data))
+            .catch(() => {});
+        }}
+      />
     </div>
   );
 }

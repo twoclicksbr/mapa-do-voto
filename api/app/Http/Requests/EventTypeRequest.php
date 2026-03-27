@@ -23,10 +23,11 @@ class EventTypeRequest extends FormRequest
         $id = $this->route('id');
 
         return [
-            'name'   => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255', 'unique:gabinete_master.event_types,name' . ($id ? ",{$id}" : '')]),
-            'color'  => ['required', 'string', 'max:255'],
-            'order'  => ['integer', 'min:1'],
-            'active' => ['boolean'],
+            'name'    => array_merge($id ? ['sometimes'] : [], ['required', 'string', 'max:255', 'unique:event_types,name' . ($id ? ",{$id}" : '')]),
+            'color'   => ['required', 'string', 'max:255'],
+            'all_day' => ['boolean'],
+            'order'   => ['integer', 'min:1'],
+            'active'  => ['boolean'],
         ];
     }
 }
