@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 26/03/2026 (fin_bank_balances — migration 000072: nova tabela de saldos pontuais por banco)
+> Atualizado em: 26/03/2026 (módulo Agenda — migrations 000073/000074/000075: event_types, events, event_people)
 
 ---
 
@@ -647,6 +647,62 @@ Saldos pontuais registrados por banco — usado para calcular saldo atual de cad
 | `updated_at` | timestamp | NULL | — |
 
 **Cálculo de saldo atual:** último saldo (`MAX(data)` por `fin_bank_id`) + soma líquida do `fin_extract` após essa data.
+
+---
+
+### `gabinete_master.event_types`
+Tipos de evento da agenda. Migração `000073`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome do tipo (ex: Aniversário) |
+| `color` | varchar | NOT NULL | Cor hex ou CSS (ex: #FF6B6B) |
+| `order` | integer | NOT NULL | Ordem de exibição (default 1) |
+| `active` | boolean | NOT NULL | Ativo (default true) |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Seeds:** Aniversário (#FF6B6B), Financeiro (#4ECDC4), Compromisso (#45B7D1), Atendimento (#96CEB4).
+
+---
+
+### `gabinete_master.events`
+Eventos da agenda. Migração `000074`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `people_id` | bigint | NOT NULL | Pessoa responsável (sem FK — cross-schema) |
+| `event_type_id` | bigint | NOT NULL | FK → `event_types.id` |
+| `modulo` | varchar | NULL | Módulo vinculado (ex: 'attendances', 'fin_titles') |
+| `name` | varchar | NOT NULL | Título do evento |
+| `description` | text | NULL | Descrição longa |
+| `start_at` | timestamp | NOT NULL | Início do evento |
+| `end_at` | timestamp | NULL | Fim do evento |
+| `gcal_event_id` | varchar | NULL | ID do evento no Google Calendar |
+| `active` | boolean | NOT NULL | Ativo (default true) |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+---
+
+### `gabinete_master.event_people`
+Pivot entre eventos e pessoas convidadas. Migração `000075`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `event_id` | bigint | NOT NULL | FK → `events.id` (cascade delete) |
+| `people_id` | bigint | NOT NULL | Pessoa convidada (sem FK — cross-schema) |
+| `active` | boolean | NOT NULL | Ativo (default true) |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Índice único:** `(event_id, people_id)`.
 
 ---
 

@@ -60,6 +60,7 @@ import { FinExtractDataGrid, FinExtractEntry, ExtractViewToggle, ExtractView, EX
 import { FinExtractFilterModal, FinExtractFilters } from "@/components/financeiro/fin-extract-filter-modal";
 import { FinExtractModal } from "@/components/financeiro/fin-extract-modal";
 import { PageFooter } from "@/components/common/page-footer";
+import { AgendaTab } from "@/components/agenda/agenda-tab";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Home': Home,
@@ -1024,9 +1025,7 @@ export function HomePage() {
         </TabsContent>
 
         <TabsContent value="metrics" className="flex-1 min-h-0 mt-0">
-          <div className="rounded-lg overflow-hidden h-full flex items-center justify-center border border-border">
-            <p className="text-muted-foreground">Agenda — em breve</p>
-          </div>
+          <AgendaTab />
         </TabsContent>
 
         <TabsContent value="reports" className="flex-1 min-h-0 mt-0">

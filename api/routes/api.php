@@ -32,6 +32,8 @@ use App\Http\Controllers\FinTitleController;
 use App\Http\Controllers\FinTitleNoteController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FinAccountController;
+use App\Http\Controllers\EventTypeController;
+use App\Http\Controllers\EventController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn () => ['status' => 'ok']);
@@ -98,6 +100,15 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::post('/type-documents', [TypeDocumentController::class, 'store']);
     Route::put('/type-documents/{id}', [TypeDocumentController::class, 'update']);
     Route::delete('/type-documents/{id}', [TypeDocumentController::class, 'destroy']);
+    Route::get('/event-types', [EventTypeController::class, 'index']);
+    Route::post('/event-types', [EventTypeController::class, 'store']);
+    Route::put('/event-types/{id}', [EventTypeController::class, 'update']);
+    Route::delete('/event-types/{id}', [EventTypeController::class, 'destroy']);
+    Route::get('/events', [EventController::class, 'index']);
+    Route::get('/events/{id}', [EventController::class, 'show']);
+    Route::post('/events', [EventController::class, 'store']);
+    Route::put('/events/{id}', [EventController::class, 'update']);
+    Route::delete('/events/{id}', [EventController::class, 'destroy']);
     Route::post('/tenants', [TenantController::class, 'store']);
     Route::put('/tenants/{id}', [TenantController::class, 'update']);
     Route::get('/tenants/{id}/person', [TenantController::class, 'person']);

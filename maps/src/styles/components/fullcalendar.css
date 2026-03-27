@@ -1,0 +1,270 @@
+/* FullCalendar — Metronic theme override */
+
+.fc {
+  --fc-border-color: var(--border);
+  --fc-daygrid-event-dot-width: 8px;
+  --fc-today-bg-color: transparent;
+  --fc-neutral-bg-color: var(--muted);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-now-indicator-color: var(--destructive);
+  --fc-page-bg-color: transparent;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+.fc .fc-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Botões base */
+.fc .fc-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.3125rem 0.75rem;
+  line-height: 1.25rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-transform: capitalize;
+  box-shadow: none !important;
+}
+
+.fc .fc-button:hover:not(:disabled) {
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.fc .fc-button:focus,
+.fc .fc-button:active,
+.fc .fc-button-primary:not(.fc-button-active):not(:disabled):active {
+  outline: none;
+  box-shadow: none !important;
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+/* Botão ativo (view selecionada) */
+.fc .fc-button.fc-button-active,
+.fc .fc-button-primary.fc-button-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.fc .fc-button.fc-button-active:hover,
+.fc .fc-button-primary.fc-button-active:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  opacity: 0.88;
+}
+
+/* Grupo de botões */
+.fc .fc-button-group {
+  gap: 0;
+}
+
+.fc .fc-button-group .fc-button {
+  border-radius: 0;
+}
+
+.fc .fc-button-group .fc-button:first-child {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.fc .fc-button-group .fc-button:last-child {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.fc .fc-button-group .fc-button:not(:first-child) {
+  margin-left: -1px;
+}
+
+/* prev/next mais estreitos */
+.fc .fc-prev-button,
+.fc .fc-next-button {
+  padding: 0.3125rem 0.5rem;
+}
+
+/* ── Cabeçalho dos dias ──────────────────────────────────────────────── */
+.fc .fc-col-header-cell {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  padding: 0.375rem 0;
+}
+
+.fc .fc-col-header-cell-cushion {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-decoration: none !important;
+  padding: 0.25rem 0.5rem;
+}
+
+/* ── Células do mês ──────────────────────────────────────────────────── */
+.fc .fc-daygrid-day {
+  background: transparent;
+}
+
+.fc .fc-daygrid-day-number {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--foreground);
+  text-decoration: none !important;
+  padding: 0.5rem 0.625rem;
+  line-height: 1;
+}
+
+.fc .fc-day-other .fc-daygrid-day-number {
+  color: var(--muted-foreground);
+  opacity: 0.45;
+}
+
+/* Círculo no dia atual */
+.fc .fc-day-today .fc-daygrid-day-number {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 50%;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  margin: 0.25rem;
+  padding: 0;
+}
+
+/* ── Eventos ─────────────────────────────────────────────────────────── */
+.fc .fc-event {
+  border-radius: 4px;
+  border-left-width: 3px;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.fc .fc-event:hover {
+  filter: brightness(0.93);
+}
+
+.fc .fc-daygrid-event {
+  padding: 0.125rem 0.375rem;
+  margin-top: 2px;
+}
+
+.fc .fc-event-title,
+.fc .fc-event-time {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc .fc-event-time {
+  font-size: 0.6875rem;
+  opacity: 0.8;
+  margin-right: 3px;
+}
+
+/* ── Time grid ───────────────────────────────────────────────────────── */
+.fc .fc-timegrid-slot {
+  height: 2.5rem;
+}
+
+.fc .fc-timegrid-slot-label-cushion {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.fc .fc-timegrid-event {
+  border-radius: 4px;
+  border-left-width: 3px;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+}
+
+/* ── List view ───────────────────────────────────────────────────────── */
+.fc .fc-list-day-cushion {
+  background: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.fc .fc-list-event:hover td {
+  background: var(--muted);
+}
+
+.fc .fc-list-event-title a {
+  color: var(--foreground);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.fc .fc-list-empty-cushion {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+/* ── Popover ─────────────────────────────────────────────────────────── */
+.fc .fc-popover {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+.fc .fc-popover-header {
+  background: var(--muted);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.fc .fc-popover-close {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────── */
+.fc .fc-scroller {
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.fc a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.fc a:focus {
+  outline: none;
+}
