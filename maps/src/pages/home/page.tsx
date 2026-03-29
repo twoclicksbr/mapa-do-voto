@@ -73,6 +73,8 @@ import { FinExtractDataGrid, FinExtractEntry, ExtractViewToggle, ExtractView, EX
 import { FinExtractFilterModal, FinExtractFilters } from "@/components/financeiro/fin-extract-filter-modal";
 import { FinExtractModal } from "@/components/financeiro/fin-extract-modal";
 import { FinWalletTab } from "@/components/financeiro/fin-wallet-tab";
+import { FinDashboardTab } from "@/components/financeiro/fin-dashboard-tab";
+import { SettingsDashboardTab } from "@/components/settings/settings-dashboard-tab";
 import { PageFooter } from "@/components/common/page-footer";
 import { AgendaTab } from "@/components/agenda/agenda-tab";
 import { EventTypesDataGrid, EventType } from "@/components/event-types/event-types-data-grid";
@@ -1915,9 +1917,7 @@ export function HomePage() {
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Dashboard']} />
                 </div>
               </div>
-              <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-                Em breve
-              </div>
+              <FinDashboardTab />
               <PageFooter />
             </div>
           ) : finSection === 'fin-payment-method-types' ? (
@@ -2457,9 +2457,7 @@ export function HomePage() {
                   <SectionBreadcrumb items={['Home', 'Configurações', 'Dashboard']} />
                 </div>
               </div>
-              <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-                Em breve
-              </div>
+              <SettingsDashboardTab />
               <PageFooter />
             </div>
           ) : settingsSection === 'type-people' ? (
