@@ -22,6 +22,7 @@ class FinTitlePayRequest extends FormRequest
             'interest'          => ['nullable', 'numeric', 'min:0'],
             'multa'             => ['nullable', 'numeric', 'min:0'],
             'discount'          => ['nullable', 'numeric', 'min:0'],
+            'excess_action'     => ['nullable', 'in:wallet,change'],
         ];
     }
 }

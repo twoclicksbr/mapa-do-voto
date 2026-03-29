@@ -32,4 +32,25 @@ class People extends Model
     {
         return $this->hasMany(PeopleCandidacy::class);
     }
+
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(Contact::class, 'record_id')
+            ->where('modulo', 'people')
+            ->orderBy('order');
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(Document::class, 'record_id')
+            ->where('modulo', 'people')
+            ->orderBy('order');
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(Address::class, 'record_id')
+            ->where('modulo', 'people')
+            ->orderBy('order');
+    }
 }

@@ -11,21 +11,21 @@ class FinWallet extends Model
 
     protected $fillable = [
         'people_id',
-        'balance',
+        'type',
+        'amount',
+        'date',
+        'description',
         'title_id',
+        'source',
     ];
 
     protected $casts = [
-        'balance' => 'decimal:2',
+        'amount' => 'decimal:2',
+        'date'   => 'date:Y-m-d',
     ];
 
     public function people(): BelongsTo
     {
         return $this->belongsTo(People::class, 'people_id');
-    }
-
-    public function title(): BelongsTo
-    {
-        return $this->belongsTo(FinTitle::class, 'title_id');
     }
 }

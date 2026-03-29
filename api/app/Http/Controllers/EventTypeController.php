@@ -9,7 +9,7 @@ class EventTypeController extends Controller
 {
     public function index()
     {
-        $eventTypes = EventType::orderBy('order')->get(['id', 'name', 'color', 'all_day', 'order', 'active']);
+        $eventTypes = EventType::orderBy('order')->get(['id', 'name', 'color', 'all_day', 'order', 'active', 'created_at', 'updated_at']);
 
         return response()->json($eventTypes);
     }
@@ -40,12 +40,14 @@ class EventTypeController extends Controller
     private function format(EventType $eventType): array
     {
         return [
-            'id'      => $eventType->id,
-            'name'    => $eventType->name,
-            'color'   => $eventType->color,
-            'all_day' => (bool) $eventType->all_day,
-            'order'   => $eventType->order,
-            'active'  => $eventType->active,
+            'id'         => $eventType->id,
+            'name'       => $eventType->name,
+            'color'      => $eventType->color,
+            'all_day'    => (bool) $eventType->all_day,
+            'order'      => $eventType->order,
+            'active'     => $eventType->active,
+            'created_at' => $eventType->created_at,
+            'updated_at' => $eventType->updated_at,
         ];
     }
 }

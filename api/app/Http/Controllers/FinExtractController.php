@@ -40,6 +40,18 @@ class FinExtractController extends Controller
             $query->where('payment_method_id', $request->payment_method_id);
         }
 
+        if ($request->filled('payment_method_type_id')) {
+            $query->whereHas('paymentMethod', function ($q) use ($request) {
+                $q->where('fin_payment_method_type_id', $request->payment_method_type_id);
+            });
+        }
+
+        if ($request->filled('people_id')) {
+            $query->whereHas('title', function ($q) use ($request) {
+                $q->where('people_id', $request->people_id);
+            });
+        }
+
         $entries = $query->get();
 
         // Saldo inicial: calculado dinamicamente quando date_from for passado

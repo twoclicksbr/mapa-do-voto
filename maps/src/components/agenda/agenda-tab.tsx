@@ -14,7 +14,8 @@ import {
   DialogBody,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Clock, User, FileText, Plus, ChevronDown } from "lucide-react";
+import { CalendarDays, Clock, User, Plus, ChevronDown, Pencil, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 import { EventModal, AgendaEventFull } from "./event-modal";
 
@@ -40,6 +41,17 @@ interface AgendaEvent {
   all_day: boolean;
   modulo: string | null;
   active: boolean;
+}
+
+interface FinTitleEvent {
+  id: number;
+  type: "income" | "expense";
+  invoice_number: string | null;
+  document_number: string | null;
+  amount: number;
+  due_date: string;
+  people_name: string | null;
+  status: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,12 +80,13 @@ function formatDateTime(iso: string | null): string {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-");
 }
 
 // ─── Event Detail Modal ───────────────────────────────────────────────────────
 
-function EventDetailModal({ event, onClose }: { event: AgendaEvent | null; onClose: () => void }) {
+function EventDetailModal({ event, onClose, onEdit }: { event: AgendaEvent | null; onClose: () => void; onEdit: (ev: AgendaEvent) => void }) {
   if (!event) return null;
   const color = event.event_type?.color ?? "#6b7280";
 
@@ -109,15 +122,8 @@ function EventDetailModal({ event, onClose }: { event: AgendaEvent | null; onClo
           {event.people_name && (
             <div className="flex items-center gap-2 text-sm">
               <User className="size-3.5 text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">Responsável:</span>
+              <span className="text-muted-foreground">Pessoa:</span>
               <span>{event.people_name}</span>
-            </div>
-          )}
-          {event.modulo && (
-            <div className="flex items-center gap-2 text-sm">
-              <FileText className="size-3.5 text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">Módulo:</span>
-              <span className="capitalize">{event.modulo}</span>
             </div>
           )}
           {event.description && (
@@ -125,6 +131,61 @@ function EventDetailModal({ event, onClose }: { event: AgendaEvent | null; onClo
               {event.description}
             </div>
           )}
+          {!event.modulo && (
+            <div className="flex justify-end pt-1">
+              <Button size="sm" onClick={() => onEdit(event)}>
+                <Pencil className="size-3.5" />
+                Editar
+              </Button>
+            </div>
+          )}
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── FinTitle Detail Modal ────────────────────────────────────────────────────
+
+function FinTitleDetailModal({ title, finColor, onClose }: { title: FinTitleEvent | null; finColor: string; onClose: () => void }) {
+  if (!title) return null;
+  const isIncome = title.type === "income";
+  const label    = isIncome ? "Receber" : "Pagar";
+  const amount   = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(title.amount);
+  const due      = new Date(`${title.due_date}T00:00:00`).toLocaleDateString("pt-BR");
+
+  return (
+    <Dialog open={!!title} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <DollarSign className="size-4 text-muted-foreground flex-shrink-0" />
+            {title.invoice_number ?? title.document_number ?? `#${title.id}`}
+          </DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-3">
+          <Badge className="text-xs font-medium text-white border-0" style={{ backgroundColor: finColor }}>
+            {label}
+          </Badge>
+          <div className="space-y-1.5 text-sm">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-3.5 text-muted-foreground flex-shrink-0" />
+              <span className="text-muted-foreground">Vencimento:</span>
+              <span>{due}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <DollarSign className="size-3.5 text-muted-foreground flex-shrink-0" />
+              <span className="text-muted-foreground">Valor:</span>
+              <span className="font-medium">{amount}</span>
+            </div>
+            {title.people_name && (
+              <div className="flex items-center gap-2">
+                <User className="size-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-muted-foreground">Pessoa:</span>
+                <span>{title.people_name}</span>
+              </div>
+            )}
+          </div>
         </DialogBody>
       </DialogContent>
     </Dialog>
@@ -156,9 +217,6 @@ function AgendaSidebar({
           <p className="text-xs text-muted-foreground capitalize">{dayName}</p>
           <p className="text-sm font-semibold text-foreground">{dateLabel}</p>
         </div>
-        <button onClick={onNewEvent} className="size-7 rounded-md flex items-center justify-center hover:bg-muted text-muted-foreground transition-colors">
-          <Plus className="size-4" />
-        </button>
       </div>
 
       {/* Today events */}
@@ -287,9 +345,10 @@ function injectDiaLabel(wrapper: HTMLElement | null) {
 export function AgendaTab() {
   const calendarRef = useRef<FullCalendar>(null);
   const wrapperRef  = useRef<HTMLDivElement>(null);
-  const [selectedEvent, setSelectedEvent] = useState<AgendaEvent | null>(null);
-  const [todayEvents,   setTodayEvents]   = useState<AgendaEvent[]>([]);
-  const [eventTypes,    setEventTypes]    = useState<EventType[]>([]);
+  const [selectedEvent,    setSelectedEvent]    = useState<AgendaEvent | null>(null);
+  const [selectedFinTitle, setSelectedFinTitle] = useState<FinTitleEvent | null>(null);
+  const [todayEvents,      setTodayEvents]      = useState<AgendaEvent[]>([]);
+  const [eventTypes,       setEventTypes]       = useState<EventType[]>([]);
   const [currentView,   setCurrentView]   = useState("dayGridMonth");
   const [eventModalOpen,    setEventModalOpen]    = useState(false);
   const [editingEvent,      setEditingEvent]      = useState<AgendaEventFull | null>(null);
@@ -309,6 +368,9 @@ export function AgendaTab() {
       .catch(() => {});
   }, []);
 
+  const finPayColor     = eventTypes.find(t => t.name.toLowerCase().includes("pagar"))?.color   ?? "#ec637f";
+  const finReceiveColor = eventTypes.find(t => t.name.toLowerCase().includes("receber"))?.color ?? "#4fb589";
+
   const loadEvents = useCallback(
     async (
       info: { startStr: string; endStr: string },
@@ -316,37 +378,69 @@ export function AgendaTab() {
       failureCallback: (error: Error) => void
     ) => {
       try {
-        const res = await api.get<AgendaEvent[]>("/events", {
-          params: { start_from: info.startStr, start_to: info.endStr },
+        const dateFrom = info.startStr.slice(0, 10);
+        const dateTo   = info.endStr.slice(0, 10);
+
+        const [eventsRes, titlesRes] = await Promise.all([
+          api.get<AgendaEvent[]>("/events", {
+            params: { start_from: info.startStr, start_to: info.endStr },
+          }),
+          api.get<FinTitleEvent[]>("/fin-titles", {
+            params: { status: "pending", date_from: dateFrom, date_to: dateTo },
+          }),
+        ]);
+
+        const regularEvents = eventsRes.data.map((ev) => {
+          const color = ev.event_type?.color ?? "#6b7280";
+          return {
+            id:              String((ev as AgendaEvent & { _fc_id?: string })._fc_id ?? ev.id),
+            title:           ev.name,
+            start:           ev.start_at,
+            end:             ev.end_at ?? undefined,
+            allDay:          ev.all_day ?? false,
+            backgroundColor: hexToRgba(color, 0.15),
+            borderColor:     color,
+            textColor:       color,
+            extendedProps:   { _type: "event", ...ev },
+          };
         });
 
-        successCallback(
-          res.data.map((ev) => {
-            const color = ev.event_type?.color ?? "#6b7280";
-            return {
-              id:              String(ev.id),
-              title:           ev.name,
-              start:           ev.start_at,
-              end:             ev.end_at ?? undefined,
-              allDay:          ev.all_day ?? false,
-              backgroundColor: hexToRgba(color, 0.15),
-              borderColor:     color,
-              textColor:       color,
-              extendedProps:   ev,
-            };
-          })
-        );
+        const titleEvents = titlesRes.data.map((t) => {
+          const color = t.type === "income" ? finReceiveColor : finPayColor;
+          const label = t.invoice_number ?? t.document_number ?? `#${t.id}`;
+          return {
+            id:              `fin-${t.id}`,
+            title:           `${t.type === "income" ? "Receber" : "Pagar"}: ${label}`,
+            start:           t.due_date,
+            allDay:          true,
+            backgroundColor: hexToRgba(color, 0.15),
+            borderColor:     color,
+            textColor:       color,
+            extendedProps:   { _type: "fin_title", ...t },
+          };
+        });
+
+        successCallback([...regularEvents, ...titleEvents]);
+
+        // Sync sidebar: if fetched range includes today, filter from already-fetched data
+        const todayStr = todayIso();
+        if (info.startStr.slice(0, 10) <= todayStr && info.endStr.slice(0, 10) > todayStr) {
+          setTodayEvents(eventsRes.data.filter(ev => ev.start_at.slice(0, 10) === todayStr));
+        }
       } catch (err) {
         failureCallback(err as Error);
       }
     },
-    []
+    [finPayColor, finReceiveColor]
   );
 
   const handleEventClick = useCallback((arg: EventClickArg) => {
-    const ev = arg.event.extendedProps as AgendaEvent;
-    setEditingEvent(ev as unknown as AgendaEventFull);
-    setEventModalOpen(true);
+    const props = arg.event.extendedProps as { _type?: string } & AgendaEvent & FinTitleEvent;
+    if (props._type === "fin_title") {
+      setSelectedFinTitle(props as unknown as FinTitleEvent);
+    } else {
+      setSelectedEvent(props as unknown as AgendaEvent);
+    }
   }, []);
 
   const handleDatesSet = useCallback((arg: DatesSetArg) => {
@@ -434,7 +528,7 @@ export function AgendaTab() {
               setEditingEvent(null);
               setEventModalOpen(true);
             }}
-            allDaySlot={false}
+            allDaySlot={true}
             editable={false}
             selectable={false}
             dayMaxEvents={4}
@@ -445,7 +539,21 @@ export function AgendaTab() {
         </div>
       </div>
 
-      <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+      <EventDetailModal
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        onEdit={(ev) => {
+          setSelectedEvent(null);
+          setEditingEvent(ev as unknown as AgendaEventFull);
+          setEventModalOpen(true);
+        }}
+      />
+
+      <FinTitleDetailModal
+        title={selectedFinTitle}
+        finColor={selectedFinTitle?.type === "income" ? finReceiveColor : finPayColor}
+        onClose={() => setSelectedFinTitle(null)}
+      />
 
       <EventModal
         open={eventModalOpen}

@@ -13,9 +13,13 @@ return new class extends Migration
 
         Schema::create('fin_wallets', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('people_id'); // cross-schema: gabinete_master.people
-            $table->decimal('balance', 15, 2)->default(0);
-            $table->unsignedBigInteger('title_id')->nullable(); // último título que afetou o saldo
+            $table->unsignedBigInteger('people_id');
+            $table->string('type');          // 'in' | 'out'
+            $table->decimal('amount', 15, 2);
+            $table->date('date');
+            $table->string('description')->nullable();
+            $table->unsignedBigInteger('title_id')->nullable();
+            $table->string('source')->default('manual'); // 'manual' | 'baixa' | 'estorno'
             $table->timestamps();
         });
 

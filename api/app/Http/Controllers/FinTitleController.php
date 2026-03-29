@@ -6,10 +6,12 @@ use App\Http\Requests\FinTitlePayRequest;
 use App\Http\Requests\FinTitleRequest;
 use App\Models\FinCostCenter;
 use App\Models\FinExtract;
+use App\Models\FinPaymentMethod;
+use App\Models\FinPaymentMethodType;
 use App\Models\FinTitle;
 use App\Models\FinTitleComposition;
-use App\Models\Note;
 use App\Models\FinWallet;
+use App\Models\Note;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -233,9 +235,46 @@ class FinTitleController extends Controller
                         2
                     );
 
+        $excessAction = $data['excess_action'] ?? 'wallet';
+
+        // Verifica se a modalidade selecionada é do tipo Carteira
+        $selectedPaymentMethodId = $data['payment_method_id'] ?? $title->payment_method_id;
+        $selectedMethod          = $selectedPaymentMethodId ? FinPaymentMethod::find($selectedPaymentMethodId) : null;
+        $isCarteiraPayment       = false;
+        if ($selectedMethod) {
+            $isCarteiraPayment = FinPaymentMethodType::where('id', $selectedMethod->fin_payment_method_type_id)
+                ->whereRaw('LOWER(name) = ?', ['carteira'])
+                ->exists();
+        }
+
+        // Valida saldo na carteira quando pagar com modalidade Carteira
+        if ($isCarteiraPayment && $title->people_id) {
+            $walletIn  = (float) FinWallet::where('people_id', $title->people_id)->where('type', 'in')->sum('amount');
+            $walletOut = (float) FinWallet::where('people_id', $title->people_id)->where('type', 'out')->sum('amount');
+            $walletBalance = round($walletIn - $walletOut, 2);
+            if ($amountPaid > $walletBalance) {
+                return response()->json(['message' => 'Saldo insuficiente na carteira.'], 422);
+            }
+        }
+
+        // Pré-valida modalidade Carteira antes de entrar na transaction (excedente → carteira)
+        $carteiraMethod = null;
+        if ($amountPaid > $netAmount && $excessAction === 'wallet') {
+            $carteiraType = FinPaymentMethodType::whereRaw('LOWER(name) = ?', ['carteira'])->first();
+            if (!$carteiraType) {
+                return response()->json(['message' => 'Tipo de modalidade "Carteira" não encontrado. Cadastre em Finanças → Tipos de Modalidade.'], 422);
+            }
+            $carteiraMethod = FinPaymentMethod::where('fin_payment_method_type_id', $carteiraType->id)
+                ->where('active', true)
+                ->first();
+            if (!$carteiraMethod) {
+                return response()->json(['message' => 'Nenhuma modalidade ativa do tipo "Carteira" encontrada.'], 422);
+            }
+        }
+
         $newPartialTitle = null;
 
-        DB::transaction(function () use ($title, $data, $amountPaid, $netAmount, $interest, $multa, $discount, &$newPartialTitle) {
+        DB::transaction(function () use ($title, $data, $amountPaid, $netAmount, $interest, $multa, $discount, $excessAction, $carteiraMethod, $isCarteiraPayment, &$newPartialTitle) {
             $isPartial = $amountPaid < $netAmount;
 
             $title->update([
@@ -262,10 +301,23 @@ class FinTitleController extends Controller
                 'source'            => 'baixa',
             ]);
 
-            // Atualiza carteira se pagamento excede valor líquido
+            // Baixa com modalidade Carteira: debita na carteira da pessoa
+            if ($isCarteiraPayment && $title->people_id) {
+                FinWallet::create([
+                    'people_id'   => $title->people_id,
+                    'type'        => 'out',
+                    'amount'      => $amountPaid,
+                    'date'        => $data['paid_at'],
+                    'description' => 'Baixa do título #' . $title->id,
+                    'title_id'    => $title->id,
+                    'source'      => 'baixa',
+                ]);
+            }
+
+            // Trata excedente (carteira ou troco)
             if ($amountPaid > $netAmount) {
-                $excess = $amountPaid - $netAmount;
-                $this->creditWallet($title->people_id, $excess, $title->id);
+                $excess = round($amountPaid - $netAmount, 2);
+                $this->handleExcess($title, $excess, $data, $excessAction, $carteiraMethod);
             }
 
             // Baixa parcial: gera novo título com saldo restante
@@ -349,6 +401,20 @@ class FinTitleController extends Controller
                 'bank_id'           => $title->bank_id,
                 'source'            => 'estorno',
             ]);
+
+            // Estorna todos os lançamentos de carteira gerados na baixa deste título
+            $walletEntries = FinWallet::where('title_id', $title->id)->where('source', 'baixa')->get();
+            foreach ($walletEntries as $entry) {
+                FinWallet::create([
+                    'people_id'   => $entry->people_id,
+                    'type'        => $entry->type === 'in' ? 'out' : 'in',
+                    'amount'      => $entry->amount,
+                    'date'        => $today,
+                    'description' => 'Estorno do título #' . $title->id,
+                    'title_id'    => $title->id,
+                    'source'      => 'estorno',
+                ]);
+            }
 
             // Clona o título original como pendente para reprocessamento
             $clone = FinTitle::create([
@@ -550,12 +616,54 @@ class FinTitleController extends Controller
         }
     }
 
-    private function creditWallet(int $peopleId, float $amount, int $titleId): void
+    private function handleExcess(FinTitle $title, float $excess, array $data, string $action, ?FinPaymentMethod $carteiraMethod): void
     {
-        $wallet = FinWallet::firstOrNew(['people_id' => $peopleId]);
-        $wallet->balance  = (float) ($wallet->balance ?? 0) + $amount;
-        $wallet->title_id = $titleId;
-        $wallet->save();
+        $paidAt          = $data['paid_at'];
+        $paymentMethodId = $data['payment_method_id'] ?? $title->payment_method_id;
+        $bankId          = $data['bank_id'] ?? $title->bank_id;
+
+        if ($action === 'wallet' && $carteiraMethod) {
+            // expense: overpagou → eu depositei o excesso com a pessoa → out na carteira
+            // income:  sobre-recebeu → a pessoa depositou o excesso comigo → in na carteira
+            $walletExtractType = $title->type === 'expense' ? 'out' : 'in';
+            $walletDescription = $title->type === 'expense' ? 'Excedente depositado com a pessoa' : 'Excedente recebido da pessoa';
+
+            FinExtract::create([
+                'title_id'          => $title->id,
+                'account_id'        => $title->account_id,
+                'type'              => $walletExtractType,
+                'amount'            => $excess,
+                'date'              => $paidAt,
+                'payment_method_id' => $carteiraMethod->id,
+                'bank_id'           => $carteiraMethod->fin_bank_id,
+                'source'            => 'baixa',
+            ]);
+
+            if ($title->people_id) {
+                FinWallet::create([
+                    'people_id'   => $title->people_id,
+                    'type'        => $walletExtractType,
+                    'amount'      => $excess,
+                    'date'        => $paidAt,
+                    'description' => $walletDescription,
+                    'title_id'    => $title->id,
+                    'source'      => 'baixa',
+                ]);
+            }
+        } else {
+            // Troco: lançamento de saída pelo excedente (dinheiro devolvido ao pagador)
+            $mainExtractType = $title->type === 'income' ? 'in' : 'out';
+            FinExtract::create([
+                'title_id'          => $title->id,
+                'account_id'        => $title->account_id,
+                'type'              => $mainExtractType === 'in' ? 'out' : 'in',
+                'amount'            => $excess,
+                'date'              => $paidAt,
+                'payment_method_id' => $paymentMethodId,
+                'bank_id'           => $bankId,
+                'source'            => 'baixa',
+            ]);
+        }
     }
 
     private function format(FinTitle $title): array

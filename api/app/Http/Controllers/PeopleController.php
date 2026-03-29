@@ -10,9 +10,9 @@ class PeopleController extends Controller
 {
     public function index()
     {
-        $people = People::with('typePeople:id,name')
+        $people = People::with(['typePeople:id,name', 'contacts.typeContact', 'documents.typeDocument', 'addresses.typeAddress'])
             ->orderBy('name')
-            ->get(['id', 'type_people_id', 'name', 'birth_date', 'photo_path', 'active']);
+            ->get(['id', 'type_people_id', 'name', 'birth_date', 'photo_path', 'active', 'created_at', 'updated_at', 'deleted_at']);
 
         return response()->json($people->map(fn ($p) => $this->format($p)));
     }
@@ -55,6 +55,32 @@ class PeopleController extends Controller
                 'name' => $person->typePeople->name,
             ] : null,
             'active'         => $person->active,
+            'created_at'     => $person->created_at?->toIso8601String(),
+            'updated_at'     => $person->updated_at?->toIso8601String(),
+            'deleted_at'     => $person->deleted_at?->toIso8601String(),
+            'addresses'      => $person->addresses->map(fn ($a) => [
+                'id'              => $a->id,
+                'type_address_id' => $a->type_address_id,
+                'type_address'    => $a->typeAddress ? ['id' => $a->typeAddress->id, 'name' => $a->typeAddress->name] : null,
+                'cep'             => $a->cep,
+                'logradouro'      => $a->logradouro,
+                'numero'          => $a->numero,
+                'bairro'          => $a->bairro,
+                'cidade'          => $a->cidade,
+                'uf'              => $a->uf,
+            ])->values()->toArray(),
+            'documents'      => $person->documents->map(fn ($d) => [
+                'id'               => $d->id,
+                'type_document_id' => $d->type_document_id,
+                'type_document'    => $d->typeDocument ? ['id' => $d->typeDocument->id, 'name' => $d->typeDocument->name, 'mask' => $d->typeDocument->mask] : null,
+                'value'            => $d->value,
+            ])->values()->toArray(),
+            'contacts'       => $person->contacts ? $person->contacts->map(fn ($c) => [
+                'id'              => $c->id,
+                'type_contact_id' => $c->type_contact_id,
+                'type_contact'    => $c->typeContact ? ['id' => $c->typeContact->id, 'name' => $c->typeContact->name, 'mask' => $c->typeContact->mask] : null,
+                'value'           => $c->value,
+            ])->values()->toArray() : [],
         ], PeopleAvatarController::avatarUrls($person->photo_path));
     }
 }

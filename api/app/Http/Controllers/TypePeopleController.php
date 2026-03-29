@@ -9,7 +9,7 @@ class TypePeopleController extends Controller
 {
     public function index()
     {
-        $typePeople = TypePeople::orderBy('order')->get(['id', 'name', 'order', 'active']);
+        $typePeople = TypePeople::orderBy('order')->get(['id', 'name', 'order', 'active', 'created_at', 'updated_at']);
 
         return response()->json($typePeople);
     }
@@ -40,10 +40,12 @@ class TypePeopleController extends Controller
     private function format(TypePeople $typePeople): array
     {
         return [
-            'id'     => $typePeople->id,
-            'name'   => $typePeople->name,
-            'order'  => $typePeople->order,
-            'active' => $typePeople->active,
+            'id'         => $typePeople->id,
+            'name'       => $typePeople->name,
+            'order'      => $typePeople->order,
+            'active'     => $typePeople->active,
+            'created_at' => $typePeople->created_at,
+            'updated_at' => $typePeople->updated_at,
         ];
     }
 }

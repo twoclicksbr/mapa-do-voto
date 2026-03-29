@@ -9,7 +9,7 @@ class TypeDocumentController extends Controller
 {
     public function index()
     {
-        $typeDocuments = TypeDocument::orderBy('order')->get(['id', 'name', 'mask', 'validity', 'order', 'active']);
+        $typeDocuments = TypeDocument::orderBy('order')->get(['id', 'name', 'mask', 'validity', 'order', 'active', 'created_at', 'updated_at']);
 
         return response()->json($typeDocuments);
     }
@@ -40,12 +40,14 @@ class TypeDocumentController extends Controller
     private function format(TypeDocument $typeDocument): array
     {
         return [
-            'id'       => $typeDocument->id,
-            'name'     => $typeDocument->name,
-            'mask'     => $typeDocument->mask,
-            'validity' => (bool) $typeDocument->validity,
-            'order'    => $typeDocument->order,
-            'active'   => $typeDocument->active,
+            'id'         => $typeDocument->id,
+            'name'       => $typeDocument->name,
+            'mask'       => $typeDocument->mask,
+            'validity'   => (bool) $typeDocument->validity,
+            'order'      => $typeDocument->order,
+            'active'     => $typeDocument->active,
+            'created_at' => $typeDocument->created_at,
+            'updated_at' => $typeDocument->updated_at,
         ];
     }
 }

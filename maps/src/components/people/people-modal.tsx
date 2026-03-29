@@ -50,6 +50,7 @@ import { TypeDocument } from "@/components/type-documents/type-documents-data-gr
 import { PeopleFilesTab } from "./people-files-tab";
 import { BirthDatePicker } from "./birth-date-picker";
 import { PhoneInput } from "@/components/reui/phone-input";
+import { parsePhoneNumber, formatPhoneNumber } from "react-phone-number-input";
 import type { Value as PhoneValue } from "react-phone-number-input";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -169,6 +170,37 @@ function CreatePersonModal({
       });
       onSaved(res.data);
       onClose();
+
+      // Se preencheu data de nascimento, cria evento de aniversário na agenda
+      if (birthDate && res.data.id) {
+        const personId = res.data.id;
+        const savedName = name;
+        const savedBirthDate = birthDate;
+        (async () => {
+          try {
+            const typesRes = await api.get<{ id: number; name: string }[]>("/event-types");
+            const birthdayType = typesRes.data.find((t) =>
+              t.name.toLowerCase().includes("anivers")
+            );
+            if (!birthdayType) return;
+            const [, month, day] = savedBirthDate.split("-");
+            const year = new Date().getFullYear();
+            await api.post("/events", {
+              name: `Aniversário de ${savedName}`,
+              event_type_id: birthdayType.id,
+              modulo: "people",
+              start_at: `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}T00:00:00`,
+              end_at: null,
+              all_day: true,
+              recurrence: "yearly",
+              people_id: personId,
+              people_ids: [personId],
+            });
+          } catch (err: unknown) {
+            console.error("Erro ao criar evento de aniversário:", (err as { response?: { data?: unknown } })?.response?.data ?? err);
+          }
+        })();
+      }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { errors?: Record<string, string[]> } } };
       const apiErrors = axiosErr?.response?.data?.errors;
@@ -310,9 +342,7 @@ function ContactsTab({
     if (!newTypeId || !newValue.trim()) return;
     setSaving(true);
     try {
-      const rawValue = isWhatsApp
-        ? newValue.replace(/\D/g, "")
-        : mask
+      const rawValue = isWhatsApp || mask
         ? newValue.replace(/\D/g, "")
         : newValue.trim();
       const res = await api.post<ContactItem>(`/people/${personId}/contacts`, {
@@ -344,7 +374,11 @@ function ContactsTab({
             {c.type_contact?.name ?? "—"}
           </Badge>
           <span className="flex-1 text-sm font-medium">
-            {c.type_contact?.mask ? applyMask(c.value, c.type_contact.mask) : c.value}
+            {c.type_contact?.name?.toLowerCase() === "whatsapp"
+              ? (formatPhoneNumber(`+${c.value}`) || c.value)
+              : c.type_contact?.mask
+              ? applyMask(c.value, c.type_contact.mask)
+              : c.value}
           </span>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -541,11 +575,10 @@ function AddressFormPanel({
           <Input
             className="h-8 text-sm pr-8"
             placeholder="00000-000"
-            value={form.cep}
+            value={form.cep.length > 5 ? form.cep.slice(0, 5) + "-" + form.cep.slice(5) : form.cep}
             onChange={(e) => {
               const raw = e.target.value.replace(/\D/g, "").slice(0, 8);
-              const masked = raw.length > 5 ? raw.slice(0, 5) + "-" + raw.slice(5) : raw;
-              onChange({ cep: masked });
+              onChange({ cep: raw });
             }}
             onBlur={onCepBlur}
           />
@@ -1278,6 +1311,57 @@ function PersonDetailModal({
       setCurrentPerson(res.data);
       onSaved(res.data);
       setEditMode(false);
+
+      // Se birth_date foi preenchida ou alterada, faz upsert do evento de aniversário
+      const prevBirthDate = currentPerson.birth_date ?? "";
+      if (birthDate && birthDate !== prevBirthDate) {
+        const personId = currentPerson.id;
+        const savedName = name;
+        const savedBirthDate = birthDate;
+        (async () => {
+          try {
+            const typesRes = await api.get<{ id: number; name: string }[]>("/event-types");
+            const birthdayType = typesRes.data.find((t) =>
+              t.name.toLowerCase().includes("anivers")
+            );
+            if (!birthdayType) return;
+
+            const [, month, day] = savedBirthDate.split("-");
+            const year = new Date().getFullYear();
+            const startAt = `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}T00:00:00`;
+
+            // Verifica se já existe evento de aniversário para essa pessoa
+            const existingRes = await api.get<{ id: number }[]>("/events", {
+              params: { people_id: personId, event_type_id: birthdayType.id },
+            });
+            const existing = existingRes.data[0];
+
+            if (existing) {
+              await api.put(`/events/${existing.id}`, {
+                name: `Aniversário de ${savedName}`,
+                modulo: "people",
+                start_at: startAt,
+                all_day: true,
+                recurrence: "yearly",
+              });
+            } else {
+              await api.post("/events", {
+                name: `Aniversário de ${savedName}`,
+                event_type_id: birthdayType.id,
+                modulo: "people",
+                start_at: startAt,
+                end_at: null,
+                all_day: true,
+                recurrence: "yearly",
+                people_id: personId,
+                people_ids: [personId],
+              });
+            }
+          } catch (err: unknown) {
+            console.error("Erro ao salvar evento de aniversário:", (err as { response?: { data?: unknown } })?.response?.data ?? err);
+          }
+        })();
+      }
     } finally {
       setSaving(false);
     }

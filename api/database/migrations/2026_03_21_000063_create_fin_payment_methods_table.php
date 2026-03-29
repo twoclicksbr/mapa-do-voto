@@ -38,8 +38,13 @@ return new class extends Migration
             'updated_at'                 => $now,
         ], $data));
 
-        $ins(['name' => 'Dinheiro', 'fin_bank_id' => 1, 'fin_payment_method_type_id' => 1, 'order' => 1]);
-        $ins(['name' => 'Pix',      'fin_bank_id' => 1, 'fin_payment_method_type_id' => 2, 'order' => 2]);
+        $ins(['name' => 'Carteira',           'fin_bank_id' => 1, 'fin_payment_method_type_id' => 1, 'order' => 1]);
+        $ins(['name' => 'Dinheiro',           'fin_bank_id' => 1, 'fin_payment_method_type_id' => 2, 'order' => 2]);
+        $ins(['name' => 'Pix',                'fin_bank_id' => 2, 'fin_payment_method_type_id' => 3, 'order' => 3]);
+        $ins(['name' => 'Cartão de Débito',   'fin_bank_id' => 2, 'fin_payment_method_type_id' => 4, 'order' => 4]);
+        $ins(['name' => 'Cartão de Crédito',  'fin_bank_id' => 2, 'fin_payment_method_type_id' => 5, 'order' => 5]);
+        $ins(['name' => 'Boleto',             'fin_bank_id' => 2, 'fin_payment_method_type_id' => 6, 'order' => 6]);
+        $ins(['name' => 'Transferência',      'fin_bank_id' => 2, 'fin_payment_method_type_id' => 7, 'order' => 7]);
 
         DB::statement('SET search_path TO gabinete_master,maps,public');
     }

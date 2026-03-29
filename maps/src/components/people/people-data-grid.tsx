@@ -38,6 +38,12 @@ export interface Person {
   type_people_id: number | null;
   type_people?: { id: number; name: string } | null;
   active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  deleted_at?: string | null;
+  contacts?: { id: number; type_contact_id: number; type_contact: { id: number; name: string; mask: string | null } | null; value: string }[];
+  documents?: { id: number; type_document_id: number; type_document: { id: number; name: string; mask: string | null } | null; value: string }[];
+  addresses?: { id: number; type_address_id: number; type_address: { id: number; name: string } | null; cep: string | null; logradouro: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null }[];
 }
 
 interface PeopleDataGridProps {

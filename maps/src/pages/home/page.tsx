@@ -1,10 +1,10 @@
-import { useRef, useState, useEffect, useMemo, Fragment } from "react";
+﻿import { useRef, useState, useEffect, useMemo, Fragment } from "react";
 import * as L from "leaflet";
 import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, Wallet, X, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
@@ -27,28 +27,37 @@ import { useLoginModal } from "@/components/auth/login-modal-context";
 import { GabinetesDataGrid } from "@/components/gabinetes/gabinetes-data-grid";
 import { GabinetCreateModal } from "@/components/gabinetes/gabinete-create-modal";
 import { GabinetEditModal } from "@/components/gabinetes/gabinete-edit-modal";
+import { GabinetesFilterModal, GabinetesFilters } from "@/components/gabinetes/gabinetes-filter-modal";
 import { AppMegaMenu } from "@/components/common/app-mega-menu";
 import { TypePeopleDataGrid, TypePeople } from "@/components/type-people/type-people-data-grid";
 import { TypePeopleModal } from "@/components/type-people/type-people-modal";
+import { TypePeopleFilterModal, TypePeopleFilters } from "@/components/type-people/type-people-filter-modal";
 import { TypeContactsDataGrid, TypeContact } from "@/components/type-contacts/type-contacts-data-grid";
 import { TypeContactsModal } from "@/components/type-contacts/type-contacts-modal";
+import { TypeContactsFilterModal, TypeContactsFilters } from "@/components/type-contacts/type-contacts-filter-modal";
 import { TypeAddressesDataGrid, TypeAddress } from "@/components/type-addresses/type-addresses-data-grid";
 import { TypeAddressesModal } from "@/components/type-addresses/type-addresses-modal";
+import { TypeAddressesFilterModal, TypeAddressesFilters } from "@/components/type-addresses/type-addresses-filter-modal";
 import { TypeDocumentsDataGrid, TypeDocument } from "@/components/type-documents/type-documents-data-grid";
 import { TypeDocumentsModal } from "@/components/type-documents/type-documents-modal";
+import { TypeDocumentsFilterModal, TypeDocumentsFilters } from "@/components/type-documents/type-documents-filter-modal";
 import { PeopleDataGrid, Person } from "@/components/people/people-data-grid";
 import { PeopleModal } from "@/components/people/people-modal";
+import { PeopleFilterModal, PeopleFilters } from "@/components/people/people-filter-modal";
 import { PermissionActionsDataGrid, PermissionAction } from "@/components/permission-actions/permission-actions-data-grid";
 import { PermissionActionsModal } from "@/components/permission-actions/permission-actions-modal";
+import { PermissionActionsFilterModal, PermissionActionsFilters } from "@/components/permission-actions/permission-actions-filter-modal";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { FinTitlesDataGrid, FinTitle } from "@/components/financeiro/fin-titles-data-grid";
 import { FinCompositionModal } from "@/components/financeiro/fin-composition-modal";
 import { FinBanksDataGrid, FinBank } from "@/components/financeiro/fin-banks-data-grid";
 import { FinBankModal } from "@/components/financeiro/fin-bank-modal";
+import { FinBanksFilterModal, FinBanksFilters } from "@/components/financeiro/fin-banks-filter-modal";
 import { FinPaymentMethodsDataGrid, FinPaymentMethod } from "@/components/financeiro/fin-payment-methods-data-grid";
 import { FinPaymentMethodModal } from "@/components/financeiro/fin-payment-method-modal";
 import { FinPaymentMethodTypesDataGrid, FinPaymentMethodType } from "@/components/financeiro/fin-payment-method-types-data-grid";
 import { FinPaymentMethodTypeModal } from "@/components/financeiro/fin-payment-method-type-modal";
+import { FinPaymentMethodTypesFilterModal, FinPaymentMethodTypesFilters } from "@/components/financeiro/fin-payment-method-types-filter-modal";
 import { FinMegaMenu } from "@/components/financeiro/fin-mega-menu";
 import { DepartmentsDataGrid, Department } from "@/components/financeiro/departments-data-grid";
 import { DepartmentModal } from "@/components/financeiro/department-modal";
@@ -56,13 +65,16 @@ import { FinAccountsTree, FinAccount, ReorderItem } from "@/components/financeir
 import { FinAccountModal } from "@/components/financeiro/fin-account-modal";
 import { FinTitleModal } from "@/components/financeiro/fin-title-modal";
 import { FinTitlesFilterModal, FinTitlesFilters } from "@/components/financeiro/fin-titles-filter-modal";
+import { formatDateValue, type DateSelectorValue } from "@/components/reui/date-selector";
 import { FinExtractDataGrid, FinExtractEntry, ExtractViewToggle, ExtractView, EXTRACT_VIEW_KEY } from "@/components/financeiro/fin-extract-data-grid";
 import { FinExtractFilterModal, FinExtractFilters } from "@/components/financeiro/fin-extract-filter-modal";
 import { FinExtractModal } from "@/components/financeiro/fin-extract-modal";
+import { FinWalletTab } from "@/components/financeiro/fin-wallet-tab";
 import { PageFooter } from "@/components/common/page-footer";
 import { AgendaTab } from "@/components/agenda/agenda-tab";
 import { EventTypesDataGrid, EventType } from "@/components/event-types/event-types-data-grid";
 import { EventTypesModal } from "@/components/event-types/event-types-modal";
+import { EventTypesFilterModal, EventTypesFilters } from "@/components/event-types/event-types-filter-modal";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Home': Home,
@@ -152,6 +164,8 @@ export function HomePage() {
   const [tenantsSelected, setTenantsSelected] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [gabinetesFilterOpen, setGabinetesFilterOpen] = useState(false);
+  const [gabinetesFilters, setGabinetesFilters] = useState<GabinetesFilters>({});
   const [settingsSection, setSettingsSectionState] = useState<string>(
     () => localStorage.getItem('mapadovoto:settingsSection') ?? 'settings-dashboard'
   );
@@ -165,42 +179,457 @@ export function HomePage() {
   const [typePeopleSelected, setTypePeopleSelected] = useState(0);
   const [typePeopleModalOpen, setTypePeopleModalOpen] = useState(false);
   const [editingTypePeople, setEditingTypePeople] = useState<TypePeople | null>(null);
+  const [typePeopleFilterOpen, setTypePeopleFilterOpen] = useState(false);
+  const [typePeopleFilters, setTypePeopleFilters] = useState<TypePeopleFilters>({});
 
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [eventTypesLoading, setEventTypesLoading] = useState(false);
   const [eventTypesSelected, setEventTypesSelected] = useState(0);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState<EventType | null>(null);
+  const [eventTypesFilterOpen, setEventTypesFilterOpen] = useState(false);
+  const [eventTypesFilters, setEventTypesFilters] = useState<EventTypesFilters>({});
 
   const [typeContacts, setTypeContacts] = useState<TypeContact[]>([]);
   const [typeContactsLoading, setTypeContactsLoading] = useState(false);
   const [typeContactsSelected, setTypeContactsSelected] = useState(0);
   const [typeContactsModalOpen, setTypeContactsModalOpen] = useState(false);
   const [editingTypeContact, setEditingTypeContact] = useState<TypeContact | null>(null);
+  const [typeContactsFilterOpen, setTypeContactsFilterOpen] = useState(false);
+  const [typeContactsFilters, setTypeContactsFilters] = useState<TypeContactsFilters>({});
 
   const [typeAddresses, setTypeAddresses] = useState<TypeAddress[]>([]);
   const [typeAddressesLoading, setTypeAddressesLoading] = useState(false);
   const [typeAddressesSelected, setTypeAddressesSelected] = useState(0);
   const [typeAddressesModalOpen, setTypeAddressesModalOpen] = useState(false);
   const [editingTypeAddress, setEditingTypeAddress] = useState<TypeAddress | null>(null);
+  const [typeAddressesFilterOpen, setTypeAddressesFilterOpen] = useState(false);
+  const [typeAddressesFilters, setTypeAddressesFilters] = useState<TypeAddressesFilters>({});
 
   const [typeDocuments, setTypeDocuments] = useState<TypeDocument[]>([]);
   const [typeDocumentsLoading, setTypeDocumentsLoading] = useState(false);
   const [typeDocumentsSelected, setTypeDocumentsSelected] = useState(0);
   const [typeDocumentsModalOpen, setTypeDocumentsModalOpen] = useState(false);
   const [editingTypeDocument, setEditingTypeDocument] = useState<TypeDocument | null>(null);
+  const [typeDocumentsFilterOpen, setTypeDocumentsFilterOpen] = useState(false);
+  const [typeDocumentsFilters, setTypeDocumentsFilters] = useState<TypeDocumentsFilters>({});
 
   const [permissionActions, setPermissionActions] = useState<PermissionAction[]>([]);
   const [permissionActionsLoading, setPermissionActionsLoading] = useState(false);
   const [permissionActionsSelected, setPermissionActionsSelected] = useState(0);
   const [permissionActionsModalOpen, setPermissionActionsModalOpen] = useState(false);
   const [editingPermissionAction, setEditingPermissionAction] = useState<PermissionAction | null>(null);
+  const [permissionActionsFilterOpen, setPermissionActionsFilterOpen] = useState(false);
+  const [permissionActionsFilters, setPermissionActionsFilters] = useState<PermissionActionsFilters>({});
 
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [peopleSelected, setPeopleSelected] = useState(0);
   const [peopleModalOpen, setPeopleModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+  const [peopleFilterOpen, setPeopleFilterOpen] = useState(false);
+  const [peopleFilters, setPeopleFilters] = useState<PeopleFilters>({});
+
+  const matchesDateFilter = (dDay: Date, v: DateSelectorValue): boolean => {
+    if (v.period === "day") {
+      if (v.operator === "is"      && v.startDate && dDay.toDateString() !== v.startDate.toDateString()) return false;
+      if (v.operator === "before"  && v.startDate && dDay >= v.startDate)                                return false;
+      if (v.operator === "after"   && v.startDate && dDay <= v.startDate)                                return false;
+      if (v.operator === "between" && v.startDate && v.endDate  && (dDay < v.startDate || dDay > v.endDate))        return false;
+      if (v.operator === "between" && v.startDate && !v.endDate && dDay.toDateString() !== v.startDate.toDateString()) return false;
+      return true;
+    }
+    const getPStart = (yr: number, val: number): Date => {
+      if (v.period === "month")     return new Date(yr, val, 1);
+      if (v.period === "quarter")   return new Date(yr, val * 3, 1);
+      if (v.period === "half-year") return new Date(yr, val * 6, 1);
+      return new Date(yr, 0, 1);
+    };
+    const getPEnd = (yr: number, val: number): Date => {
+      if (v.period === "month")     return new Date(yr, val + 1, 0);
+      if (v.period === "quarter")   return new Date(yr, val * 3 + 3, 0);
+      if (v.period === "half-year") return new Date(yr, val * 6 + 6, 0);
+      return new Date(yr, 11, 31);
+    };
+    if (v.operator === "between" && v.rangeStart && v.rangeEnd) {
+      const pStart = getPStart(v.rangeStart.year, v.rangeStart.value);
+      const pEnd   = getPEnd(v.rangeEnd.year, v.rangeEnd.value);
+      if (dDay < pStart || dDay > pEnd) return false;
+      return true;
+    }
+    const yr  = v.year ?? new Date().getFullYear();
+    const val = v.period === "month"     ? (v.month    ?? 0)
+              : v.period === "quarter"   ? (v.quarter  ?? 0)
+              : v.period === "half-year" ? (v.halfYear ?? 0)
+              : 0;
+    const pStart = getPStart(yr, val);
+    const pEnd   = getPEnd(yr, val);
+    if (v.operator === "is"     && (dDay < pStart || dDay > pEnd)) return false;
+    if (v.operator === "before" && dDay >= pStart)                   return false;
+    if (v.operator === "after"  && dDay <= pEnd)                     return false;
+    return true;
+  };
+
+  const applyPeopleFilters = (list: Person[], f: PeopleFilters) => list.filter((p) => {
+    if (f.filterId     && !String(p.id).includes(f.filterId))                   return false;
+    if (f.peopleId     && p.id             !== f.peopleId)                      return false;
+    if (f.typePeopleIds?.length && !f.typePeopleIds.includes(p.type_people_id!)) return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !p.active)  return false;
+      if (!wantActive && wantInactive && p.active)   return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (p as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    if (f.birthDateValue) {
+      const raw = p.birth_date;
+      if (!raw) return false;
+      const bd = new Date(raw + "T00:00:00");
+      const v  = f.birthDateValue;
+      // Compara apenas mês e dia — normaliza o aniversário para o ano do filtro
+      const norm = (ref: Date) => new Date(ref.getFullYear(), bd.getMonth(), bd.getDate());
+      if (v.operator === "is"      && v.startDate) { const n = norm(v.startDate); if (n.toDateString() !== v.startDate.toDateString())     return false; }
+      if (v.operator === "before"  && v.startDate) { const n = norm(v.startDate); if (n >= v.startDate)                                    return false; }
+      if (v.operator === "after"   && v.startDate) { const n = norm(v.startDate); if (n <= v.startDate)                                    return false; }
+      if (v.operator === "between" && v.startDate && v.endDate) { const n = norm(v.startDate); if (n < v.startDate || n > v.endDate)       return false; }
+    }
+    if (f.contactTypeId || f.contactValue) {
+      const contacts = p.contacts ?? [];
+      const match = contacts.some((c) => {
+        if (f.contactTypeId && c.type_contact_id !== f.contactTypeId) return false;
+        if (f.contactValue) {
+          const q  = f.contactValue.toLowerCase();
+          const v  = c.value.toLowerCase();
+          const qd = q.replace(/\D/g, "");
+          const vd = v.replace(/\D/g, "");
+          if (!v.includes(q) && !(qd && vd.includes(qd))) return false;
+        }
+        return true;
+      });
+      if (!match) return false;
+    }
+    if (f.docTypeId || f.docValue) {
+      const docs = p.documents ?? [];
+      const match = docs.some((d) => {
+        if (f.docTypeId && d.type_document_id !== f.docTypeId) return false;
+        if (f.docValue) {
+          const q  = f.docValue.toLowerCase();
+          const v  = d.value.toLowerCase();
+          const qd = q.replace(/\D/g, "");
+          const vd = v.replace(/\D/g, "");
+          if (!v.includes(q) && !(qd && vd.includes(qd))) return false;
+        }
+        return true;
+      });
+      if (!match) return false;
+    }
+    if (f.addrTypeId || f.addrValue) {
+      const addrs = p.addresses ?? [];
+      const match = addrs.some((a) => {
+        if (f.addrTypeId && a.type_address_id !== f.addrTypeId) return false;
+        if (f.addrValue) {
+          const q = f.addrValue.toLowerCase();
+          const haystack = [a.logradouro, a.numero, a.bairro, a.cidade, a.uf, a.cep]
+            .filter(Boolean).join(" ").toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return true;
+      });
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const filteredPeople = useMemo(() => applyPeopleFilters(people, peopleFilters), [people, peopleFilters]);
+
+  const countPeopleFilters = (f: PeopleFilters) =>
+    [f.filterId, f.peopleId, f.typePeopleIds?.length, f.status?.length, f.dateValue, f.birthDateValue, f.contactTypeId, f.contactValue, f.docTypeId, f.docValue, f.addrTypeId, f.addrValue].filter(Boolean).length;
+
+  const PEOPLE_STATUS_LABELS: Record<string, string> = { active: "Ativo", inactive: "Inativo" };
+
+  const getPeopleFilterChips = (f: PeopleFilters, setF: (v: PeopleFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)        chips.push({ key: 'id',         label: `ID: ${f.filterId}`,                                                                                              onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.peopleName)      chips.push({ key: 'people',     label: `Pessoa: ${f.peopleName}`,                                                                                        onRemove: () => setF({ ...f, peopleId: undefined, peopleName: undefined }) });
+    f.typePeopleIds?.forEach(id => chips.push({ key: `type_${id}`, label: `Tipo: ${typePeople.find(t => t.id === id)?.name ?? id}`,                                              onRemove: () => setF({ ...f, typePeopleIds: f.typePeopleIds!.filter(x => x !== id) }) }));
+    f.status?.forEach(s  => chips.push({ key: `status_${s}`, label: `Status: ${PEOPLE_STATUS_LABELS[s] ?? s}`,                                                                      onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${({ created_at: "Criado em", updated_at: "Editado em", deleted_at: "Deletado em" })[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    if (f.birthDateValue)  chips.push({ key: 'birthDate',  label: `Aniversário: ${formatDateValue(f.birthDateValue, undefined, "dd/MM/yyyy")}`,                                     onRemove: () => setF({ ...f, birthDateValue: undefined }) });
+    if (f.contactTypeId || f.contactValue) {
+      const typePart  = f.contactTypeName ? `${f.contactTypeName}` : "Contato";
+      const displayValue = f.contactValue ? f.contactValue.replace(/^\+/, "") : "";
+      const valuePart = displayValue ? `: ${displayValue}` : "";
+      chips.push({ key: 'contact', label: `${typePart}${valuePart}`, onRemove: () => setF({ ...f, contactTypeId: undefined, contactTypeName: undefined, contactValue: undefined }) });
+    }
+    if (f.docTypeId || f.docValue) {
+      const typePart  = f.docTypeName ? `${f.docTypeName}` : "Documento";
+      const valuePart = f.docValue ? `: ${f.docValue}` : "";
+      chips.push({ key: 'doc', label: `${typePart}${valuePart}`, onRemove: () => setF({ ...f, docTypeId: undefined, docTypeName: undefined, docValue: undefined }) });
+    }
+    if (f.addrTypeId || f.addrValue) {
+      const typePart  = f.addrTypeName ? `${f.addrTypeName}` : "Endereço";
+      const valuePart = f.addrValue ? `: ${f.addrValue}` : "";
+      chips.push({ key: 'addr', label: `${typePart}${valuePart}`, onRemove: () => setF({ ...f, addrTypeId: undefined, addrTypeName: undefined, addrValue: undefined }) });
+    }
+    return chips;
+  };
+
+  const applyTypeContactsFilters = (list: TypeContact[], f: TypeContactsFilters) => list.filter((tc) => {
+    if (f.filterId   && !String(tc.id).includes(f.filterId))                        return false;
+    if (f.filterName && !tc.name.toLowerCase().includes(f.filterName.toLowerCase())) return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !tc.active)  return false;
+      if (!wantActive && wantInactive && tc.active)   return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (tc as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredTypeContacts = useMemo(() => applyTypeContactsFilters(typeContacts, typeContactsFilters), [typeContacts, typeContactsFilters]);
+
+  const countTypeContactsFilters = (f: TypeContactsFilters) =>
+    [f.filterId, f.filterName, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getTypeContactsFilterChips = (f: TypeContactsFilters, setF: (v: TypeContactsFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',   label: `ID: ${f.filterId}`,          onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`,      onRemove: () => setF({ ...f, filterName: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${({ created_at: "Criado em", updated_at: "Editado em" })[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
+  const applyTypeAddressesFilters = (list: TypeAddress[], f: TypeAddressesFilters) => list.filter((ta) => {
+    if (f.filterId   && !String(ta.id).includes(f.filterId))                        return false;
+    if (f.filterName && !ta.name.toLowerCase().includes(f.filterName.toLowerCase())) return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !ta.active)  return false;
+      if (!wantActive && wantInactive && ta.active)   return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (ta as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredTypeAddresses = useMemo(() => applyTypeAddressesFilters(typeAddresses, typeAddressesFilters), [typeAddresses, typeAddressesFilters]);
+
+  const countTypeAddressesFilters = (f: TypeAddressesFilters) =>
+    [f.filterId, f.filterName, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getTypeAddressesFilterChips = (f: TypeAddressesFilters, setF: (v: TypeAddressesFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',   label: `ID: ${f.filterId}`,     onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`, onRemove: () => setF({ ...f, filterName: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${({ created_at: "Criado em", updated_at: "Editado em" })[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
+  const applyGabinetesFilters = (list: Tenant[], f: GabinetesFilters) => list.filter((t) => {
+    if (f.filterId   && !String(t.id).includes(f.filterId))                       return false;
+    if (f.filterName && !t.name.toLowerCase().includes(f.filterName.toLowerCase())) return false;
+    if (f.filterSlug && !t.slug.toLowerCase().includes(f.filterSlug.toLowerCase())) return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !t.active)  return false;
+      if (!wantActive && wantInactive && t.active)   return false;
+    }
+    if (f.validityValue) {
+      const d = new Date(t.valid_until + "T00:00:00");
+      const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      if (!matchesDateFilter(dDay, f.validityValue)) return false;
+    }
+    return true;
+  });
+
+  const filteredTenants = useMemo(() => applyGabinetesFilters(tenants, gabinetesFilters), [tenants, gabinetesFilters]);
+
+  const countGabinetesFilters = (f: GabinetesFilters) =>
+    [f.filterId, f.filterName, f.filterSlug, f.status?.length, f.validityValue].filter(Boolean).length;
+
+  const getGabinetesFilterChips = (f: GabinetesFilters, setF: (v: GabinetesFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)    chips.push({ key: 'id',       label: `ID: ${f.filterId}`,              onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName)  chips.push({ key: 'name',     label: `Nome: ${f.filterName}`,          onRemove: () => setF({ ...f, filterName: undefined }) });
+    if (f.filterSlug)  chips.push({ key: 'slug',     label: `Subdomínio: ${f.filterSlug}`,    onRemove: () => setF({ ...f, filterSlug: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Público" : "Oculto"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.validityValue) chips.push({ key: 'validity', label: `Validade: ${formatDateValue(f.validityValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, validityValue: undefined }) });
+    return chips;
+  };
+
+  const applyPermissionActionsFilters = (list: PermissionAction[], f: PermissionActionsFilters) => list.filter((pa) => {
+    if (f.module && pa.module !== f.module) return false;
+    if (f.filterAction) {
+      const q = f.filterAction.toLowerCase();
+      const inAction     = pa.action?.toLowerCase().includes(q);
+      const inNameAction = pa.name_action?.toLowerCase().includes(q);
+      if (!inAction && !inNameAction) return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (pa as Record<string, unknown>)[f.dateField] as string | null;
+      if (!raw) return false;
+      const dDay = new Date(raw); dDay.setHours(0, 0, 0, 0);
+      if (!matchesDateFilter(dDay, f.dateValue)) return false;
+    }
+    return true;
+  });
+
+  const filteredPermissionActions = useMemo(() => applyPermissionActionsFilters(permissionActions, permissionActionsFilters), [permissionActions, permissionActionsFilters]);
+
+  const permissionActionsModules = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { value: string; label: string }[] = [];
+    for (const pa of permissionActions) {
+      if (!seen.has(pa.module)) {
+        seen.add(pa.module);
+        result.push({ value: pa.module, label: pa.name_module ?? pa.module });
+      }
+    }
+    return result;
+  }, [permissionActions]);
+
+  const countPermissionActionsFilters = (f: PermissionActionsFilters) =>
+    [f.module, f.filterAction, f.dateValue].filter(Boolean).length;
+
+  const getPermissionActionsFilterChips = (f: PermissionActionsFilters, setF: (v: PermissionActionsFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.module)       chips.push({ key: 'module', label: `Módulo: ${permissionActionsModules.find(m => m.value === f.module)?.label ?? f.module}`, onRemove: () => setF({ ...f, module: undefined }) });
+    if (f.filterAction) chips.push({ key: 'action', label: `Ação: ${f.filterAction}`,                                                                  onRemove: () => setF({ ...f, filterAction: undefined }) });
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${{ created_at: "Criado em", updated_at: "Editado em" }[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
+  const applyTypeDocumentsFilters = (list: TypeDocument[], f: TypeDocumentsFilters) => list.filter((td) => {
+    if (f.filterId   && !String(td.id).includes(f.filterId))                        return false;
+    if (f.filterName && !td.name.toLowerCase().includes(f.filterName.toLowerCase())) return false;
+    if (f.validity === "yes" && !td.validity)  return false;
+    if (f.validity === "no"  && td.validity)   return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !td.active)  return false;
+      if (!wantActive && wantInactive && td.active)   return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (td as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredTypeDocuments = useMemo(() => applyTypeDocumentsFilters(typeDocuments, typeDocumentsFilters), [typeDocuments, typeDocumentsFilters]);
+
+  const countTypeDocumentsFilters = (f: TypeDocumentsFilters) =>
+    [f.filterId, f.filterName, f.validity, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getTypeDocumentsFilterChips = (f: TypeDocumentsFilters, setF: (v: TypeDocumentsFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',       label: `ID: ${f.filterId}`,                                         onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name',     label: `Nome: ${f.filterName}`,                                     onRemove: () => setF({ ...f, filterName: undefined }) });
+    if (f.validity)   chips.push({ key: 'validity', label: `Validade: ${f.validity === "yes" ? "Sim" : "Não"}`,         onRemove: () => setF({ ...f, validity: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`,  onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${({ created_at: "Criado em", updated_at: "Editado em" })[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
+  const applyEventTypesFilters = (list: EventType[], f: EventTypesFilters) => list.filter((et) => {
+    if (f.filterId   && !String(et.id).includes(f.filterId))                        return false;
+    if (f.filterName && !et.name.toLowerCase().includes(f.filterName.toLowerCase())) return false;
+    if (f.color      && et.color !== f.color)                                        return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !et.active)  return false;
+      if (!wantActive && wantInactive && et.active)   return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (et as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredEventTypes = useMemo(() => applyEventTypesFilters(eventTypes, eventTypesFilters), [eventTypes, eventTypesFilters]);
+
+  const countEventTypesFilters = (f: EventTypesFilters) =>
+    [f.filterId, f.filterName, f.color, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getEventTypesFilterChips = (f: EventTypesFilters, setF: (v: EventTypesFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',    label: `ID: ${f.filterId}`,          onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name',  label: `Nome: ${f.filterName}`,      onRemove: () => setF({ ...f, filterName: undefined }) });
+    if (f.color)      chips.push({ key: 'color', label: `Cor: ${eventTypes.find(et => et.color === f.color)?.name ?? f.color}`, onRemove: () => setF({ ...f, color: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${({ created_at: "Criado em", updated_at: "Editado em" })[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
+  const applyTypePeopleFilters = (list: TypePeople[], f: TypePeopleFilters) => list.filter((tp) => {
+    if (f.filterId   && !String(tp.id).includes(f.filterId))                   return false;
+    if (f.filterName && !tp.name.toLowerCase().includes(f.filterName.toLowerCase())) return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !tp.active)  return false;
+      if (!wantActive && wantInactive && tp.active)   return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (tp as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredTypePeople = useMemo(() => applyTypePeopleFilters(typePeople, typePeopleFilters), [typePeople, typePeopleFilters]);
+
+  const countTypePeopleFilters = (f: TypePeopleFilters) =>
+    [f.filterId, f.filterName, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getTypePeopleFilterChips = (f: TypePeopleFilters, setF: (v: TypePeopleFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',   label: `ID: ${f.filterId}`,          onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`,      onRemove: () => setF({ ...f, filterName: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${({ created_at: "Criado em", updated_at: "Editado em" })[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
 
   const [finSection, setFinSectionState] = useState<string>(
     () => localStorage.getItem('mapadovoto:finSection') ?? 'fin-dashboard'
@@ -279,11 +708,38 @@ export function HomePage() {
   const filteredFinTitles       = useMemo(() => applyFinFilters(finTitles,       finTitlesFilters),       [finTitles, finTitlesFilters]);
   const filteredFinTitlesIncome = useMemo(() => applyFinFilters(finTitlesIncome, finTitlesIncomeFilters), [finTitlesIncome, finTitlesIncomeFilters]);
 
+  const countFilters = (f: FinTitlesFilters) => [
+    f.invoiceNumber, f.peopleId, f.documentNumber,
+    f.status?.length, f.dateValue, f.amountValue,
+    f.bankId, f.accountId, f.paymentMethodId,
+  ].filter(Boolean).length;
+
+  const FIN_DATE_LABELS: Record<string, string> = { created_at: "Cadastro", issue_date: "Emissão", due_date: "Vencimento", paid_at: "Baixa", reversed_at: "Estorno", cancelled_at: "Cancelamento" };
+  const FIN_AMOUNT_LABELS: Record<string, string> = { amount: "Valor", interest_pct: "Juros %", interest: "Juros", multa_pct: "Multa %", multa: "Multa", discount_pct: "Desconto %", discount: "Desconto", amount_paid: "Baixa" };
+  const FIN_STATUS_LABELS: Record<string, string> = { pending: "Pendente", paid: "Pago", partial: "Pago Parcial", cancelled: "Cancelado", reversed: "Estornado" };
+
+  const getFilterChips = (f: FinTitlesFilters, setF: (v: FinTitlesFilters) => void) => {
+    const flatAcc = (list: FinAccount[]): FinAccount[] => list.flatMap(a => [a, ...flatAcc((a as any).children ?? [])]);
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.invoiceNumber)   chips.push({ key: 'invoiceNumber',   label: `Título: ${f.invoiceNumber}`,                                                                                 onRemove: () => setF({ ...f, invoiceNumber: undefined }) });
+    if (f.peopleName)      chips.push({ key: 'people',          label: `Pessoa: ${f.peopleName}`,                                                                                    onRemove: () => setF({ ...f, peopleId: undefined, peopleName: undefined }) });
+    if (f.documentNumber)  chips.push({ key: 'documentNumber',  label: `Documento: ${f.documentNumber}`,                                                                             onRemove: () => setF({ ...f, documentNumber: undefined }) });
+    f.status?.forEach(s  => chips.push({ key: `status_${s}`,    label: `Status: ${FIN_STATUS_LABELS[s] ?? s}`,                                                                        onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date',   label: `${FIN_DATE_LABELS[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    if (f.amountValue)     chips.push({ key: 'amount',          label: `${FIN_AMOUNT_LABELS[f.amountField ?? 'amount'] ?? f.amountField}: R$ ${f.amountValue}`,                     onRemove: () => setF({ ...f, amountValue: undefined }) });
+    if (f.bankId)          chips.push({ key: 'bank',            label: `Banco: ${finBanks.find(b => b.id === f.bankId)?.name ?? f.bankId}`,                                         onRemove: () => setF({ ...f, bankId: undefined }) });
+    if (f.accountId)       chips.push({ key: 'account',         label: `Conta: ${flatAcc(finAccounts).find(a => a.id === f.accountId)?.name ?? f.accountId}`,                       onRemove: () => setF({ ...f, accountId: undefined }) });
+    if (f.paymentMethodId) chips.push({ key: 'paymentMethod',   label: `Modalidade: ${finPaymentMethods.find(m => m.id === f.paymentMethodId)?.name ?? f.paymentMethodId}`,         onRemove: () => setF({ ...f, paymentMethodId: undefined }) });
+    return chips;
+  };
+
   const [finBanks, setFinBanks] = useState<FinBank[]>([]);
   const [finBanksLoading, setFinBanksLoading] = useState(false);
   const [finBanksSelected, setFinBanksSelected] = useState(0);
   const [finBankModalOpen, setFinBankModalOpen] = useState(false);
   const [editingFinBank, setEditingFinBank] = useState<FinBank | null>(null);
+  const [finBanksFilterOpen, setFinBanksFilterOpen] = useState(false);
+  const [finBanksFilters, setFinBanksFilters] = useState<FinBanksFilters>({});
 
   const [finPaymentMethods, setFinPaymentMethods] = useState<FinPaymentMethod[]>([]);
   const [finPaymentMethodsLoading, setFinPaymentMethodsLoading] = useState(false);
@@ -296,6 +752,8 @@ export function HomePage() {
   const [finPaymentMethodTypesSelected, setFinPaymentMethodTypesSelected] = useState(0);
   const [finPaymentMethodTypeModalOpen, setFinPaymentMethodTypeModalOpen] = useState(false);
   const [editingFinPaymentMethodType, setEditingFinPaymentMethodType] = useState<FinPaymentMethodType | null>(null);
+  const [finPaymentMethodTypesFilterOpen, setFinPaymentMethodTypesFilterOpen] = useState(false);
+  const [finPaymentMethodTypesFilters, setFinPaymentMethodTypesFilters] = useState<FinPaymentMethodTypesFilters>({});
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
@@ -565,6 +1023,43 @@ export function HomePage() {
     setFinBanks(prev => prev.filter(b => b.id !== id));
   };
 
+  const applyFinBanksFilters = (list: FinBank[], f: FinBanksFilters) => list.filter((b) => {
+    if (f.filterId   && !String(b.id).includes(f.filterId))                          return false;
+    if (f.filterName && !b.name.toLowerCase().includes(f.filterName.toLowerCase()))  return false;
+    if (f.filterBank && !(b.bank ?? "").toLowerCase().includes(f.filterBank.toLowerCase())) return false;
+    if (f.main && f.main !== "all") {
+      const wantsMain = f.main === "true";
+      if (b.main !== wantsMain) return false;
+    }
+    if (f.status?.length) {
+      const isActive = b.active ? "active" : "inactive";
+      if (!f.status.includes(isActive)) return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (b as Record<string, unknown>)[f.dateField] as string | null;
+      if (!raw) return false;
+      const dDay = new Date(raw); dDay.setHours(0, 0, 0, 0);
+      if (!matchesDateFilter(dDay, f.dateValue)) return false;
+    }
+    return true;
+  });
+
+  const filteredFinBanks = useMemo(() => applyFinBanksFilters(finBanks, finBanksFilters), [finBanks, finBanksFilters]);
+
+  const countFinBanksFilters = (f: FinBanksFilters) =>
+    [f.filterId, f.filterName, f.filterBank, f.main && f.main !== "all" ? f.main : undefined, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getFinBanksFilterChips = (f: FinBanksFilters, setF: (v: FinBanksFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',   label: `ID: ${f.filterId}`,     onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`, onRemove: () => setF({ ...f, filterName: undefined }) });
+    if (f.filterBank) chips.push({ key: 'bank', label: `Banco: ${f.filterBank}`, onRemove: () => setF({ ...f, filterBank: undefined }) });
+    if (f.main && f.main !== "all") chips.push({ key: 'main', label: `Principal: ${f.main === "true" ? "Sim" : "Não"}`, onRemove: () => setF({ ...f, main: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${{ created_at: "Criado em", updated_at: "Editado em" }[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
   useEffect(() => {
     if (!loggedIn || finSection !== 'fin-payment-methods') return;
     setFinPaymentMethodsLoading(true);
@@ -602,6 +1097,36 @@ export function HomePage() {
   const handleFinPaymentMethodTypeDelete = async (id: number) => {
     await api.delete(`/fin-payment-method-types/${id}`);
     setFinPaymentMethodTypes(prev => prev.filter(t => t.id !== id));
+  };
+
+  const applyFinPaymentMethodTypesFilters = (list: FinPaymentMethodType[], f: FinPaymentMethodTypesFilters) => list.filter((t) => {
+    if (f.filterId   && !String(t.id).includes(f.filterId))                          return false;
+    if (f.filterName && !t.name.toLowerCase().includes(f.filterName.toLowerCase()))  return false;
+    if (f.status?.length) {
+      const isActive = t.active ? "active" : "inactive";
+      if (!f.status.includes(isActive)) return false;
+    }
+    if (f.dateValue && f.dateField) {
+      const raw = (t as Record<string, unknown>)[f.dateField] as string | null;
+      if (!raw) return false;
+      const dDay = new Date(raw); dDay.setHours(0, 0, 0, 0);
+      if (!matchesDateFilter(dDay, f.dateValue)) return false;
+    }
+    return true;
+  });
+
+  const filteredFinPaymentMethodTypes = useMemo(() => applyFinPaymentMethodTypesFilters(finPaymentMethodTypes, finPaymentMethodTypesFilters), [finPaymentMethodTypes, finPaymentMethodTypesFilters]);
+
+  const countFinPaymentMethodTypesFilters = (f: FinPaymentMethodTypesFilters) =>
+    [f.filterId, f.filterName, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getFinPaymentMethodTypesFilterChips = (f: FinPaymentMethodTypesFilters, setF: (v: FinPaymentMethodTypesFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',   label: `ID: ${f.filterId}`,     onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`, onRemove: () => setF({ ...f, filterName: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${{ created_at: "Criado em", updated_at: "Editado em" }[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
   };
 
   useEffect(() => {
@@ -809,6 +1334,12 @@ export function HomePage() {
           setEditingFinBank(null);
         }}
       />
+      <FinBanksFilterModal
+        open={finBanksFilterOpen}
+        filters={finBanksFilters}
+        onClose={() => setFinBanksFilterOpen(false)}
+        onApply={(f) => setFinBanksFilters(f)}
+      />
       <FinPaymentMethodModal
         open={finPaymentMethodModalOpen || !!editingFinPaymentMethod}
         method={editingFinPaymentMethod}
@@ -821,6 +1352,12 @@ export function HomePage() {
           setFinPaymentMethodModalOpen(false);
           setEditingFinPaymentMethod(null);
         }}
+      />
+      <FinPaymentMethodTypesFilterModal
+        open={finPaymentMethodTypesFilterOpen}
+        filters={finPaymentMethodTypesFilters}
+        onClose={() => setFinPaymentMethodTypesFilterOpen(false)}
+        onApply={(f) => { setFinPaymentMethodTypesFilters(f); setFinPaymentMethodTypesFilterOpen(false); }}
       />
       <FinPaymentMethodTypeModal
         open={finPaymentMethodTypeModalOpen || !!editingFinPaymentMethodType}
@@ -910,6 +1447,56 @@ export function HomePage() {
           }
         }}
       />
+      <PeopleFilterModal
+        open={peopleFilterOpen}
+        filters={peopleFilters}
+        onClose={() => setPeopleFilterOpen(false)}
+        onApply={(f) => setPeopleFilters(f)}
+      />
+      <TypePeopleFilterModal
+        open={typePeopleFilterOpen}
+        filters={typePeopleFilters}
+        onClose={() => setTypePeopleFilterOpen(false)}
+        onApply={(f) => setTypePeopleFilters(f)}
+      />
+      <TypeContactsFilterModal
+        open={typeContactsFilterOpen}
+        filters={typeContactsFilters}
+        onClose={() => setTypeContactsFilterOpen(false)}
+        onApply={(f) => setTypeContactsFilters(f)}
+      />
+      <TypeAddressesFilterModal
+        open={typeAddressesFilterOpen}
+        filters={typeAddressesFilters}
+        onClose={() => setTypeAddressesFilterOpen(false)}
+        onApply={(f) => setTypeAddressesFilters(f)}
+      />
+      <TypeDocumentsFilterModal
+        open={typeDocumentsFilterOpen}
+        filters={typeDocumentsFilters}
+        onClose={() => setTypeDocumentsFilterOpen(false)}
+        onApply={(f) => setTypeDocumentsFilters(f)}
+      />
+      <PermissionActionsFilterModal
+        open={permissionActionsFilterOpen}
+        filters={permissionActionsFilters}
+        modules={permissionActionsModules}
+        onClose={() => setPermissionActionsFilterOpen(false)}
+        onApply={(f) => setPermissionActionsFilters(f)}
+      />
+      <GabinetesFilterModal
+        open={gabinetesFilterOpen}
+        filters={gabinetesFilters}
+        onClose={() => setGabinetesFilterOpen(false)}
+        onApply={(f) => setGabinetesFilters(f)}
+      />
+      <EventTypesFilterModal
+        open={eventTypesFilterOpen}
+        filters={eventTypesFilters}
+        colors={eventTypes.map(et => ({ color: et.color, name: et.name }))}
+        onClose={() => setEventTypesFilterOpen(false)}
+        onApply={(f) => setEventTypesFilters(f)}
+      />
       <PeopleModal
         open={peopleModalOpen || !!editingPerson}
         person={editingPerson}
@@ -917,7 +1504,7 @@ export function HomePage() {
         typeContacts={typeContacts}
         typeAddresses={typeAddresses}
         typeDocuments={typeDocuments}
-        onClose={() => { setPeopleModalOpen(false); setEditingPerson(null); }}
+        onClose={() => { setPeopleModalOpen(false); setEditingPerson(null); api.get<Person[]>('/people').then(res => setPeople(res.data)).catch(() => {}); }}
         onSaved={(saved) => {
           setPeople(prev => {
             const idx = prev.findIndex(p => p.id === saved.id);
@@ -1014,9 +1601,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setGabinetesFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countGabinetesFilters(gabinetesFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countGabinetesFilters(gabinetesFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setCreateModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1026,8 +1618,19 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getGabinetesFilterChips(gabinetesFilters, setGabinetesFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
-                <GabinetesDataGrid tenants={tenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} onEdit={setEditingTenant} />
+                <GabinetesDataGrid tenants={filteredTenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} onEdit={setEditingTenant} />
               </div>
               <PageFooter />
             </div>
@@ -1104,9 +1707,14 @@ export function HomePage() {
                   </DropdownMenu>
                 ) : (
                   <>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => setPeopleFilterOpen(true)}>
                       <Search className="size-4 mr-2" />
                       Pesquisar
+                      {countPeopleFilters(peopleFilters) > 0 && (
+                        <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                          {countPeopleFilters(peopleFilters)}
+                        </Badge>
+                      )}
                     </Button>
                     <Button variant="primary" size="sm" onClick={() => setPeopleModalOpen(true)}>
                       <Plus className="size-4 mr-2" />
@@ -1116,9 +1724,20 @@ export function HomePage() {
                 )}
               </div>
             </div>
+            {(() => { const chips = getPeopleFilterChips(peopleFilters, setPeopleFilters); return chips.length > 0 && (
+              <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                <span className="text-xs text-muted-foreground">Filtros:</span>
+                {chips.map(chip => (
+                  <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                    {chip.label}
+                    <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                  </span>
+                ))}
+              </div>
+            ); })()}
             <div className="flex-1 min-h-0 overflow-y-auto p-6">
               <PeopleDataGrid
-                people={people}
+                people={filteredPeople}
                 isLoading={peopleLoading}
                 onSelectionChange={setPeopleSelected}
                 onEdit={(p) => setEditingPerson(p)}
@@ -1149,7 +1768,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5 text-muted-foreground" />Tipos de Modalidade <Badge variant="success" appearance="light" size="md">{formatRecordCount(finPaymentMethodTypes.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5 text-muted-foreground" />Tipos de Modalidade <Badge variant="success" appearance="light" size="md">{formatRecordCount(filteredFinPaymentMethodTypes.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Modalidades', 'Tipos de Modalidade']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1171,9 +1790,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setFinPaymentMethodTypesFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countFinPaymentMethodTypesFilters(finPaymentMethodTypesFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1">
+                            {countFinPaymentMethodTypesFilters(finPaymentMethodTypesFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setFinPaymentMethodTypeModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1183,9 +1807,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getFinPaymentMethodTypesFilterChips(finPaymentMethodTypesFilters, setFinPaymentMethodTypesFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <FinPaymentMethodTypesDataGrid
-                  types={finPaymentMethodTypes}
+                  types={filteredFinPaymentMethodTypes}
                   isLoading={finPaymentMethodTypesLoading}
                   onSelectionChange={setFinPaymentMethodTypesSelected}
                   onEdit={(t) => setEditingFinPaymentMethodType(t)}
@@ -1331,7 +1966,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Landmark className="size-5 text-muted-foreground" />Bancos <Badge variant="success" appearance="light" size="md">{formatRecordCount(finBanks.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Landmark className="size-5 text-muted-foreground" />Bancos <Badge variant="success" appearance="light" size="md">{formatRecordCount(filteredFinBanks.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Bancos']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1354,9 +1989,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setFinBanksFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countFinBanksFilters(finBanksFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countFinBanksFilters(finBanksFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setFinBankModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1366,9 +2006,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getFinBanksFilterChips(finBanksFilters, setFinBanksFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(c => (
+                    <span key={c.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {c.label}
+                      <button onClick={c.onRemove} className="hover:opacity-70 transition-opacity leading-none">×</button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <FinBanksDataGrid
-                  banks={finBanks}
+                  banks={filteredFinBanks}
                   isLoading={finBanksLoading}
                   onSelectionChange={setFinBanksSelected}
                   onEdit={(b) => setEditingFinBank(b)}
@@ -1447,10 +2098,18 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm" onClick={() => { setFinTitlesFilterType('income'); setFinTitlesFilterOpen(true); }}>
+                      <Button variant="outline" size="sm" onClick={() => { setFinTitlesFilterType('income'); setFinTitlesFilterOpen(true); }} className={countFilters(finTitlesIncomeFilters) > 0 ? "border-primary text-primary" : ""}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countFilters(finTitlesIncomeFilters) > 0 && (
+                          <span className="ml-2 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4">{countFilters(finTitlesIncomeFilters)}</span>
+                        )}
                       </Button>
+                      {countFilters(finTitlesIncomeFilters) > 0 && (
+                        <Button variant="outline" size="sm" onClick={() => setFinTitlesIncomeFilters({})} title="Limpar filtros">
+                          <X className="size-4" />
+                        </Button>
+                      )}
                       <Button variant="primary" size="sm" onClick={() => { setFinTitleDefaultType('income'); setFinTitleModalOpen(true); }}>
                         <Plus className="size-4 mr-2" />
                         Novo Registro
@@ -1459,6 +2118,17 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getFilterChips(finTitlesIncomeFilters, setFinTitlesIncomeFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 flex flex-col p-6">
                 <FinTitlesDataGrid
                   titles={filteredFinTitlesIncome}
@@ -1468,6 +2138,22 @@ export function HomePage() {
                   onEdit={(t) => { setFinTitleInitialTab("geral"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                   onBaixar={(t) => { setFinTitleInitialTab("baixar"); setEditingFinTitle(t); setFinTitleModalOpen(true); }}
                 />
+              </div>
+              <PageFooter />
+            </div>
+          ) : finSection === 'fin-wallets' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5">
+                    <Wallet className="size-5" />
+                    Carteira
+                  </h2>
+                  <SectionBreadcrumb items={['Home', 'Finanças', 'Carteira']} />
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
+                <FinWalletTab />
               </div>
               <PageFooter />
             </div>
@@ -1512,10 +2198,18 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm" onClick={() => { setFinTitlesFilterType('expense'); setFinTitlesFilterOpen(true); }}>
+                      <Button variant="outline" size="sm" onClick={() => { setFinTitlesFilterType('expense'); setFinTitlesFilterOpen(true); }} className={countFilters(finTitlesFilters) > 0 ? "border-primary text-primary" : ""}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countFilters(finTitlesFilters) > 0 && (
+                          <span className="ml-2 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4">{countFilters(finTitlesFilters)}</span>
+                        )}
                       </Button>
+                      {countFilters(finTitlesFilters) > 0 && (
+                        <Button variant="outline" size="sm" onClick={() => setFinTitlesFilters({})} title="Limpar filtros">
+                          <X className="size-4" />
+                        </Button>
+                      )}
                       <Button variant="primary" size="sm" onClick={() => { setFinTitleDefaultType('expense'); setFinTitleModalOpen(true); }}>
                         <Plus className="size-4 mr-2" />
                         Novo Registro
@@ -1524,6 +2218,17 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getFilterChips(finTitlesFilters, setFinTitlesFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 flex flex-col p-6">
                 <FinTitlesDataGrid
                   titles={filteredFinTitles}
@@ -1581,9 +2286,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setTypePeopleFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countTypePeopleFilters(typePeopleFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countTypePeopleFilters(typePeopleFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setTypePeopleModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1593,9 +2303,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getTypePeopleFilterChips(typePeopleFilters, setTypePeopleFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <TypePeopleDataGrid
-                  typePeople={typePeople}
+                  typePeople={filteredTypePeople}
                   isLoading={typePeopleLoading}
                   onSelectionChange={setTypePeopleSelected}
                   onEdit={(tp) => setEditingTypePeople(tp)}
@@ -1632,9 +2353,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setTypeContactsFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countTypeContactsFilters(typeContactsFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countTypeContactsFilters(typeContactsFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setTypeContactsModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1644,9 +2370,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getTypeContactsFilterChips(typeContactsFilters, setTypeContactsFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <TypeContactsDataGrid
-                  typeContacts={typeContacts}
+                  typeContacts={filteredTypeContacts}
                   isLoading={typeContactsLoading}
                   onSelectionChange={setTypeContactsSelected}
                   onEdit={(tc) => setEditingTypeContact(tc)}
@@ -1683,9 +2420,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setTypeAddressesFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countTypeAddressesFilters(typeAddressesFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countTypeAddressesFilters(typeAddressesFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setTypeAddressesModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1695,9 +2437,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getTypeAddressesFilterChips(typeAddressesFilters, setTypeAddressesFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <TypeAddressesDataGrid
-                  typeAddresses={typeAddresses}
+                  typeAddresses={filteredTypeAddresses}
                   isLoading={typeAddressesLoading}
                   onSelectionChange={setTypeAddressesSelected}
                   onEdit={(ta) => setEditingTypeAddress(ta)}
@@ -1734,9 +2487,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setTypeDocumentsFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countTypeDocumentsFilters(typeDocumentsFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countTypeDocumentsFilters(typeDocumentsFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setTypeDocumentsModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1746,9 +2504,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getTypeDocumentsFilterChips(typeDocumentsFilters, setTypeDocumentsFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <TypeDocumentsDataGrid
-                  typeDocuments={typeDocuments}
+                  typeDocuments={filteredTypeDocuments}
                   isLoading={typeDocumentsLoading}
                   onSelectionChange={setTypeDocumentsSelected}
                   onEdit={(td) => setEditingTypeDocument(td)}
@@ -1785,9 +2554,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setPeopleFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countPeopleFilters(peopleFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countPeopleFilters(peopleFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setPeopleModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1797,9 +2571,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getPeopleFilterChips(peopleFilters, setPeopleFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <PeopleDataGrid
-                  people={people}
+                  people={filteredPeople}
                   isLoading={peopleLoading}
                   onSelectionChange={setPeopleSelected}
                   onEdit={(p) => setEditingPerson(p)}
@@ -1839,9 +2624,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setGabinetesFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countGabinetesFilters(gabinetesFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countGabinetesFilters(gabinetesFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setCreateModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1851,8 +2641,19 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getGabinetesFilterChips(gabinetesFilters, setGabinetesFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
-                <GabinetesDataGrid tenants={tenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} onEdit={setEditingTenant} />
+                <GabinetesDataGrid tenants={filteredTenants} isLoading={tenantsLoading} onSelectionChange={setTenantsSelected} onEdit={setEditingTenant} />
               </div>
               <PageFooter />
             </div>
@@ -1882,9 +2683,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setPermissionActionsFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countPermissionActionsFilters(permissionActionsFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countPermissionActionsFilters(permissionActionsFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setPermissionActionsModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1894,9 +2700,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getPermissionActionsFilterChips(permissionActionsFilters, setPermissionActionsFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <PermissionActionsDataGrid
-                  permissionActions={permissionActions}
+                  permissionActions={filteredPermissionActions}
                   isLoading={permissionActionsLoading}
                   onEdit={(pa) => setEditingPermissionAction(pa)}
                   onDelete={handlePermissionActionDelete}
@@ -1932,9 +2749,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setEventTypesFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countEventTypesFilters(eventTypesFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countEventTypesFilters(eventTypesFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setEventTypesModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1944,9 +2766,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getEventTypesFilterChips(eventTypesFilters, setEventTypesFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <EventTypesDataGrid
-                  eventTypes={eventTypes}
+                  eventTypes={filteredEventTypes}
                   isLoading={eventTypesLoading}
                   onSelectionChange={setEventTypesSelected}
                   onEdit={(et) => setEditingEventType(et)}

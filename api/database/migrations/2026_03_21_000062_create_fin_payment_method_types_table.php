@@ -32,9 +32,13 @@ return new class extends Migration
             'updated_at' => $now,
         ], $data));
 
-        $ins(['name' => 'Dinheiro',        'order' => 1]);
-        $ins(['name' => 'Pix',             'order' => 2]);
-        $ins(['name' => 'Cartão de Débito', 'order' => 3]);
+        $ins(['name' => 'Carteira',           'order' => 1]);
+        $ins(['name' => 'Dinheiro',           'order' => 2]);
+        $ins(['name' => 'Pix',                'order' => 3]);
+        $ins(['name' => 'Cartão de Débito',   'order' => 4]);
+        $ins(['name' => 'Cartão de Crédito',  'order' => 5]);
+        $ins(['name' => 'Boleto',             'order' => 6]);
+        $ins(['name' => 'Transferência',      'order' => 7]);
 
         DB::statement('SET search_path TO gabinete_master,maps,public');
     }

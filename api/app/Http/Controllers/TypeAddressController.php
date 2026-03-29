@@ -9,7 +9,7 @@ class TypeAddressController extends Controller
 {
     public function index()
     {
-        $typeAddresses = TypeAddress::orderBy('order')->get(['id', 'name', 'order', 'active']);
+        $typeAddresses = TypeAddress::orderBy('order')->get(['id', 'name', 'order', 'active', 'created_at', 'updated_at']);
 
         return response()->json($typeAddresses);
     }
@@ -40,10 +40,12 @@ class TypeAddressController extends Controller
     private function format(TypeAddress $typeAddress): array
     {
         return [
-            'id'     => $typeAddress->id,
-            'name'   => $typeAddress->name,
-            'order'  => $typeAddress->order,
-            'active' => $typeAddress->active,
+            'id'         => $typeAddress->id,
+            'name'       => $typeAddress->name,
+            'order'      => $typeAddress->order,
+            'active'     => $typeAddress->active,
+            'created_at' => $typeAddress->created_at,
+            'updated_at' => $typeAddress->updated_at,
         ];
     }
 }

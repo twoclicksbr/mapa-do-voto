@@ -31,6 +31,8 @@ export interface FinPaymentMethodType {
   name: string;
   order: number;
   active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface FinPaymentMethodTypesDataGridProps {

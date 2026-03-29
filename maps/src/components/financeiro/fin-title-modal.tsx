@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, Plus, StickyNote, Check, Folder, ClipboardList, PieChart, ArrowDownToLine, GitMerge } from "lucide-react";
+import { Trash2, Plus, StickyNote, Check, Folder, ClipboardList, PieChart, ArrowDownToLine, GitMerge, Wallet, Coins } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BirthDatePicker } from "@/components/people/birth-date-picker";
@@ -34,7 +34,7 @@ import { FinInstallmentModal, InstallmentConfig } from "./fin-installment-modal"
 
 interface RefPerson          { id: number; name: string }
 interface RefAccount         { id: number; label: string; type: string; nature: string }
-interface RefPaymentMethod   { id: number; name: string }
+interface RefPaymentMethod   { id: number; name: string; fin_bank_id: number | null; type_name: string | null }
 interface RefBank            { id: number; name: string }
 interface RefDepartment      { id: number; name: string }
 
@@ -327,6 +327,9 @@ export function FinTitleModal({
   const [payPaymentMethodId, setPayPaymentMethodId]  = useState("");
   const [payLoading,         setPayLoading]          = useState(false);
   const [payErrors,          setPayErrors]           = useState<Record<string, string>>({});
+  const [excessModalOpen,    setExcessModalOpen]     = useState(false);
+  const [pendingExcess,      setPendingExcess]       = useState(0);
+  const [walletBalance,      setWalletBalance]       = useState<number | null>(null);
   const [payInterestDecMode,    setPayInterestDecMode]    = useState(false);
   const [payMultaDecMode,       setPayMultaDecMode]       = useState(false);
   const [payDiscountDecMode,    setPayDiscountDecMode]    = useState(false);
@@ -346,6 +349,19 @@ export function FinTitleModal({
   const [notes,       setNotes]       = useState<{ id: number; value: string }[]>([]);
   const [addingNote,  setAddingNote]  = useState(false);
   const [noteValue,   setNoteValue]   = useState("");
+
+  // ── Wallet balance when Carteira is selected in Baixar ──────────────────────
+  useEffect(() => {
+    const selectedMethod = paymentMethods.find(pm => String(pm.id) === payPaymentMethodId);
+    const isCarteira     = selectedMethod?.type_name?.toLowerCase() === "carteira";
+    if (isCarteira && title?.people_id) {
+      api.get<{ people_id: number; balance: number }>(`/fin-wallets/balance/${title.people_id}`)
+        .then(r => setWalletBalance(r.data.balance))
+        .catch(() => setWalletBalance(null));
+    } else {
+      setWalletBalance(null);
+    }
+  }, [payPaymentMethodId, paymentMethods, title?.people_id]);
 
   // ── Load reference data + (if editing) full detail ──────────────────────────
   useEffect(() => {
@@ -533,14 +549,32 @@ export function FinTitleModal({
   };
 
   // ── Pay ─────────────────────────────────────────────────────────────────────
-  const handlePay = async () => {
+  const handlePay = () => {
     if (!title) return;
     const errs: Record<string, string> = {};
-    if (!payBankId)            errs.bank_id            = "Banco é obrigatório.";
-    if (!payAccountId)         errs.account_id         = "Conta Financeira é obrigatória.";
-    if (!payPaymentMethodId)   errs.payment_method_id  = "Modalidade é obrigatória.";
+    if (!payBankId)          errs.bank_id           = "Banco é obrigatório.";
+    if (!payAccountId)       errs.account_id        = "Conta Financeira é obrigatória.";
+    if (!payPaymentMethodId) errs.payment_method_id = "Modalidade é obrigatória.";
     if (Object.keys(errs).length) { setPayErrors(errs); return; }
     setPayErrors({});
+
+    const baseAmt = parseCurrency(amount);
+    const calcNet = baseAmt + parseCurrency(payInterestVal) + parseCurrency(payMultaVal) - parseCurrency(payDiscountVal);
+    const paid    = parseCurrency(payNetAmount);
+    const excess  = Math.round((paid - calcNet) * 100) / 100;
+
+    if (excess > 0) {
+      setPendingExcess(excess);
+      setExcessModalOpen(true);
+      return;
+    }
+
+    submitPay('wallet');
+  };
+
+  const submitPay = async (action: 'wallet' | 'change') => {
+    if (!title) return;
+    setExcessModalOpen(false);
     setPayLoading(true);
     try {
       const res = await api.post<FinTitle>(`/fin-titles/${title.id}/pay`, {
@@ -552,6 +586,7 @@ export function FinTitleModal({
         interest:          parsePercent(payInterest),
         multa:             parsePercent(payMulta),
         discount:          parsePercent(payDiscount),
+        excess_action:     action,
       });
       onSaved(res.data);
       onClose();
@@ -657,8 +692,43 @@ export function FinTitleModal({
   const canSubmit = !isReadOnly && !!amount && !!issueDate && !!dueDate && !!peopleId;
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
   return (
     <>
+    {/* Dialog de excedente */}
+    <Dialog open={excessModalOpen} onOpenChange={(v) => !v && setExcessModalOpen(false)}>
+      <DialogContent className="max-w-sm" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Excedente de {fmtBRL(pendingExcess)}</DialogTitle>
+        </DialogHeader>
+        <div className="px-6 pb-6 pt-2 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            O valor pago excede o líquido em <span className="font-semibold text-foreground">{fmtBRL(pendingExcess)}</span>. O que deseja fazer com a diferença?
+          </p>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <button
+              onClick={() => submitPay('wallet')}
+              className="flex flex-col items-center gap-2 rounded-xl border-2 border-border bg-background px-4 py-5 text-sm font-medium transition-colors hover:border-primary hover:bg-accent focus:outline-none"
+            >
+              <Wallet className="size-8 text-muted-foreground" />
+              <span>Enviar para<br />Carteira</span>
+            </button>
+            <button
+              onClick={() => submitPay('change')}
+              className="flex flex-col items-center gap-2 rounded-xl border-2 border-border bg-background px-4 py-5 text-sm font-medium transition-colors hover:border-primary hover:bg-accent focus:outline-none"
+            >
+              <Coins className="size-8 text-muted-foreground" />
+              <span>Dar o<br />Troco</span>
+            </button>
+          </div>
+          <Button variant="outline" className="w-full mt-1" onClick={() => setExcessModalOpen(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <FinInstallmentModal
       open={showInstallmentModal}
       total={totalInstallments}
@@ -1209,7 +1279,7 @@ export function FinTitleModal({
                         <Label>Banco <span className="text-destructive">*</span></Label>
                         <Select
                           value={payBankId}
-                          onValueChange={(v) => { setPayBankId(v); setPayErrors((e) => ({ ...e, bank_id: "" })); }}
+                          onValueChange={(v) => { setPayBankId(v); setPayPaymentMethodId(""); setPayErrors((e) => ({ ...e, bank_id: "", payment_method_id: "" })); }}
                           disabled={payReadOnly}
                         >
                           <SelectTrigger className={payErrors.bank_id ? "border-destructive" : ""}>
@@ -1259,12 +1329,22 @@ export function FinTitleModal({
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                           <SelectContent>
-                            {paymentMethods.map((pm) => (
-                              <SelectItem key={pm.id} value={String(pm.id)}>{pm.name}</SelectItem>
-                            ))}
+                            {paymentMethods
+                              .filter((pm) => !payBankId || pm.fin_bank_id === parseInt(payBankId))
+                              .map((pm) => (
+                                <SelectItem key={pm.id} value={String(pm.id)}>{pm.name}</SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                         {payErrors.payment_method_id && <p className="text-xs text-destructive">{payErrors.payment_method_id}</p>}
+                        {walletBalance !== null && (
+                          <p className="text-xs text-muted-foreground">
+                            Saldo na carteira:{" "}
+                            <span className={`font-semibold ${walletBalance > 0 ? "text-green-600" : "text-destructive"}`}>
+                              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(walletBalance)}
+                            </span>
+                          </p>
+                        )}
                       </div>
                       <div className="col-span-2 space-y-1.5">
                         <Label>Data Baixa <span className="text-destructive">*</span></Label>
@@ -1323,7 +1403,7 @@ export function FinTitleModal({
                           type="button"
                           variant="primary"
                           onClick={handlePay}
-                          disabled={payLoading || !payPaidAt}
+                          disabled={payLoading || !payPaidAt || (walletBalance !== null && walletBalance <= 0)}
                         >
                           {payLoading ? "Baixando..." : "Baixar"}
                         </Button>

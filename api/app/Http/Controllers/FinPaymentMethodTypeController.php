@@ -11,7 +11,7 @@ class FinPaymentMethodTypeController extends Controller
     public function index()
     {
         return response()->json(
-            FinPaymentMethodType::orderBy('order')->get(['id', 'name', 'order', 'active'])
+            FinPaymentMethodType::orderBy('order')->get(['id', 'name', 'order', 'active', 'created_at', 'updated_at'])
         );
     }
 

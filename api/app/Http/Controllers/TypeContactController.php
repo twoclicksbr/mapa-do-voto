@@ -9,7 +9,7 @@ class TypeContactController extends Controller
 {
     public function index()
     {
-        $typeContacts = TypeContact::orderBy('order')->get(['id', 'name', 'mask', 'order', 'active']);
+        $typeContacts = TypeContact::orderBy('order')->get(['id', 'name', 'mask', 'order', 'active', 'created_at', 'updated_at']);
 
         return response()->json($typeContacts);
     }
@@ -40,11 +40,13 @@ class TypeContactController extends Controller
     private function format(TypeContact $typeContact): array
     {
         return [
-            'id'     => $typeContact->id,
-            'name'   => $typeContact->name,
-            'mask'   => $typeContact->mask,
-            'order'  => $typeContact->order,
-            'active' => $typeContact->active,
+            'id'         => $typeContact->id,
+            'name'       => $typeContact->name,
+            'mask'       => $typeContact->mask,
+            'order'      => $typeContact->order,
+            'active'     => $typeContact->active,
+            'created_at' => $typeContact->created_at,
+            'updated_at' => $typeContact->updated_at,
         ];
     }
 }

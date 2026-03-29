@@ -159,7 +159,8 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
 
     // Financeiro — Carteira
     Route::get('/fin-wallets', [FinWalletController::class, 'index']);
-    Route::get('/fin-wallets/{peopleId}', [FinWalletController::class, 'show']);
+    Route::post('/fin-wallets', [FinWalletController::class, 'store']);
+    Route::get('/fin-wallets/balance/{peopleId}', [FinWalletController::class, 'balance']);
 
     // Financeiro — Contas / Plano de Contas
     Route::get('/fin-accounts', [FinAccountController::class, 'index']);

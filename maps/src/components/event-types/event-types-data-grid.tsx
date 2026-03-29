@@ -33,6 +33,8 @@ export interface EventType {
   all_day: boolean;
   order: number;
   active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface EventTypesDataGridProps {
