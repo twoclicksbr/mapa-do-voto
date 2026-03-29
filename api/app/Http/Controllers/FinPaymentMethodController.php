@@ -60,6 +60,8 @@ class FinPaymentMethodController extends Controller
             'type_name'                  => $method->type?->name,
             'order'                      => $method->order,
             'active'                     => $method->active,
+            'created_at'                 => $method->created_at,
+            'updated_at'                 => $method->updated_at,
         ];
     }
 }

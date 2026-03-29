@@ -35,6 +35,8 @@ export interface FinAccount {
   order: number;
   active: boolean;
   children: FinAccount[];
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ReorderItem {

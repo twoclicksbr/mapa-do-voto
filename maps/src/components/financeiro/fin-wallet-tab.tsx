@@ -1,9 +1,19 @@
 import { useState, useEffect, useRef } from "react";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, CalendarIcon, X } from "lucide-react";
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
 import api from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { DateSelector, formatDateValue, type DateSelectorValue, type DateSelectorI18nConfig } from "@/components/reui/date-selector";
 import { FinWalletModal } from "./fin-wallet-modal";
 
 interface Person { id: number; name: string; }
@@ -41,6 +51,55 @@ const SOURCE_LABEL: Record<string, string> = {
   estorno: "Estorno",
 };
 
+const DATE_SELECTOR_I18N: DateSelectorI18nConfig = {
+  selectDate: "Selecionar data",
+  apply: "Aplicar",
+  cancel: "Cancelar",
+  clear: "Limpar",
+  today: "Hoje",
+  filterLabel: "Condição",
+  filterTypes: { is: "na data", before: "antes de", after: "depois de", between: "entre" },
+  periodTypes: { day: "Dia", month: "Mês", quarter: "Trimestre", halfYear: "Semestre", year: "Ano" },
+  months: ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+  monthsShort: ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"],
+  quarters: ["T1","T2","T3","T4"],
+  halfYears: ["S1","S2"],
+  weekdays: ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"],
+  weekdaysShort: ["Do","Se","Te","Qu","Qu","Se","Sá"],
+  placeholder: "Selecione uma data...",
+  rangePlaceholder: "Selecione um período...",
+};
+
+function extractDateRange(v: DateSelectorValue): { dateFrom: string; dateTo: string } {
+  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+
+  if (v.period === "day") {
+    const start = v.startDate;
+    const end   = v.endDate;
+    if (v.operator === "is"      && start) return { dateFrom: fmt(start), dateTo: fmt(start) };
+    if (v.operator === "before"  && start) return { dateFrom: "",         dateTo: fmt(start) };
+    if (v.operator === "after"   && start) return { dateFrom: fmt(start), dateTo: "" };
+    if (v.operator === "between" && start && end) return { dateFrom: fmt(start), dateTo: fmt(end) };
+  }
+
+  if (v.period === "month" && v.year != null && v.month != null) {
+    const d = new Date(v.year, v.month, 1);
+    return { dateFrom: fmt(startOfMonth(d)), dateTo: fmt(endOfMonth(d)) };
+  }
+
+  if (v.period === "year" && v.year != null) {
+    const d = new Date(v.year, 0, 1);
+    return { dateFrom: fmt(startOfYear(d)), dateTo: fmt(endOfYear(d)) };
+  }
+
+  // fallback: use startDate/endDate if available
+  const s = v.startDate;
+  const e = v.endDate ?? v.startDate;
+  if (s) return { dateFrom: fmt(s), dateTo: e ? fmt(e) : "" };
+
+  return { dateFrom: "", dateTo: "" };
+}
+
 export function FinWalletTab() {
   const [people,         setPeople]         = useState<Person[]>([]);
   const [peopleQuery,    setPeopleQuery]    = useState("");
@@ -48,6 +107,10 @@ export function FinWalletTab() {
   const [showDrop,       setShowDrop]       = useState(false);
   const [highlightedIdx, setHighlightedIdx] = useState(-1);
   const dropdownRef = useRef<HTMLUListElement>(null);
+
+  const [dateValue,    setDateValue]    = useState<DateSelectorValue | undefined>();
+  const [dateInternal, setDateInternal] = useState<DateSelectorValue | undefined>();
+  const [dateOpen,     setDateOpen]     = useState(false);
 
   const [entries,     setEntries]     = useState<WalletEntry[]>([]);
   const [summary,     setSummary]     = useState({ total_in: 0, total_out: 0, balance: 0 });
@@ -66,21 +129,28 @@ export function FinWalletTab() {
     setLoading(true);
     const params: Record<string, string> = {};
     if (peopleId) params.people_id = String(peopleId);
+    if (dateValue) {
+      const { dateFrom, dateTo } = extractDateRange(dateValue);
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo)   params.date_to   = dateTo;
+    }
     api.get<WalletResponse>("/fin-wallets", { params })
       .then(r => { setEntries(r.data.entries); setSummary(r.data.summary); })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [peopleId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [peopleId, dateValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-col gap-6">
 
       {/* Header: filtro + botão */}
       <div className="flex items-end justify-between gap-3">
-        <div className="flex items-end gap-3">
-          <div className="w-80 space-y-1.5">
+        <div className="flex items-end gap-3 flex-wrap">
+
+          {/* Pessoa */}
+          <div className="w-72 space-y-1.5">
             <Label>Pessoa</Label>
             <div className="relative">
               <Input
@@ -148,6 +218,7 @@ export function FinWalletTab() {
               )}
             </div>
           </div>
+
           {peopleId && (
             <button
               onClick={() => { setPeopleId(undefined); setPeopleQuery(""); }}
@@ -156,6 +227,55 @@ export function FinWalletTab() {
               Limpar
             </button>
           )}
+
+          {/* Período */}
+          <div className="space-y-1.5">
+            <Label>Período</Label>
+            <div className="relative">
+              <Dialog open={dateOpen} onOpenChange={setDateOpen}>
+                <button
+                  type="button"
+                  onClick={() => { setDateInternal(dateValue ?? { period: "day", operator: "between" }); setDateOpen(true); }}
+                  className="flex h-9 w-64 items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs hover:bg-accent/50 transition-colors"
+                >
+                  <CalendarIcon className="size-4 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground truncate pr-5">
+                    {dateValue ? formatDateValue(dateValue, DATE_SELECTOR_I18N, "dd/MM/yyyy") : "Selecionar período"}
+                  </span>
+                </button>
+                <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+                  <DialogHeader>
+                    <DialogTitle>Período</DialogTitle>
+                  </DialogHeader>
+                  <DateSelector
+                    value={dateInternal}
+                    onChange={setDateInternal}
+                    showInput={true}
+                    i18n={DATE_SELECTOR_I18N}
+                    dayDateFormat="dd/MM/yyyy"
+                  />
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="outline">Cancelar</Button>
+                    </DialogClose>
+                    <Button variant="primary" onClick={() => { setDateValue(dateInternal); setDateOpen(false); }}>
+                      Aplicar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              {dateValue && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setDateValue(undefined); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
         </div>
 
         <Button variant="primary" size="sm" onClick={() => setModalOpen(true)}>

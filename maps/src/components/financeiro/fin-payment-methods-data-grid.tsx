@@ -35,6 +35,8 @@ export interface FinPaymentMethod {
   type_name: string | null;
   order: number;
   active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface FinPaymentMethodsDataGridProps {

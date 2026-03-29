@@ -18,7 +18,7 @@ import api from "@/lib/api";
 interface RefBank   { id: number; name: string }
 interface ApiAccount { id: number; name: string; type: string; nature: string; children: ApiAccount[] }
 interface RefAccount { id: number; label: string; type: string; nature: string }
-interface RefPaymentMethod { id: number; name: string }
+interface RefPaymentMethod { id: number; name: string; fin_bank_id: number | null }
 
 function flattenAccounts(accounts: ApiAccount[], depth = 0): RefAccount[] {
   return accounts.flatMap((a) => [
@@ -99,6 +99,7 @@ export function FinExtractModal({ open, onClose, onSaved }: FinExtractModalProps
   const [accounts,        setAccounts]        = useState<RefAccount[]>([]);
   const [paymentMethods,  setPaymentMethods]  = useState<RefPaymentMethod[]>([]);
   const [bankId,          setBankId]          = useState<string>("none");
+  const handleBankChange = (v: string) => { setBankId(v); setPaymentMethodId("none"); };
   const [accountId,       setAccountId]       = useState<string>("none");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("none");
   const [saving,          setSaving]          = useState(false);
@@ -124,9 +125,12 @@ export function FinExtractModal({ open, onClose, onSaved }: FinExtractModalProps
 
   const handleSave = async () => {
     setError(null);
-    if (!date) { setError("Informe a data."); return; }
+    if (!date)                        { setError("Informe a data."); return; }
+    if (bankId === "none")            { setError("Selecione o banco."); return; }
+    if (accountId === "none")         { setError("Selecione a conta financeira."); return; }
+    if (paymentMethodId === "none")   { setError("Selecione a modalidade."); return; }
     const amountVal = parseCurrency(amount);
-    if (!amountVal) { setError("Informe o valor."); return; }
+    if (!amountVal)                   { setError("Informe o valor."); return; }
 
     setSaving(true);
     try {
@@ -164,10 +168,10 @@ export function FinExtractModal({ open, onClose, onSaved }: FinExtractModalProps
         </DialogHeader>
 
         <DialogBody className="space-y-4">
-          {/* Tipo + Data */}
+          {/* Linha 1: Tipo + Data */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Tipo</Label>
+              <Label>Tipo <span className="text-destructive">*</span></Label>
               <Select value={type} onValueChange={(v) => { setType(v); setAccountId("none"); }}>
                 <SelectTrigger>
                   <SelectValue />
@@ -178,9 +182,8 @@ export function FinExtractModal({ open, onClose, onSaved }: FinExtractModalProps
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1.5">
-              <Label>Data</Label>
+              <Label>Data <span className="text-destructive">*</span></Label>
               <BirthDatePicker
                 value={date}
                 onChange={setDate}
@@ -190,80 +193,82 @@ export function FinExtractModal({ open, onClose, onSaved }: FinExtractModalProps
             </div>
           </div>
 
-          {/* Valor */}
-          <div className="space-y-1.5">
-            <Label>Valor R$</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
-              <Input
-                ref={amountRef}
-                type="text"
-                inputMode="numeric"
-                value={amount}
-                onChange={() => {}}
-                onKeyDown={makeCalcKeyDown(amount, setAmount, amountDecMode, setAmountDecMode)}
-                onFocus={() => { setAmountDecMode(false); }}
-                placeholder="0,00"
-                className="pl-9 text-right font-bold caret-transparent"
-              />
+          {/* Linha 2: Banco + Conta Financeira */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Banco <span className="text-destructive">*</span></Label>
+              <Select value={bankId} onValueChange={handleBankChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Nenhum —</SelectItem>
+                  {banks.map((b) => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Conta Financeira <span className="text-destructive">*</span></Label>
+              <Select value={accountId} onValueChange={setAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-52">
+                  <SelectItem value="none">— Nenhuma —</SelectItem>
+                  {accounts
+                    .filter((a) => a.type === (type === "in" ? "revenue" : "expense"))
+                    .map((a) => (
+                      <SelectItem
+                        key={a.id}
+                        value={String(a.id)}
+                        disabled={a.nature === "synthetic"}
+                        className={a.nature === "synthetic" ? "text-muted-foreground font-semibold cursor-default" : undefined}
+                      >
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Banco */}
-          <div className="space-y-1.5">
-            <Label>Banco</Label>
-            <Select value={bankId} onValueChange={setBankId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nenhum —</SelectItem>
-                {banks.map((b) => (
-                  <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Conta Financeira */}
-          <div className="space-y-1.5">
-            <Label>Conta Financeira</Label>
-            <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nenhuma —</SelectItem>
-                {accounts
-                  .filter((a) => a.type === (type === "in" ? "revenue" : "expense"))
-                  .map((a) => (
-                    <SelectItem
-                      key={a.id}
-                      value={String(a.id)}
-                      disabled={a.nature === "synthetic"}
-                      className={a.nature === "synthetic" ? "text-muted-foreground font-semibold cursor-default" : undefined}
-                    >
-                      {a.label}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Modalidade */}
-          <div className="space-y-1.5">
-            <Label>Modalidade</Label>
-            <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nenhuma —</SelectItem>
-                {paymentMethods.map((m) => (
-                  <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Linha 3: Modalidade + Valor */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Modalidade <span className="text-destructive">*</span></Label>
+              <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Nenhuma —</SelectItem>
+                  {paymentMethods
+                    .filter((m) => bankId === "none" || m.fin_bank_id === Number(bankId))
+                    .map((m) => (
+                      <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Valor R$ <span className="text-destructive">*</span></Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
+                <Input
+                  ref={amountRef}
+                  type="text"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={() => {}}
+                  onKeyDown={makeCalcKeyDown(amount, setAmount, amountDecMode, setAmountDecMode)}
+                  onFocus={() => { setAmountDecMode(false); }}
+                  placeholder="0,00"
+                  className="pl-9 text-right font-bold caret-transparent"
+                />
+              </div>
+            </div>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

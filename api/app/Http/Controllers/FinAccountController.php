@@ -99,6 +99,8 @@ class FinAccountController extends Controller
             'nature'      => $account->nature,
             'order'       => $account->order,
             'active'      => $account->active,
+            'created_at'  => $account->created_at,
+            'updated_at'  => $account->updated_at,
         ];
     }
 }

@@ -9,7 +9,7 @@ class DepartmentController extends Controller
 {
     public function index()
     {
-        $departments = Department::orderBy('order')->get(['id', 'name', 'order', 'active']);
+        $departments = Department::orderBy('order')->get(['id', 'name', 'order', 'active', 'created_at', 'updated_at']);
 
         return response()->json($departments);
     }
@@ -40,10 +40,12 @@ class DepartmentController extends Controller
     private function format(Department $department): array
     {
         return [
-            'id'     => $department->id,
-            'name'   => $department->name,
-            'order'  => $department->order,
-            'active' => $department->active,
+            'id'         => $department->id,
+            'name'       => $department->name,
+            'order'      => $department->order,
+            'active'     => $department->active,
+            'created_at' => $department->created_at,
+            'updated_at' => $department->updated_at,
         ];
     }
 }

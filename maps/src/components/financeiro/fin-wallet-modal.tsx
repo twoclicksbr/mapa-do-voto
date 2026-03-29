@@ -19,7 +19,7 @@ interface Person      { id: number; name: string }
 interface RefBank     { id: number; name: string }
 interface ApiAccount  { id: number; name: string; type: string; nature: string; children: ApiAccount[] }
 interface RefAccount  { id: number; label: string; type: string; nature: string }
-interface RefPaymentMethod { id: number; name: string }
+interface RefPaymentMethod { id: number; name: string; fin_bank_id: number | null }
 
 function flattenAccounts(accounts: ApiAccount[], depth = 0): RefAccount[] {
   return accounts.flatMap((a) => [
@@ -111,7 +111,6 @@ export function FinWalletModal({ open, onClose, onSaved }: FinWalletModalProps) 
   const [error,           setError]           = useState<string | null>(null);
   const [walletBalance,   setWalletBalance]   = useState<number | null>(null);
 
-  // Pessoa autocomplete
   const [peopleId,       setPeopleId]       = useState<number | undefined>();
   const [peopleQuery,    setPeopleQuery]    = useState("");
   const [showDrop,       setShowDrop]       = useState(false);
@@ -122,9 +121,10 @@ export function FinWalletModal({ open, onClose, onSaved }: FinWalletModalProps) 
     p.name.toLowerCase().includes(peopleQuery.toLowerCase())
   );
 
+  const handleBankChange = (v: string) => { setBankId(v); setPaymentMethodId("none"); };
+
   useEffect(() => {
     if (!open) return;
-    // Reset
     setType("in");
     setDate("");
     setAmount("");
@@ -144,7 +144,6 @@ export function FinWalletModal({ open, onClose, onSaved }: FinWalletModalProps) 
     api.get<RefPaymentMethod[]>("/fin-payment-methods").then((r) => setPaymentMethods(r.data)).catch(() => {});
   }, [open]);
 
-  // Fetch wallet balance when type=out and person is selected
   useEffect(() => {
     if (type === "out" && peopleId) {
       api.get<{ people_id: number; balance: number }>(`/fin-wallets/balance/${peopleId}`)
@@ -157,10 +156,13 @@ export function FinWalletModal({ open, onClose, onSaved }: FinWalletModalProps) 
 
   const handleSave = async () => {
     setError(null);
-    if (!peopleId)     { setError("Selecione uma pessoa."); return; }
-    if (!date)         { setError("Informe a data."); return; }
+    if (!peopleId)                { setError("Selecione uma pessoa."); return; }
+    if (!date)                    { setError("Informe a data."); return; }
+    if (bankId === "none")        { setError("Selecione o banco."); return; }
+    if (accountId === "none")     { setError("Selecione a conta financeira."); return; }
+    if (paymentMethodId === "none") { setError("Selecione a modalidade."); return; }
     const amountVal = parseCurrency(amount);
-    if (!amountVal)    { setError("Informe o valor."); return; }
+    if (!amountVal)               { setError("Informe o valor."); return; }
     if (type === "out" && walletBalance !== null && amountVal > walletBalance) {
       setError(`Saldo insuficiente na carteira. Disponível: ${fmtBRL(walletBalance)}`);
       return;
@@ -204,28 +206,25 @@ export function FinWalletModal({ open, onClose, onSaved }: FinWalletModalProps) 
         </DialogHeader>
 
         <DialogBody className="space-y-4">
-          {/* Tipo + Data */}
+          {/* Linha 1: Tipo + Data */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Tipo</Label>
+              <Label>Tipo <span className="text-destructive">*</span></Label>
               <Select value={type} onValueChange={(v) => { setType(v as "in" | "out"); setAccountId("none"); setWalletBalance(null); }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="in">Entrada</SelectItem>
                   <SelectItem value="out">Saída</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1.5">
-              <Label>Data</Label>
+              <Label>Data <span className="text-destructive">*</span></Label>
               <BirthDatePicker value={date} onChange={setDate} minYear={2020} maxYear={2035} />
             </div>
           </div>
 
-          {/* Pessoa */}
+          {/* Linha 2: Pessoa (full) */}
           <div className="space-y-1.5">
             <Label>Pessoa <span className="text-destructive">*</span></Label>
             <div className="relative">
@@ -256,7 +255,8 @@ export function FinWalletModal({ open, onClose, onSaved }: FinWalletModalProps) 
               {showDrop && peopleQuery.length > 0 && (
                 <ul ref={dropdownRef} className="absolute z-50 mt-1 w-full rounded-md border border-input bg-popover shadow-md max-h-48 overflow-y-auto">
                   {filteredPeople.map((p, idx) => (
-                    <li key={p.id} onMouseEnter={() => setHighlightedIdx(idx)}
+                    <li key={p.id}
+                      onMouseEnter={() => setHighlightedIdx(idx)}
                       onMouseDown={() => { setPeopleId(p.id); setPeopleQuery(p.name); setShowDrop(false); setHighlightedIdx(-1); }}
                       className={`cursor-pointer px-3 py-2 text-sm ${idx === highlightedIdx ? "bg-accent" : "hover:bg-accent"}`}>
                       {p.name}
@@ -273,69 +273,71 @@ export function FinWalletModal({ open, onClose, onSaved }: FinWalletModalProps) 
             )}
           </div>
 
-          {/* Valor */}
-          <div className="space-y-1.5">
-            <Label>Valor R$</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
-              <Input
-                type="text"
-                inputMode="numeric"
-                value={amount}
-                onChange={() => {}}
-                onKeyDown={makeCalcKeyDown(amount, setAmount, amountDecMode, setAmountDecMode)}
-                onFocus={() => setAmountDecMode(false)}
-                placeholder="0,00"
-                className="pl-9 text-right font-bold caret-transparent"
-              />
+          {/* Linha 3: Banco + Conta Financeira */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Banco <span className="text-destructive">*</span></Label>
+              <Select value={bankId} onValueChange={handleBankChange}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Nenhum —</SelectItem>
+                  {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Conta Financeira <span className="text-destructive">*</span></Label>
+              <Select value={accountId} onValueChange={setAccountId}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent className="max-h-52">
+                  <SelectItem value="none">— Nenhuma —</SelectItem>
+                  {accounts.filter((a) => a.type === (type === "in" ? "revenue" : "expense")).map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)} disabled={a.nature === "synthetic"}
+                      className={a.nature === "synthetic" ? "text-muted-foreground font-semibold cursor-default" : undefined}>
+                      {a.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Descrição */}
+          {/* Linha 4: Modalidade + Valor */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Modalidade <span className="text-destructive">*</span></Label>
+              <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Nenhuma —</SelectItem>
+                  {paymentMethods
+                    .filter((m) => bankId === "none" || m.fin_bank_id === Number(bankId))
+                    .map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Valor R$ <span className="text-destructive">*</span></Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={() => {}}
+                  onKeyDown={makeCalcKeyDown(amount, setAmount, amountDecMode, setAmountDecMode)}
+                  onFocus={() => setAmountDecMode(false)}
+                  placeholder="0,00"
+                  className="pl-9 text-right font-bold caret-transparent"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Linha 5: Descrição (full) */}
           <div className="space-y-1.5">
             <Label>Descrição</Label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Opcional" />
-          </div>
-
-          {/* Banco */}
-          <div className="space-y-1.5">
-            <Label>Banco</Label>
-            <Select value={bankId} onValueChange={setBankId}>
-              <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nenhum —</SelectItem>
-                {banks.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Conta Financeira */}
-          <div className="space-y-1.5">
-            <Label>Conta Financeira</Label>
-            <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nenhuma —</SelectItem>
-                {accounts.filter((a) => a.type === (type === "in" ? "revenue" : "expense")).map((a) => (
-                  <SelectItem key={a.id} value={String(a.id)} disabled={a.nature === "synthetic"}
-                    className={a.nature === "synthetic" ? "text-muted-foreground font-semibold cursor-default" : undefined}>
-                    {a.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Modalidade */}
-          <div className="space-y-1.5">
-            <Label>Modalidade</Label>
-            <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
-              <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nenhuma —</SelectItem>
-                {paymentMethods.map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

@@ -55,14 +55,17 @@ import { FinBankModal } from "@/components/financeiro/fin-bank-modal";
 import { FinBanksFilterModal, FinBanksFilters } from "@/components/financeiro/fin-banks-filter-modal";
 import { FinPaymentMethodsDataGrid, FinPaymentMethod } from "@/components/financeiro/fin-payment-methods-data-grid";
 import { FinPaymentMethodModal } from "@/components/financeiro/fin-payment-method-modal";
+import { FinPaymentMethodsFilterModal, FinPaymentMethodsFilters } from "@/components/financeiro/fin-payment-methods-filter-modal";
 import { FinPaymentMethodTypesDataGrid, FinPaymentMethodType } from "@/components/financeiro/fin-payment-method-types-data-grid";
 import { FinPaymentMethodTypeModal } from "@/components/financeiro/fin-payment-method-type-modal";
 import { FinPaymentMethodTypesFilterModal, FinPaymentMethodTypesFilters } from "@/components/financeiro/fin-payment-method-types-filter-modal";
 import { FinMegaMenu } from "@/components/financeiro/fin-mega-menu";
 import { DepartmentsDataGrid, Department } from "@/components/financeiro/departments-data-grid";
 import { DepartmentModal } from "@/components/financeiro/department-modal";
+import { DepartmentsFilterModal, DepartmentsFilters } from "@/components/financeiro/departments-filter-modal";
 import { FinAccountsTree, FinAccount, ReorderItem } from "@/components/financeiro/fin-accounts-tree";
 import { FinAccountModal } from "@/components/financeiro/fin-account-modal";
+import { FinAccountsFilterModal, FinAccountsFilters } from "@/components/financeiro/fin-accounts-filter-modal";
 import { FinTitleModal } from "@/components/financeiro/fin-title-modal";
 import { FinTitlesFilterModal, FinTitlesFilters } from "@/components/financeiro/fin-titles-filter-modal";
 import { formatDateValue, type DateSelectorValue } from "@/components/reui/date-selector";
@@ -746,6 +749,8 @@ export function HomePage() {
   const [finPaymentMethodsSelected, setFinPaymentMethodsSelected] = useState(0);
   const [finPaymentMethodModalOpen, setFinPaymentMethodModalOpen] = useState(false);
   const [editingFinPaymentMethod, setEditingFinPaymentMethod] = useState<FinPaymentMethod | null>(null);
+  const [finPaymentMethodsFilterOpen, setFinPaymentMethodsFilterOpen] = useState(false);
+  const [finPaymentMethodsFilters, setFinPaymentMethodsFilters] = useState<FinPaymentMethodsFilters>({});
 
   const [finPaymentMethodTypes, setFinPaymentMethodTypes] = useState<FinPaymentMethodType[]>([]);
   const [finPaymentMethodTypesLoading, setFinPaymentMethodTypesLoading] = useState(false);
@@ -760,11 +765,15 @@ export function HomePage() {
   const [departmentsSelected, setDepartmentsSelected] = useState(0);
   const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [departmentsFilterOpen, setDepartmentsFilterOpen] = useState(false);
+  const [departmentsFilters, setDepartmentsFilters] = useState<DepartmentsFilters>({});
 
   const [finAccounts, setFinAccounts] = useState<FinAccount[]>([]);
   const [finAccountsLoading, setFinAccountsLoading] = useState(false);
   const [finAccountModalOpen, setFinAccountModalOpen] = useState(false);
   const [editingFinAccount, setEditingFinAccount] = useState<FinAccount | null>(null);
+  const [finAccountsFilterOpen, setFinAccountsFilterOpen] = useState(false);
+  const [finAccountsFilters, setFinAccountsFilters] = useState<FinAccountsFilters>({});
   const [parentFinAccount, setParentFinAccount] = useState<FinAccount | null>(null);
 
   const [finExtract, setFinExtract] = useState<FinExtractEntry[]>([]);
@@ -1060,6 +1069,44 @@ export function HomePage() {
     return chips;
   };
 
+  const applyFinPaymentMethodsFilters = (list: FinPaymentMethod[], f: FinPaymentMethodsFilters) => list.filter((m) => {
+    if (f.filterId   && !String(m.id).includes(f.filterId))                               return false;
+    if (f.filterName && !m.name.toLowerCase().includes(f.filterName.toLowerCase()))       return false;
+    if (f.typeIds?.length && !f.typeIds.includes(m.fin_payment_method_type_id!))           return false;
+    if (f.bankIds?.length && !f.bankIds.includes(m.fin_bank_id!))                         return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !m.active)  return false;
+      if (!wantActive && wantInactive && m.active)   return false;
+    }
+    if (f.dateField && f.dateValue) {
+      const raw = (m as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredFinPaymentMethods = useMemo(() => applyFinPaymentMethodsFilters(finPaymentMethods, finPaymentMethodsFilters), [finPaymentMethods, finPaymentMethodsFilters]);
+
+  const countFinPaymentMethodsFilters = (f: FinPaymentMethodsFilters) =>
+    [f.filterId, f.filterName, f.typeIds?.length, f.bankIds?.length, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getFinPaymentMethodsFilterChips = (f: FinPaymentMethodsFilters, setF: (v: FinPaymentMethodsFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',   label: `ID: ${f.filterId}`,     onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`, onRemove: () => setF({ ...f, filterName: undefined }) });
+    f.typeIds?.forEach(id => chips.push({ key: `type_${id}`, label: `Tipo: ${finPaymentMethodTypes.find(t => t.id === id)?.name ?? id}`, onRemove: () => setF({ ...f, typeIds: f.typeIds!.filter(x => x !== id) }) }));
+    f.bankIds?.forEach(id => chips.push({ key: `bank_${id}`, label: `Banco: ${finBanks.find(b => b.id === id)?.name ?? id}`, onRemove: () => setF({ ...f, bankIds: f.bankIds!.filter(x => x !== id) }) }));
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${{ created_at: "Criado em", updated_at: "Editado em" }[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
   useEffect(() => {
     if (!loggedIn || finSection !== 'fin-payment-methods') return;
     setFinPaymentMethodsLoading(true);
@@ -1149,6 +1196,40 @@ export function HomePage() {
     setDepartments(prev => prev.filter(d => d.id !== id));
   };
 
+  const applyDepartmentsFilters = (list: Department[], f: DepartmentsFilters) => list.filter((d) => {
+    if (f.filterId   && !String(d.id).includes(f.filterId))                         return false;
+    if (f.filterName && !d.name.toLowerCase().includes(f.filterName.toLowerCase())) return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !d.active)  return false;
+      if (!wantActive && wantInactive && d.active)   return false;
+    }
+    if (f.dateField && f.dateValue) {
+      const raw = (d as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const dt = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredDepartments = useMemo(() => applyDepartmentsFilters(departments, departmentsFilters), [departments, departmentsFilters]);
+
+  const countDepartmentsFilters = (f: DepartmentsFilters) =>
+    [f.filterId, f.filterName, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getDepartmentsFilterChips = (f: DepartmentsFilters, setF: (v: DepartmentsFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',   label: `ID: ${f.filterId}`,     onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`, onRemove: () => setF({ ...f, filterName: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${{ created_at: "Criado em", updated_at: "Editado em" }[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
   useEffect(() => {
     if (!loggedIn || finSection !== 'fin-accounts') return;
     setFinAccountsLoading(true);
@@ -1178,6 +1259,63 @@ export function HomePage() {
     await api.delete(`/fin-accounts/${id}`);
     const res = await api.get<FinAccount[]>('/fin-accounts');
     setFinAccounts(res.data);
+  };
+
+  const flattenFinAccounts = (nodes: FinAccount[]): FinAccount[] =>
+    nodes.flatMap(n => [n, ...flattenFinAccounts(n.children ?? [])]);
+
+  const filterFinAccountTree = (nodes: FinAccount[], f: FinAccountsFilters): FinAccount[] => {
+    const hasActive = !!(f.filterName || f.types?.length || f.natures?.length || f.status?.length || f.dateValue);
+    if (!hasActive) return nodes;
+    const flat = flattenFinAccounts(nodes);
+    const matchingIds = new Set(flat.filter(a => {
+      if (f.filterName && !a.name.toLowerCase().includes(f.filterName.toLowerCase()) && !(a.code ?? "").toLowerCase().includes(f.filterName.toLowerCase())) return false;
+      if (f.types?.length   && !f.types.includes(a.type))     return false;
+      if (f.natures?.length && !f.natures.includes(a.nature)) return false;
+      if (f.status?.length) {
+        const wantActive = f.status.includes("active");
+        const wantInactive = f.status.includes("inactive");
+        if (wantActive && !wantInactive && !a.active)  return false;
+        if (!wantActive && wantInactive && a.active)   return false;
+      }
+      if (f.dateField && f.dateValue) {
+        const raw = (a as Record<string, unknown>)[f.dateField] as string | null;
+        if (raw) {
+          const dt = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+          const dDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+          if (!matchesDateFilter(dDay, f.dateValue)) return false;
+        }
+      }
+      return true;
+    }).map(a => a.id));
+    const includeIds = new Set<number>(matchingIds);
+    for (const id of matchingIds) {
+      let item = flat.find(a => a.id === id);
+      while (item?.parent_id) {
+        includeIds.add(item.parent_id);
+        item = flat.find(a => a.id === item!.parent_id);
+      }
+    }
+    const rebuild = (items: FinAccount[]): FinAccount[] =>
+      items.filter(a => includeIds.has(a.id)).map(a => ({ ...a, children: rebuild(a.children ?? []) }));
+    return rebuild(nodes);
+  };
+
+  const filteredFinAccounts = useMemo(() => filterFinAccountTree(finAccounts, finAccountsFilters), [finAccounts, finAccountsFilters]);
+
+  const countFinAccountsFilters = (f: FinAccountsFilters) =>
+    [f.filterName, f.types?.length, f.natures?.length, f.status?.length, f.dateValue].filter(Boolean).length;
+
+  const getFinAccountsFilterChips = (f: FinAccountsFilters, setF: (v: FinAccountsFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    const TYPE_LABELS: Record<string, string> = { asset: "Ativo", liability: "Passivo", revenue: "Receita", expense: "Despesa", cost: "Custo" };
+    const NATURE_LABELS: Record<string, string> = { analytic: "Analítica", synthetic: "Sintética" };
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`, onRemove: () => setF({ ...f, filterName: undefined }) });
+    f.types?.forEach(t   => chips.push({ key: `type_${t}`,   label: `Tipo: ${TYPE_LABELS[t] ?? t}`,       onRemove: () => setF({ ...f, types:   f.types!.filter(x => x !== t) }) }));
+    f.natures?.forEach(n => chips.push({ key: `nature_${n}`, label: `Natureza: ${NATURE_LABELS[n] ?? n}`, onRemove: () => setF({ ...f, natures: f.natures!.filter(x => x !== n) }) }));
+    f.status?.forEach(s  => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${{ created_at: "Criado em", updated_at: "Editado em" }[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
   };
 
   const handleFinAccountSaved = (saved: FinAccount) => {
@@ -1353,6 +1491,12 @@ export function HomePage() {
           setEditingFinPaymentMethod(null);
         }}
       />
+      <FinPaymentMethodsFilterModal
+        open={finPaymentMethodsFilterOpen}
+        filters={finPaymentMethodsFilters}
+        onClose={() => setFinPaymentMethodsFilterOpen(false)}
+        onApply={(f) => setFinPaymentMethodsFilters(f)}
+      />
       <FinPaymentMethodTypesFilterModal
         open={finPaymentMethodTypesFilterOpen}
         filters={finPaymentMethodTypesFilters}
@@ -1385,12 +1529,24 @@ export function HomePage() {
           setEditingDepartment(null);
         }}
       />
+      <DepartmentsFilterModal
+        open={departmentsFilterOpen}
+        filters={departmentsFilters}
+        onClose={() => setDepartmentsFilterOpen(false)}
+        onApply={(f) => setDepartmentsFilters(f)}
+      />
       <FinAccountModal
         open={finAccountModalOpen || !!editingFinAccount}
         account={editingFinAccount}
         parentAccount={parentFinAccount}
         onClose={() => { setFinAccountModalOpen(false); setEditingFinAccount(null); setParentFinAccount(null); }}
         onSaved={handleFinAccountSaved}
+      />
+      <FinAccountsFilterModal
+        open={finAccountsFilterOpen}
+        filters={finAccountsFilters}
+        onClose={() => setFinAccountsFilterOpen(false)}
+        onApply={(f) => setFinAccountsFilters(f)}
       />
       <FinTitleModal
         open={finTitleModalOpen || !!editingFinTitle}
@@ -1834,7 +1990,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><CreditCard className="size-5 text-muted-foreground" />Modalidades de Pagamento <Badge variant="success" appearance="light" size="md">{formatRecordCount(finPaymentMethods.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><CreditCard className="size-5 text-muted-foreground" />Modalidades de Pagamento <Badge variant="success" appearance="light" size="md">{formatRecordCount(filteredFinPaymentMethods.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Modalidades', 'Modalidades']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1857,9 +2013,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setFinPaymentMethodsFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countFinPaymentMethodsFilters(finPaymentMethodsFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countFinPaymentMethodsFilters(finPaymentMethodsFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setFinPaymentMethodModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1869,9 +2030,19 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getFinPaymentMethodsFilterChips(finPaymentMethodsFilters, setFinPaymentMethodsFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(c => (
+                    <Badge key={c.key} variant="outline" size="sm" className="gap-1 cursor-pointer" onClick={c.onRemove}>
+                      {c.label} <X className="size-3" />
+                    </Badge>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <FinPaymentMethodsDataGrid
-                  methods={finPaymentMethods}
+                  methods={filteredFinPaymentMethods}
                   isLoading={finPaymentMethodsLoading}
                   onSelectionChange={setFinPaymentMethodsSelected}
                   onEdit={(m) => setEditingFinPaymentMethod(m)}
@@ -1885,7 +2056,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Building className="size-5 text-muted-foreground" />Departamentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(departments.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><Building className="size-5 text-muted-foreground" />Departamentos <Badge variant="success" appearance="light" size="md">{formatRecordCount(filteredDepartments.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Departamentos']} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1908,9 +2079,14 @@ export function HomePage() {
                     </DropdownMenu>
                   ) : (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setDepartmentsFilterOpen(true)}>
                         <Search className="size-4 mr-2" />
                         Pesquisar
+                        {countDepartmentsFilters(departmentsFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countDepartmentsFilters(departmentsFilters)}
+                          </Badge>
+                        )}
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => setDepartmentModalOpen(true)}>
                         <Plus className="size-4 mr-2" />
@@ -1920,9 +2096,20 @@ export function HomePage() {
                   )}
                 </div>
               </div>
+              {(() => { const chips = getDepartmentsFilterChips(departmentsFilters, setDepartmentsFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(c => (
+                    <Badge key={c.key} variant="outline" size="sm" className="gap-1 pr-1">
+                      {c.label}
+                      <button onClick={c.onRemove} className="ml-0.5 hover:text-destructive transition-colors"><X className="size-3" /></button>
+                    </Badge>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <DepartmentsDataGrid
-                  departments={departments}
+                  departments={filteredDepartments}
                   isLoading={departmentsLoading}
                   onSelectionChange={setDepartmentsSelected}
                   onEdit={(d) => setEditingDepartment(d)}
@@ -1936,13 +2123,18 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><LayoutList className="size-5 text-muted-foreground" />Plano de Contas <Badge variant="success" appearance="light" size="md">{formatRecordCount(finAccounts.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><LayoutList className="size-5 text-muted-foreground" />Plano de Contas <Badge variant="success" appearance="light" size="md">{formatRecordCount(flattenFinAccounts(filteredFinAccounts).length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Plano de Contas']} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => setFinAccountsFilterOpen(true)}>
                     <Search className="size-4 mr-2" />
                     Pesquisar
+                    {countFinAccountsFilters(finAccountsFilters) > 0 && (
+                      <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                        {countFinAccountsFilters(finAccountsFilters)}
+                      </Badge>
+                    )}
                   </Button>
                   <Button variant="primary" size="sm" onClick={() => { setParentFinAccount(null); setFinAccountModalOpen(true); }}>
                     <Plus className="size-4 mr-2" />
@@ -1950,9 +2142,20 @@ export function HomePage() {
                   </Button>
                 </div>
               </div>
+              {(() => { const chips = getFinAccountsFilterChips(finAccountsFilters, setFinAccountsFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(c => (
+                    <Badge key={c.key} variant="outline" size="sm" className="gap-1 pr-1">
+                      {c.label}
+                      <button onClick={c.onRemove} className="ml-0.5 hover:text-destructive transition-colors"><X className="size-3" /></button>
+                    </Badge>
+                  ))}
+                </div>
+              ); })()}
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <FinAccountsTree
-                  accounts={finAccounts}
+                  accounts={filteredFinAccounts}
                   isLoading={finAccountsLoading}
                   onReorder={handleFinAccountsReorder}
                   onAddChild={(parent) => { setParentFinAccount(parent); setEditingFinAccount(null); setFinAccountModalOpen(true); }}
