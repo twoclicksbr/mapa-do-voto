@@ -4,6 +4,7 @@ import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, Wallet, X, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
@@ -68,7 +69,8 @@ import { FinAccountModal } from "@/components/financeiro/fin-account-modal";
 import { FinAccountsFilterModal, FinAccountsFilters } from "@/components/financeiro/fin-accounts-filter-modal";
 import { FinTitleModal } from "@/components/financeiro/fin-title-modal";
 import { FinTitlesFilterModal, FinTitlesFilters } from "@/components/financeiro/fin-titles-filter-modal";
-import { formatDateValue, type DateSelectorValue } from "@/components/reui/date-selector";
+import { DateSelector, formatDateValue, type DateSelectorValue, type DateSelectorI18nConfig } from "@/components/reui/date-selector";
+import { format, addDays, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, subYears } from "date-fns";
 import { FinExtractDataGrid, FinExtractEntry, ExtractViewToggle, ExtractView, EXTRACT_VIEW_KEY } from "@/components/financeiro/fin-extract-data-grid";
 import { FinExtractFilterModal, FinExtractFilters } from "@/components/financeiro/fin-extract-filter-modal";
 import { FinExtractModal } from "@/components/financeiro/fin-extract-modal";
@@ -155,6 +157,96 @@ interface Tenant {
   slug: string;
   active: boolean;
   valid_until: string;
+}
+
+const DATE_I18N: DateSelectorI18nConfig = {
+  selectDate: "Selecionar data",
+  apply: "Aplicar",
+  cancel: "Cancelar",
+  clear: "Limpar",
+  today: "Hoje",
+  filterTypes: { is: "É", before: "Antes de", after: "Depois de", between: "Entre" },
+  periodTypes: { day: "Dia", month: "Mês", quarter: "Trimestre", halfYear: "Semestre", year: "Ano" },
+  months: ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+  monthsShort: ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+  quarters: ["1° Trimestre","2° Trimestre","3° Trimestre","4° Trimestre"],
+  halfYears: ["1° Semestre","2° Semestre"],
+  weekdays: ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"],
+  weekdaysShort: ["Do","Se","Te","Qu","Qu","Se","Sá"],
+  placeholder: "Selecione...",
+  rangePlaceholder: "Selecione um período...",
+};
+
+function extractDateRange(v: DateSelectorValue): { dateFrom: string; dateTo: string } {
+  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+  const now = new Date();
+
+  // ── Mês ──────────────────────────────────────────────────────────────────────
+  if (v.period === "month") {
+    // intervalo: rangeStart/rangeEnd guardam { year, value=monthIndex }
+    if (v.rangeStart && v.rangeEnd) {
+      const s = new Date(v.rangeStart.year, v.rangeStart.value, 1);
+      const e = new Date(v.rangeEnd.year,   v.rangeEnd.value,   1);
+      return { dateFrom: fmt(startOfMonth(s)), dateTo: fmt(endOfMonth(e)) };
+    }
+    // mês único
+    if (v.month != null && v.year != null) {
+      const d = new Date(v.year, v.month, 1);
+      return { dateFrom: fmt(startOfMonth(d)), dateTo: fmt(endOfMonth(d)) };
+    }
+  }
+
+  // ── Trimestre ─────────────────────────────────────────────────────────────────
+  if (v.period === "quarter") {
+    // rangeStart/rangeEnd: value = 0-3 (Q1–Q4), cada trimestre = value*3 mês
+    if (v.rangeStart && v.rangeEnd) {
+      const s = new Date(v.rangeStart.year, v.rangeStart.value * 3, 1);
+      const e = new Date(v.rangeEnd.year,   v.rangeEnd.value   * 3, 1);
+      return { dateFrom: fmt(startOfQuarter(s)), dateTo: fmt(endOfQuarter(e)) };
+    }
+    if (v.quarter != null && v.year != null) {
+      const d = new Date(v.year, v.quarter * 3, 1);
+      return { dateFrom: fmt(startOfQuarter(d)), dateTo: fmt(endOfQuarter(d)) };
+    }
+  }
+
+  // ── Semestre ──────────────────────────────────────────────────────────────────
+  if (v.period === "half-year") {
+    if (v.rangeStart && v.rangeEnd) {
+      const s = new Date(v.rangeStart.year, v.rangeStart.value * 6, 1);
+      const e = new Date(v.rangeEnd.year,   v.rangeEnd.value   * 6, 1);
+      const eEnd = new Date(v.rangeEnd.year, v.rangeEnd.value * 6 + 5, 1);
+      return { dateFrom: fmt(startOfMonth(s)), dateTo: fmt(endOfMonth(eEnd)) };
+    }
+    if (v.halfYear != null && v.year != null) {
+      const s = new Date(v.year, v.halfYear * 6, 1);
+      const e = new Date(v.year, v.halfYear * 6 + 5, 1);
+      return { dateFrom: fmt(startOfMonth(s)), dateTo: fmt(endOfMonth(e)) };
+    }
+  }
+
+  // ── Ano ───────────────────────────────────────────────────────────────────────
+  if (v.period === "year") {
+    if (v.rangeStart && v.rangeEnd) {
+      return { dateFrom: fmt(startOfYear(new Date(v.rangeStart.year, 0, 1))), dateTo: fmt(endOfYear(new Date(v.rangeEnd.year, 0, 1))) };
+    }
+    if (v.year != null) {
+      const d = new Date(v.year, 0, 1);
+      return { dateFrom: fmt(startOfYear(d)), dateTo: fmt(endOfYear(d)) };
+    }
+  }
+
+  // ── Dia (padrão) ─────────────────────────────────────────────────────────────
+  if (v.operator === "between" && v.startDate && v.endDate)
+    return { dateFrom: fmt(v.startDate), dateTo: fmt(v.endDate) };
+  if (v.operator === "is" && v.startDate)
+    return { dateFrom: fmt(v.startDate), dateTo: fmt(v.startDate) };
+  if (v.operator === "before" && v.startDate)
+    return { dateFrom: "2000-01-01", dateTo: fmt(addDays(v.startDate, -1)) };
+  if (v.operator === "after" && v.startDate)
+    return { dateFrom: fmt(addDays(v.startDate, 1)), dateTo: fmt(now) };
+
+  return { dateFrom: fmt(subMonths(now, 6)), dateTo: fmt(now) };
 }
 
 export function HomePage() {
@@ -639,6 +731,14 @@ export function HomePage() {
   const [finSection, setFinSectionState] = useState<string>(
     () => localStorage.getItem('mapadovoto:finSection') ?? 'fin-dashboard'
   );
+  const [finDashDateCustom,   setFinDashDateCustom]   = useState(false);
+  const [finDashDateValue,    setFinDashDateValue]    = useState<DateSelectorValue | undefined>({
+    period: "year",
+    operator: "is",
+    year: new Date().getFullYear(),
+  });
+  const [finDashDateInternal, setFinDashDateInternal] = useState<DateSelectorValue | undefined>();
+  const [finDashDateOpen,     setFinDashDateOpen]     = useState(false);
   const setFinSection = (section: string) => {
     localStorage.setItem('mapadovoto:finSection', section);
     setFinSectionState(section);
@@ -1916,8 +2016,41 @@ export function HomePage() {
                   <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><LayoutDashboard className="size-5 text-muted-foreground" />Dashboard Financeiro</h2>
                   <SectionBreadcrumb items={['Home', 'Finanças', 'Dashboard']} />
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">Período</label>
+                  <div className="relative">
+                  <Dialog open={finDashDateOpen} onOpenChange={setFinDashDateOpen}>
+                    <button
+                      type="button"
+                      onClick={() => { setFinDashDateInternal(finDashDateValue ?? { period: "day", operator: "between" }); setFinDashDateOpen(true); }}
+                      className="flex h-9 w-64 items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs hover:bg-accent/50 transition-colors"
+                    >
+                      <CalendarDays className="size-4 text-muted-foreground shrink-0" />
+                      <span className="text-muted-foreground truncate pr-5">
+                        {finDashDateValue ? formatDateValue(finDashDateValue, DATE_I18N, "dd/MM/yyyy") : "Selecionar período"}
+                      </span>
+                    </button>
+                    <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+                      <DialogHeader><DialogTitle>Período</DialogTitle></DialogHeader>
+                      <DateSelector value={finDashDateInternal} onChange={setFinDashDateInternal} showInput={true} i18n={DATE_I18N} dayDateFormat="dd/MM/yyyy" />
+                      <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+                        <Button variant="primary" onClick={() => { setFinDashDateValue(finDashDateInternal); setFinDashDateCustom(true); setFinDashDateOpen(false); }}>Aplicar</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  {finDashDateCustom && (
+                    <button type="button" onClick={() => { setFinDashDateValue({ period: "year", operator: "is", year: new Date().getFullYear() }); setFinDashDateCustom(false); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                  </div>
+                </div>
               </div>
-              <FinDashboardTab />
+              <FinDashboardTab
+                dateFrom={finDashDateValue ? extractDateRange(finDashDateValue).dateFrom : undefined}
+                dateTo={finDashDateValue   ? extractDateRange(finDashDateValue).dateTo   : undefined}
+              />
               <PageFooter />
             </div>
           ) : finSection === 'fin-payment-method-types' ? (

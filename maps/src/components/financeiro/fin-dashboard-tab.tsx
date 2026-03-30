@@ -10,12 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, Pie, PieChart, Label as RechartsLabel } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, Pie, PieChart, Label as RechartsLabel } from "recharts";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -86,7 +83,12 @@ function StatCard({ label, value, sub, Icon, iconClass = "bg-primary/10 text-pri
 
 // ─── FinDashboardTab ──────────────────────────────────────────────────────────
 
-export function FinDashboardTab() {
+interface FinDashboardTabProps {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export function FinDashboardTab({ dateFrom: filterFrom, dateTo: filterTo }: FinDashboardTabProps) {
   const [banks, setBanks] = useState<DashBank[]>([]);
   const [pendingExpense, setPendingExpense] = useState<DashTitle[]>([]);
   const [pendingIncome, setPendingIncome] = useState<DashTitle[]>([]);
@@ -96,14 +98,15 @@ export function FinDashboardTab() {
 
   useEffect(() => {
     const today = todayStr();
-    const dateFrom = format(startOfMonth(subMonths(new Date(), 5)), "yyyy-MM-dd");
+    const dateFrom = filterFrom ?? format(startOfMonth(subMonths(new Date(), 10)), "yyyy-MM-dd");
+    const dateTo   = filterTo ?? today;
 
     Promise.all([
       api.get<DashBank[]>("/fin-banks"),
-      api.get<DashTitle[]>("/fin-titles", { params: { type: "expense", status: "pending" } }),
-      api.get<DashTitle[]>("/fin-titles", { params: { type: "income", status: "pending" } }),
-      api.get<DashTitle[]>("/fin-titles"),
-      api.get<{ entries: DashExtractEntry[] }>("/fin-extract", { params: { date_from: dateFrom, date_to: today } }),
+      api.get<DashTitle[]>("/fin-titles", { params: { type: "expense", status: "pending", date_from: filterFrom, date_to: filterTo } }),
+      api.get<DashTitle[]>("/fin-titles", { params: { type: "income",  status: "pending", date_from: filterFrom, date_to: filterTo } }),
+      api.get<DashTitle[]>("/fin-titles", { params: { date_from: filterFrom, date_to: filterTo } }),
+      api.get<{ entries: DashExtractEntry[] }>("/fin-extract", { params: { date_from: dateFrom, date_to: dateTo } }),
     ])
       .then(([banksRes, expRes, incRes, allRes, extRes]) => {
         setBanks(banksRes.data);
@@ -114,7 +117,7 @@ export function FinDashboardTab() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [filterFrom, filterTo]);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
 
@@ -123,50 +126,52 @@ export function FinDashboardTab() {
   const totalIncome      = pendingIncome.reduce((s, t) => s + t.amount, 0);
   const netBalance       = totalIncome - totalExpense;
 
-  // ── Fluxo de Caixa (6 meses) ──────────────────────────────────────────────
+  // ── Fluxo de Caixa (12 meses: -10 atual +1) ──────────────────────────────
 
   const monthlyData = useMemo(() =>
-    Array.from({ length: 6 }, (_, i) => {
-      const d = subMonths(new Date(), 5 - i);
+    Array.from({ length: 12 }, (_, i) => {
+      const d = subMonths(new Date(), 10 - i);
       const key = format(d, "yyyy-MM");
       const monthIn  = extractEntries.filter(e => e.type === "in"  && e.date.startsWith(key)).reduce((s, e) => s + e.amount, 0);
       const monthOut = extractEntries.filter(e => e.type === "out" && e.date.startsWith(key)).reduce((s, e) => s + e.amount, 0);
-      return { month: MONTHS_PT[d.getMonth()], in: monthIn, out: monthOut };
+      return { month: MONTHS_PT[d.getMonth()], year: format(d, "yyyy"), in: monthIn, out: monthOut };
     }),
     [extractEntries],
   );
 
   const cashFlowConfig: ChartConfig = {
-    in:  { label: "Entradas", color: "var(--chart-2)" },
-    out: { label: "Saídas",   color: "var(--chart-5)" },
+    in:  { label: "Entradas", color: "#22c55e" },
+    out: { label: "Saídas",   color: "#ef4444" },
   };
 
-  // ── Status dos Títulos (donut) ─────────────────────────────────────────────
+  // ── Status dos Títulos (donut por tipo) ──────────────────────────────────────
 
-  const statusCounts = useMemo(() => {
-    const c = { pending: 0, paid: 0, partial: 0, cancelled: 0, reversed: 0 };
-    allTitles.forEach(t => { c[t.status] = (c[t.status] ?? 0) + 1; });
+  const typeCounts = useMemo(() => {
+    const c = {
+      expense_pending: 0, expense_paid: 0, income_pending: 0, income_paid: 0,
+      expense_pending_amt: 0, expense_paid_amt: 0, income_pending_amt: 0, income_paid_amt: 0,
+    };
+    allTitles.forEach(t => {
+      const isPaid = t.status === "paid" || t.status === "partial";
+      if (t.type === "expense") {
+        if (isPaid) { c.expense_paid++; c.expense_paid_amt += t.amount; }
+        else if (t.status === "pending") { c.expense_pending++; c.expense_pending_amt += t.amount; }
+      } else {
+        if (isPaid) { c.income_paid++; c.income_paid_amt += t.amount; }
+        else if (t.status === "pending") { c.income_pending++; c.income_pending_amt += t.amount; }
+      }
+    });
     return c;
   }, [allTitles]);
 
-  const statusData = [
-    { status: "pending",   count: statusCounts.pending,   fill: "var(--color-pending)"   },
-    { status: "paid",      count: statusCounts.paid,       fill: "var(--color-paid)"      },
-    { status: "partial",   count: statusCounts.partial,    fill: "var(--color-partial)"   },
-    { status: "reversed",  count: statusCounts.reversed,   fill: "var(--color-reversed)"  },
-    { status: "cancelled", count: statusCounts.cancelled,  fill: "var(--color-cancelled)" },
-  ].filter(d => d.count > 0);
-
-  const statusConfig: ChartConfig = {
-    count:     { label: "Títulos"      },
-    pending:   { label: "Pendente",     color: "var(--chart-1)" },
-    paid:      { label: "Pago",         color: "var(--chart-2)" },
-    partial:   { label: "Pago Parcial", color: "var(--chart-3)" },
-    reversed:  { label: "Estornado",    color: "var(--chart-4)" },
-    cancelled: { label: "Cancelado",    color: "var(--chart-5)" },
+const statusConfig: ChartConfig = {
+    count:           { label: "Títulos" },
+    expense_pending: { label: "Pagar: Pendente", color: "#ef4444" },
+    expense_paid:    { label: "Pagar: Baixado",  color: "#fca5a5" },
+    income_pending:  { label: "Receber: Pendente", color: "#22c55e" },
+    income_paid:     { label: "Receber: Baixado",  color: "#86efac" },
   };
 
-  const totalTitlesCount = statusData.reduce((s, d) => s + d.count, 0);
 
   // ── Vencidos & A Vencer ───────────────────────────────────────────────────
 
@@ -242,120 +247,176 @@ export function FinDashboardTab() {
           <Card className="col-span-3">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Fluxo de Caixa</CardTitle>
-              <CardDescription className="text-xs">Entradas e saídas dos últimos 6 meses</CardDescription>
+              <CardDescription className="text-xs">Entradas e saídas no período selecionado</CardDescription>
             </CardHeader>
-            <CardContent>
-              <ChartContainer config={cashFlowConfig} className="h-52">
-                <BarChart data={monthlyData} barCategoryGap="30%">
+            <CardContent className="pb-4">
+              <ChartContainer config={cashFlowConfig} className="h-56 w-full">
+                <AreaChart data={monthlyData}>
+                  <defs>
+                    <linearGradient id="gradIn" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05} />
+                    </linearGradient>
+                    <linearGradient id="gradOut" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="month"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={6}
-                  />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={6} />
                   <ChartTooltip
                     cursor={false}
-                    content={
-                      <ChartTooltipContent
-                        indicator="dot"
-                        formatter={(value, name) => (
-                          <div className="flex w-full items-center justify-between gap-3">
-                            <div className="flex items-center gap-1.5">
-                              <div
-                                className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                                style={{ backgroundColor: `var(--color-${name})` }}
-                              />
-                              <span className="text-muted-foreground text-xs">
-                                {cashFlowConfig[name as keyof typeof cashFlowConfig]?.label ?? String(name)}
-                              </span>
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      return (
+                        <div className="rounded-lg border border-border bg-background px-3 py-2 shadow-md text-xs space-y-1 min-w-[160px]">
+                          <p className="font-semibold text-foreground">{label} {payload[0]?.payload?.year}</p>
+                          {payload.map(p => (
+                            <div key={p.dataKey} className="flex justify-between gap-4 text-muted-foreground">
+                              <div className="flex items-center gap-1.5">
+                                <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                                <span>{cashFlowConfig[p.dataKey as keyof typeof cashFlowConfig]?.label}</span>
+                              </div>
+                              <span className="font-medium text-foreground tabular-nums">{fmtBRL(Number(p.value))}</span>
                             </div>
-                            <span className="font-semibold text-xs">{fmtBRL(Number(value))}</span>
-                          </div>
-                        )}
-                      />
-                    }
+                          ))}
+                        </div>
+                      );
+                    }}
                   />
-                  <Bar dataKey="in"  fill="var(--color-in)"  radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="out" fill="var(--color-out)" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  <Area dataKey="in"  type="monotone" stroke="#22c55e" strokeWidth={2} fill="url(#gradIn)"  dot={false} />
+                  <Area dataKey="out" type="monotone" stroke="#ef4444" strokeWidth={2} fill="url(#gradOut)" dot={false} />
+                </AreaChart>
               </ChartContainer>
             </CardContent>
           </Card>
 
-          {/* Status dos Títulos */}
+          {/* Status dos Títulos — dois gauges lado a lado */}
           <Card className="col-span-2">
-            <CardHeader className="items-center pb-0">
+            <CardHeader className="pb-0">
               <CardTitle className="text-sm font-semibold">Status dos Títulos</CardTitle>
               <CardDescription className="text-xs">Distribuição por situação</CardDescription>
             </CardHeader>
-            <CardContent className="pb-0">
-              {totalTitlesCount === 0 ? (
-                <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
-                  Sem títulos cadastrados
-                </div>
-              ) : (
-                <ChartContainer config={statusConfig} className="mx-auto aspect-square max-h-52">
-                  <PieChart>
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value, name) => (
-                            <div className="flex w-full items-center justify-between gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <div
-                                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                                  style={{ backgroundColor: `var(--color-${name})` }}
-                                />
-                                <span className="text-muted-foreground text-xs">
-                                  {statusConfig[name as keyof typeof statusConfig]?.label ?? String(name)}
-                                </span>
-                              </div>
-                              <span className="font-semibold text-xs tabular-nums">{value}</span>
-                            </div>
-                          )}
-                        />
-                      }
-                    />
-                    <ChartLegend content={<ChartLegendContent nameKey="status" />} className="-translate-y-1" />
-                    <Pie
-                      data={statusData}
-                      dataKey="count"
-                      nameKey="status"
-                      innerRadius={52}
-                      cornerRadius={4}
-                      paddingAngle={2}
-                      stroke="var(--background)"
-                      strokeWidth={2}
-                    >
-                      <RechartsLabel
-                        content={({ viewBox }) => {
+            <CardContent className="pb-4">
+              <div className="grid grid-cols-2">
+                {/* Pagar */}
+                <div className="flex flex-col items-center">
+                  <ChartContainer config={statusConfig} className="w-full max-h-96">
+                    <PieChart>
+                      <ChartTooltip cursor={false} content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const key = payload[0].name as string;
+                        const count = payload[0].value as number;
+                        const amt = key === "expense_pending" ? typeCounts.expense_pending_amt : typeCounts.expense_paid_amt;
+                        const label = key === "expense_pending" ? "Pendente" : "Baixado";
+                        return (
+                          <div className="rounded-lg border border-border bg-background px-3 py-2 shadow-md text-xs space-y-1 min-w-[160px]">
+                            <p className="font-semibold text-foreground">Títulos A Pagar</p>
+                            <div className="flex justify-between gap-4 text-muted-foreground"><span>{label}:</span><span className="font-medium text-foreground tabular-nums">{count}</span></div>
+                            <div className="flex justify-between gap-4 text-muted-foreground"><span>Valor:</span><span className="font-medium text-foreground tabular-nums">{fmtBRL(amt)}</span></div>
+                          </div>
+                        );
+                      }} />
+                      <Pie
+                        data={[
+                          { status: "expense_pending", count: typeCounts.expense_pending, fill: "#ef4444" },
+                          { status: "expense_paid",    count: typeCounts.expense_paid,    fill: "#fca5a5" },
+                        ].filter(d => d.count > 0)}
+                        dataKey="count"
+                        nameKey="status"
+                        startAngle={180}
+                        endAngle={0}
+                        cy="75%"
+                        innerRadius={70}
+                        outerRadius={110}
+                        cornerRadius={4}
+                        paddingAngle={2}
+                        stroke="var(--background)"
+                        strokeWidth={2}
+                        isAnimationActive={false}
+                      >
+                        <RechartsLabel content={({ viewBox }) => {
                           if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                            const total = typeCounts.expense_pending + typeCounts.expense_paid;
                             return (
                               <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
-                                <tspan
-                                  x={viewBox.cx}
-                                  y={viewBox.cy}
-                                  className="fill-foreground text-2xl font-bold tabular-nums"
-                                >
-                                  {totalTitlesCount}
-                                </tspan>
-                                <tspan
-                                  x={viewBox.cx}
-                                  y={(viewBox.cy || 0) + 18}
-                                  className="fill-muted-foreground text-xs"
-                                >
-                                  títulos
-                                </tspan>
+                                <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-xl font-bold tabular-nums">{total}</tspan>
+                                <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 16} className="fill-muted-foreground text-xs">a pagar</tspan>
                               </text>
                             );
                           }
-                        }}
-                      />
-                    </Pie>
-                  </PieChart>
-                </ChartContainer>
-              )}
+                        }} />
+                      </Pie>
+                    </PieChart>
+                  </ChartContainer>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center justify-center gap-4">
+                      <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: "#ef4444" }} /><span className="text-xs text-muted-foreground">Pendente</span></div>
+                      <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: "#fca5a5" }} /><span className="text-xs text-muted-foreground">Baixado</span></div>
+                    </div>
+                    <p className="text-sm font-semibold text-red-600 tabular-nums">{fmtBRL(typeCounts.expense_pending_amt + typeCounts.expense_paid_amt)}</p>
+                  </div>
+                </div>
+
+                {/* Receber */}
+                <div className="flex flex-col items-center">
+                  <ChartContainer config={statusConfig} className="w-full max-h-96">
+                    <PieChart>
+                      <ChartTooltip cursor={false} content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const key = payload[0].name as string;
+                        const count = payload[0].value as number;
+                        const amt = key === "income_pending" ? typeCounts.income_pending_amt : typeCounts.income_paid_amt;
+                        const label = key === "income_pending" ? "Pendente" : "Baixado";
+                        return (
+                          <div className="rounded-lg border border-border bg-background px-3 py-2 shadow-md text-xs space-y-1 min-w-[160px]">
+                            <p className="font-semibold text-foreground">Títulos A Receber</p>
+                            <div className="flex justify-between gap-4 text-muted-foreground"><span>{label}:</span><span className="font-medium text-foreground tabular-nums">{count}</span></div>
+                            <div className="flex justify-between gap-4 text-muted-foreground"><span>Valor:</span><span className="font-medium text-foreground tabular-nums">{fmtBRL(amt)}</span></div>
+                          </div>
+                        );
+                      }} />
+                      <Pie
+                        data={[
+                          { status: "income_pending", count: typeCounts.income_pending, fill: "#22c55e" },
+                          { status: "income_paid",    count: typeCounts.income_paid,    fill: "#86efac" },
+                        ].filter(d => d.count > 0)}
+                        dataKey="count"
+                        nameKey="status"
+                        startAngle={180}
+                        endAngle={0}
+                        cy="75%"
+                        innerRadius={70}
+                        outerRadius={110}
+                        isAnimationActive={false}
+                        cornerRadius={4}
+                        paddingAngle={2}
+                        stroke="var(--background)"
+                        strokeWidth={2}
+                      >
+                        <RechartsLabel content={({ viewBox }) => {
+                          if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                            const total = typeCounts.income_pending + typeCounts.income_paid;
+                            return (
+                              <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                                <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-xl font-bold tabular-nums">{total}</tspan>
+                                <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 16} className="fill-muted-foreground text-xs">a receber</tspan>
+                              </text>
+                            );
+                          }
+                        }} />
+                      </Pie>
+                    </PieChart>
+                  </ChartContainer>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center justify-center gap-4">
+                      <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: "#22c55e" }} /><span className="text-xs text-muted-foreground">Pendente</span></div>
+                      <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: "#86efac" }} /><span className="text-xs text-muted-foreground">Baixado</span></div>
+                    </div>
+                    <p className="text-sm font-semibold text-green-600 tabular-nums">{fmtBRL(typeCounts.income_pending_amt + typeCounts.income_paid_amt)}</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -387,13 +448,23 @@ export function FinDashboardTab() {
                       className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{t.invoice_number ?? `#${t.id}`}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">{t.invoice_number ?? `#${t.id}`}</p>
+                          <Badge
+                            variant={t.type === "expense" ? "destructive" : "success"}
+                            appearance="light"
+                            size="sm"
+                            className="shrink-0"
+                          >
+                            {t.type === "expense" ? "Pagar" : "Receber"}
+                          </Badge>
+                        </div>
                         <p className="text-xs text-muted-foreground truncate">{t.people_name ?? "—"}</p>
                       </div>
                       <Badge variant="destructive" appearance="light" size="sm" className="shrink-0 tabular-nums">
                         {fmtDate(t.due_date)}
                       </Badge>
-                      <span className={`text-sm font-semibold tabular-nums shrink-0 ${t.type === "expense" ? "text-red-600" : "text-blue-600"}`}>
+                      <span className={`text-sm font-semibold tabular-nums shrink-0 ${t.type === "expense" ? "text-red-600" : "text-green-600"}`}>
                         {fmtBRL(t.amount)}
                       </span>
                     </div>
@@ -427,13 +498,23 @@ export function FinDashboardTab() {
                       className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{t.invoice_number ?? `#${t.id}`}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">{t.invoice_number ?? `#${t.id}`}</p>
+                          <Badge
+                            variant={t.type === "expense" ? "destructive" : "success"}
+                            appearance="light"
+                            size="sm"
+                            className="shrink-0"
+                          >
+                            {t.type === "expense" ? "Pagar" : "Receber"}
+                          </Badge>
+                        </div>
                         <p className="text-xs text-muted-foreground truncate">{t.people_name ?? "—"}</p>
                       </div>
                       <Badge variant="warning" appearance="light" size="sm" className="shrink-0 tabular-nums">
                         {fmtDate(t.due_date)}
                       </Badge>
-                      <span className={`text-sm font-semibold tabular-nums shrink-0 ${t.type === "expense" ? "text-red-600" : "text-blue-600"}`}>
+                      <span className={`text-sm font-semibold tabular-nums shrink-0 ${t.type === "expense" ? "text-red-600" : "text-green-600"}`}>
                         {fmtBRL(t.amount)}
                       </span>
                     </div>
