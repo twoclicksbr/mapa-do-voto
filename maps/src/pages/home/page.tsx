@@ -973,6 +973,50 @@ export function HomePage() {
   );
 
   useEffect(() => {
+    const FIN_LABELS: Record<string, string> = {
+      'fin-dashboard':            'Dashboard',
+      'fin-banks':                'Bancos',
+      'fin-payment-methods':      'Modalidades',
+      'fin-payment-method-types': 'Tipos de Modalidade',
+      'fin-departments':          'Departamentos',
+      'fin-accounts':             'Plano de Contas',
+      'fin-extract':              'Extrato',
+      'fin-wallet':               'Carteira',
+      'fin-wallets':              'Carteira',
+      'fin-titles-expense':       'A Pagar',
+      'fin-titles-income':        'A Receber',
+    };
+    const SETTINGS_LABELS: Record<string, string> = {
+      'settings-dashboard': 'Dashboard',
+      'type-people':        'Tipos de Pessoa',
+      'type-contact':       'Tipos de Contato',
+      'type-address':       'Tipos de Endereço',
+      'type-document':      'Tipos de Documento',
+      'pessoas':            'Pessoas',
+      'gabinetes':          'Gabinetes',
+      'permission-actions': 'Permissões',
+      'event-types':        'Tipos de Evento',
+      'plans':              'Planos',
+    };
+    let label: string;
+    if (activeTab === 'alerts') {
+      label = FIN_LABELS[finSection] ?? 'Finanças';
+    } else if (activeTab === 'settings') {
+      label = SETTINGS_LABELS[settingsSection] ?? 'Configurações';
+    } else {
+      const TAB_LABELS: Record<string, string> = {
+        overview:  'Mapa',
+        activity:  'Atendimentos',
+        metrics:   'Agenda',
+        reports:   'Alianças',
+        gabinetes: 'Gabinetes',
+      };
+      label = TAB_LABELS[activeTab] ?? 'Mapa';
+    }
+    document.title = `${label} | Mapa do Voto`;
+  }, [activeTab, finSection, settingsSection]);
+
+  useEffect(() => {
     if (!isMaster) return;
     setTenantsLoading(true);
     api.get<Tenant[]>('/tenants')
@@ -2673,7 +2717,7 @@ export function HomePage() {
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 min-h-0 mt-0 flex flex-col">
-          <AppMegaMenu onNavigate={setSettingsSection} activeSection={settingsSection} />
+          <AppMegaMenu onNavigate={setSettingsSection} activeSection={settingsSection} isMaster={isMaster} />
           {settingsSection === 'settings-dashboard' ? (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">

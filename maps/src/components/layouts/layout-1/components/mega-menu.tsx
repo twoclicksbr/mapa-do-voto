@@ -9,6 +9,7 @@ import { MenuItem } from '@/config/types';
 interface MegaMenuProps {
   onNavigate?: (section: string) => void;
   activeSection?: string;
+  menu?: typeof MENU_MEGA;
 }
 
 function hasActiveDescendant(item: MenuItem, activeSection?: string): boolean {
@@ -81,10 +82,11 @@ function PanelItem({ item, onNavigate, activeSection }: { item: MenuItem; onNavi
   );
 }
 
-export function MegaMenu({ onNavigate, activeSection }: MegaMenuProps) {
+export function MegaMenu({ onNavigate, activeSection, menu: menuProp }: MegaMenuProps) {
   const { setActiveTab } = useActiveTab();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const menu = menuProp ?? MENU_MEGA;
 
   const linkClass = 'text-sm font-medium transition-colors';
 
@@ -106,7 +108,7 @@ export function MegaMenu({ onNavigate, activeSection }: MegaMenuProps) {
 
   return (
     <nav className="flex items-center gap-1">
-      {MENU_MEGA.map((item, index) => {
+      {menu.map((item, index) => {
         const hasChildren = item.children && item.children.length > 0;
         const isGabinetes = item.title === 'Gabinetes';
         const isPessoas = item.title === 'Pessoas';
