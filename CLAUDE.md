@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 30/03/2026 (Dashboard Financeiro: AreaChart 12 meses, gauges meia-lua Pagar/Receber, filtro de período externo dateFrom/dateTo, extractDateRange com suporte a rangeStart/rangeEnd para mês/trimestre/semestre/ano, default ano atual) -->
+<!-- Atualizado em: 31/03/2026 (Planos: nova tabela plans + CRUD completo + seletor no modal de criação de gabinete; gabinete-edit-modal reescrito com abas Pessoas/Contatos/Endereços/Documentos/Notas/Arquivos; novas rotas /plans, /tenants/{id}/people, /tenants/{id}/contacts|addresses|documents|notes) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -243,9 +243,12 @@ C:\Herd\mapa-do-voto\
 | `src/components/auth/login-modal-context.tsx` | Contexto global do modal. Escuta o evento `auth:logout` (disparado pelo interceptor 401 do axios) — redefine user/loggedIn e reabre o modal de login |
 | `src/components/layout/active-tab-context.tsx` | Contexto `ActiveTabProvider`/`useActiveTab` — persiste aba ativa no `localStorage` (chave `mapadovoto:activeTab`); default: `overview` |
 | `src/components/gabinetes/gabinetes-data-grid.tsx` | Data grid de tenants: colunas ID, Nome (clicável → `onEdit`), Subdomínio (link externo), Validade (badge com alerta vencimento), Status, Ações (editar/excluir); prop `onEdit` |
-| `src/components/gabinetes/gabinete-create-modal.tsx` | Modal de criação de gabinete com **4 steps** + timeline horizontal: Step 1 Dados Pessoais (name, birth_date, type_people_id, active); Step 2 Acesso (email + senha com indicador de força 5 requisitos + confirmação); Step 3 grid 2 cols: Nome do Gabinete + Candidato (busca em `maps.candidates` via `/map-candidates/search`) / Subdomínio (2/3, check em tempo real) + Validade (1/3, `BirthDatePicker` minYear=hoje maxYear=hoje+10, default hoje+7d) + RadioGroup Plano (Mapa=`has_schema:false` default / Mapa+CRM=`has_schema:true`); Step 4 Candidaturas (multi-select cards via `/map-candidates/{id}/candidacies`). Submit: POST /people → POST /people/{id}/user → POST /tenants (com `name=gabineteName`, `has_schema`) → POST /people/{id}/candidacies. Rollback automático deleta person órfão se passo 2+ falhar. |
+| `src/components/gabinetes/gabinete-create-modal.tsx` | Modal de criação de gabinete com **4 steps** + timeline horizontal: Step 1 Dados Pessoais (name, birth_date, type_people_id, active); Step 2 Acesso (email + senha com indicador de força 5 requisitos + confirmação); Step 3 grid 2 cols: Nome do Gabinete + Candidato (busca em `maps.candidates` via `/map-candidates/search`, dropdown com nav ↑↓ Enter Esc via `candidateHighlight`) / Subdomínio (2/3, check em tempo real) + Validade (1/3, `BirthDatePicker` minYear=hoje maxYear=hoje+10, default hoje+7d) + **Seletor de Plano** (busca `GET /plans`, picker com ícone DatabaseIcon/MapIcon, nome e preço/mês); Step 4 Candidaturas (multi-select cards via `/map-candidates/{id}/candidacies`). Submit: POST /people → POST /people/{id}/user → POST /tenants (com `name=gabineteName`, `has_schema` do plano selecionado) → POST /people/{id}/candidacies. Rollback automático deleta person órfão se passo 2+ falhar. |
 | `src/components/reui/timeline.tsx` | Timeline horizontal customizada (sem shadcn CLI) — componentes: `Timeline`, `TimelineItem`, `TimelineHeader`, `TimelineSeparator`, `TimelineIndicator`, `TimelineTitle`, `TimelineContent`. Usa React context para `value` (step atual) e `orientation`. |
-| `src/components/gabinetes/gabinete-edit-modal.tsx` | Modal de edição de tenant |
+| `src/components/gabinetes/gabinete-edit-modal.tsx` | Modal de edição de tenant — painel esquerdo (logo, dados, forma de edição inline) + painel direito com abas: **Pessoas** (grid lazy com avatar/nome/tipo/status + botão Editar que abre `PeopleModal`; busca `GET /tenants/{id}/people`), **Contatos**, **Endereços** (mapa Leaflet + ViaCEP), **Documentos**, **Notas**, **Arquivos** (`PeopleFilesTab`). Sem aba "Pessoa" singular — substituída pela aba "Pessoas" (plural) em primeiro lugar. |
+| `src/components/plans/plans-data-grid.tsx` | DataGrid de planos com DnD. Interface `Plan`: id, name, description, price_month, price_yearly, price_setup, max_users, has_schema, recommended, order, active, created_at, updated_at. Colunas: ID, Nome, Preço/mês, Anual, Setup, Usuários, Schema (badge), Destaque, Order, Status, Ações. |
+| `src/components/plans/plan-modal.tsx` | Modal criar/editar plano |
+| `src/components/plans/plans-filter-modal.tsx` | Modal de pesquisa avançada de planos — filtros: ID, Nome, Status, Schema (Sim/Não), Período. Exporta `PlansFilterModal`, `PlansFilters` |
 | `src/components/common/app-mega-menu.tsx` | Wrapper reutilizável do MegaMenu do Layout 1 — props: `onNavigate`, `activeSection` (destaca o botão do módulo ativo) |
 | `src/components/people/people-data-grid.tsx` | DataGrid de pessoas: colunas ID, Avatar, Nome (clicável), Aniversário (com ícone `PartyPopper` pulsante no dia), Tipo, Status, Ações. Interface `Person` inclui `created_at?`, `updated_at?`, `deleted_at?`, `contacts[]?`, `documents[]?`, `addresses[]?` (carregados inline pela API) |
 | `src/components/people/people-modal.tsx` | Modal de pessoas: Create (small) + Detail (large 2 painéis). Abas: Geral, Contatos, Endereços, Documentos, Notas, Arquivos, Usuário, Permissões. Aba Endereços: layout 2 colunas com ViaCEP + mapa Leaflet; CEP armazenado como dígitos puros (formatado apenas na exibição). Aba Contatos: quando tipo selecionado for WhatsApp ou qualquer tipo com máscara, salva dígitos puros; exibe WhatsApp com `formatPhoneNumber` (`react-phone-number-input`). Aba Permissões: grid 3 colunas de Frame cards com Checkbox por ação. **Auto-evento de aniversário**: ao criar pessoa com `birth_date` → cria `POST /events` (type Aniversário, modulo='people', all_day=true, recurrence='yearly'); ao editar e alterar `birth_date` → upsert do evento existente ou cria novo. |
@@ -320,7 +323,7 @@ Abas: **Mapa**, **Atendimentos**, **Agenda**, **Alianças**, **Finanças** (íco
 
 Aba **Finanças** exibe `<FinMegaMenu />` acima do conteúdo. Seção ativa persiste em `localStorage` (`mapadovoto:finSection`). Seções disponíveis: **`fin-dashboard`** (renderiza `<FinDashboardTab />`), `fin-banks`, `fin-payment-methods`, `fin-payment-method-types`, `fin-departments`, `fin-accounts`, `fin-extract`, **`fin-wallet`**.
 
-Abas **Gabinetes** e **Configurações** exibem `<AppMegaMenu />` (NavigationMenu do Layout 1) acima do conteúdo. Na aba Configurações, `activeSection={settingsSection}` destaca visualmente o botão do módulo aberto. Seção **`settings-dashboard`** renderiza `<SettingsDashboardTab />`; demais seções: `type-people`, `type-contact`, `type-address`, `type-document`, `pessoas`, `gabinetes`, `permission-actions`, `event-types`.
+Abas **Gabinetes** e **Configurações** exibem `<AppMegaMenu />` (NavigationMenu do Layout 1) acima do conteúdo. Na aba Configurações, `activeSection={settingsSection}` destaca visualmente o botão do módulo aberto. Seção **`settings-dashboard`** renderiza `<SettingsDashboardTab />`; demais seções: `type-people`, `type-contact`, `type-address`, `type-document`, `pessoas`, `gabinetes`, `permission-actions`, `event-types`, **`plans`** (DataGrid de planos com `PlansDataGrid` + `PlanModal` + `PlansFilterModal`).
 
 Quando `isMaster`: exibe dropdown "Gabinete: Master" na toolbar que lista todos os tenants e redireciona para `{slug}.{baseDomain}` ao clicar.
 
@@ -359,11 +362,33 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | Método | Endpoint | Auth | Middleware | Descrição |
 |--------|----------|------|------------|-----------|
 | GET | `/api/tenants` | pública | — | Lista todos os tenants ativos (id, name, slug, active, valid_until) |
+| GET | `/api/plans` | Bearer | — | Lista planos ordenados por order |
+| POST | `/api/plans` | Bearer | — | Cria plano |
+| PUT | `/api/plans/reorder` | Bearer | — | Reordena planos em lote: `[{id, order}]` |
+| PUT | `/api/plans/{id}` | Bearer | — | Atualiza plano |
+| DELETE | `/api/plans/{id}` | Bearer | — | Soft delete do plano |
 | POST | `/api/tenants` | Bearer | — | Cria novo tenant: valida slug único, opcionalmente cria schema PostgreSQL (`has_schema: bool`), aceita `people_id` opcional para vincular person ao tenant |
 | POST | `/api/tenants/{id}/clients` | Bearer | — | Cria tenant filho vinculado a um reseller (`tenant_id = id`); aceita `has_schema` |
 | PUT | `/api/tenants/{id}` | Bearer | — | Atualiza tenant (name, slug, active, valid_until) |
 | GET | `/api/tenants/{id}/person` | Bearer | — | Retorna person do tenant + lista de type_people |
 | POST | `/api/tenants/{id}/person` | Bearer | — | Cria person vinculada ao tenant |
+| GET | `/api/tenants/{id}/people` | Bearer | — | Lista todas as pessoas do tenant (filtradas por `tenant_id`) ordenadas por nome — retorna id, name, birth_date, photo_sm, type_people, active |
+| GET | `/api/tenants/{id}/contacts` | Bearer | — | Lista contatos polimórficos do tenant |
+| POST | `/api/tenants/{id}/contacts` | Bearer | — | Adiciona contato ao tenant |
+| PUT | `/api/tenants/{id}/contacts/{cid}` | Bearer | — | Atualiza contato do tenant |
+| DELETE | `/api/tenants/{id}/contacts/{cid}` | Bearer | — | Remove contato do tenant |
+| GET | `/api/tenants/{id}/addresses` | Bearer | — | Lista endereços do tenant |
+| POST | `/api/tenants/{id}/addresses` | Bearer | — | Adiciona endereço ao tenant |
+| PUT | `/api/tenants/{id}/addresses/{aid}` | Bearer | — | Atualiza endereço do tenant |
+| DELETE | `/api/tenants/{id}/addresses/{aid}` | Bearer | — | Remove endereço do tenant |
+| GET | `/api/tenants/{id}/documents` | Bearer | — | Lista documentos do tenant |
+| POST | `/api/tenants/{id}/documents` | Bearer | — | Adiciona documento ao tenant |
+| PUT | `/api/tenants/{id}/documents/{did}` | Bearer | — | Atualiza documento do tenant |
+| DELETE | `/api/tenants/{id}/documents/{did}` | Bearer | — | Remove documento do tenant |
+| GET | `/api/tenants/{id}/notes` | Bearer | — | Lista notas do tenant |
+| POST | `/api/tenants/{id}/notes` | Bearer | — | Adiciona nota ao tenant |
+| PUT | `/api/tenants/{id}/notes/{nid}` | Bearer | — | Atualiza nota do tenant |
+| DELETE | `/api/tenants/{id}/notes/{nid}` | Bearer | — | Remove nota do tenant |
 | GET | `/api/type-people` | Bearer | — | Lista tipos de pessoa ativos ordenados por order |
 | POST | `/api/type-people` | Bearer | — | Cria tipo de pessoa |
 | PUT | `/api/type-people/{id}` | Bearer | — | Atualiza tipo de pessoa; reordena automaticamente se order duplicado |
@@ -523,6 +548,7 @@ Simplificado e traduzido para PT-BR. Itens: submenu "Gabinete: {nome}" (lista te
 | `gabinete_master.fin_cost_centers` | Rateio de centro de custo por título (id, title_id, department_id, percentage) |
 | `gabinete_master.fin_title_compositions` | Composição entre títulos — rastreia origem/destino de clones e parcelamentos (id, origin_title_id, destination_title_id) |
 | `gabinete_master.fin_bank_balances` | Saldos pontuais de banco (id, fin_bank_id, data date, valor decimal(15,2), timestamps) — usado para calcular saldo atual: último valor + net do extrato após essa data |
+| `gabinete_master.plans` | Planos de assinatura (id, name, description text nullable, price_month decimal(10,2), price_yearly decimal(10,2), price_setup decimal(10,2) default 0, max_users nullable, has_schema boolean default false, recommended boolean default false, order int default 0, active boolean, timestamps, deleted_at) — seeds 5 planos: Mapa (R$0/R$0), Mapa+Gabinete Go (R$299/R$2990), Plus (R$499/R$4990), Pro (R$799/R$7990 — recommended), Enterprise (R$899/R$8990) |
 | `gabinete_master.event_types` | Tipos de evento da agenda (id, name, color varchar, **all_day boolean default false**, order, active, timestamps, deleted_at) — seeds (5): Aniversário (#3fb6ea, all_day=true), Financeiro Pagar (#ec637f, all_day=true), Financeiro Receber (#4fb589, all_day=true), Compromisso (#fbb810), Atendimento (#b665ec) |
 | `gabinete_master.events` | Eventos da agenda (id, **people_id bigint NULL** sem FK, event_type_id FK → event_types, modulo varchar NULL, name, description text NULL, start_at timestamp, end_at timestamp NULL, **all_day boolean default false**, **recurrence varchar default 'none'**, gcal_event_id varchar NULL, active, timestamps, deleted_at) |
 | `gabinete_master.event_people` | Pivot evento ↔ pessoa (id, event_id FK → events cascade delete, people_id bigint sem FK, active, timestamps, deleted_at) — UNIQUE(event_id, people_id) |
@@ -589,6 +615,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 - `FinBankBalance` (`gabinete_master.fin_bank_balances`) — sem SoftDeletes; `$fillable`: `fin_bank_id`, `data`, `valor`; casts: `data` → `date:Y-m-d`, `valor` → `decimal:2`; `belongsTo(FinBank, 'fin_bank_id')`
 - `EventType` (`gabinete_master.event_types`) — com SoftDeletes; `$fillable`: `name`, `color`, `all_day`, `order`, `active`; casts: `all_day`/`active` → `boolean`; boot: auto-order no creating, shiftOrder no updating
 - `Event` (`gabinete_master.events`) — com SoftDeletes; `$fillable`: `people_id`, `event_type_id`, `modulo`, `name`, `description`, `start_at`, `end_at`, `all_day`, `recurrence`, `gcal_event_id`, `active`; casts: `start_at`/`end_at` → `datetime`, `all_day`/`active` → `boolean`; `belongsTo(EventType)`, `belongsTo(People)`, `hasMany(EventPeople)`
+- `Plan` (`gabinete_master.plans`) — com SoftDeletes; `$fillable`: `name`, `description`, `price_month`, `price_yearly`, `price_setup`, `max_users`, `has_schema`, `recommended`, `order`, `active`; casts: preços → `decimal:2`, `has_schema`/`recommended`/`active` → `boolean`; boot: auto-order no creating, shiftOrder no updating
 - `EventPeople` (`gabinete_master.event_people`) — com SoftDeletes; `$fillable`: `event_id`, `people_id`, `active`; cast `active` → `boolean`; `belongsTo(People, 'people_id')`
 - `City` (`maps.cities`), `State` (`maps.states`), `Country` (`maps.countries`), `Zone` (`maps.zones`), `Section` (`maps.sections`), `VotingLocation` (`maps.voting_locations`), `Vote` (`maps.votes`), `Gender` (`maps.genders`)
 
@@ -626,6 +653,7 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `000073` | `gabinete_master` | Cria `event_types` (id, name, color, **all_day boolean default false**, order default 1, active default true, timestamps, deleted_at) — seeds 5 tipos: Aniversário (#3fb6ea, all_day=true)/Financeiro Pagar (#ec637f, all_day=true)/Financeiro Receber (#4fb589, all_day=true)/Compromisso (#fbb810)/Atendimento (#b665ec) |
 | `000074` | `gabinete_master` | Cria `events` (id, **people_id bigint NULL** sem FK, event_type_id FK → event_types, modulo nullable, name, description text nullable, start_at, end_at nullable, **all_day boolean default false**, **recurrence varchar default 'none'**, gcal_event_id nullable, active, timestamps, deleted_at) — seed: evento de aniversário de Alex |
 | `000075` | `gabinete_master` | Cria `event_people` (id, event_id FK → events cascade delete, people_id bigint sem FK, active, timestamps, deleted_at) — UNIQUE(event_id, people_id) |
+| `000076` | `gabinete_master` | Cria `plans` (id, name, description nullable, price_month/yearly/setup decimal(10,2), max_users nullable, has_schema bool, recommended bool, order int, active bool, timestamps, deleted_at) — seeds 5 planos: Mapa (R$0), Mapa+Gabinete Go/Plus/Pro/Enterprise |
 | `000101`–`000121` | `maps` | schema, countries, states, cities, zones, voting_locations, sections, genders, candidates, parties, candidacies, votes (inclui índices), tse_votacao_secao (2008–2024 — 9 tabelas de staging, estrutura criada para todos os anos) |
 
 **Observações sobre migrations:**
@@ -640,7 +668,8 @@ Todos os models têm `$table` explícito com schema qualificado.
 | `api/bootstrap/app.php` | Registro do alias `tenant` → `TenantMiddleware` |
 | `api/app/Http/Middleware/TenantMiddleware.php` | Middleware de identificação de tenant por subdomínio |
 | `api/app/Http/Controllers/Auth/AuthController.php` | Login, logout, me — resposta inclui `photo_original/md/sm` via `formatUser()` + `PeopleAvatarController::avatarUrls()` |
-| `api/app/Http/Controllers/TenantController.php` | `index`, `store`, `update`, `person`, `storePerson`, `storeClient`. `store()` aceita `people_id` opcional (vincula person ao tenant via `tenant_id`) e `has_schema` (cria schema PostgreSQL apenas se true). `index()` retorna `tenant_id` na listagem. |
+| `api/app/Http/Controllers/TenantController.php` | `index`, `store`, `update`, `person`, `storePerson`, `storeClient`, `people`. `store()` aceita `people_id` opcional (vincula person ao tenant via `tenant_id`) e `has_schema` (cria schema PostgreSQL apenas se true). `index()` retorna `tenant_id` na listagem. `people(int $id)` lista pessoas filtradas por `tenant_id`, retorna avatarUrls via `PeopleAvatarController::avatarUrls()`. |
+| `api/app/Http/Controllers/PlanController.php` | CRUD de planos — `index` (orderBy order), `store`, `update`, `destroy`, `reorder` (lote `[{id,order}]`); `format()` retorna todos os campos incluindo `created_at`, `updated_at` |
 | `api/app/Http/Controllers/TypePeopleController.php` | `index`, `store`, `update`, `destroy`; `format()` retorna `created_at`, `updated_at` |
 | `api/app/Http/Requests/TypePeopleRequest.php` | Validação: name `sometimes` no update (permite PUT só com `order`), unique, order min:1, active |
 | `api/app/Http/Controllers/PeopleController.php` | `index`, `store`, `update`, `destroy` — retorna birth_date, photo_path, photo_original/md/sm, type_people, `created_at`, `updated_at`, `deleted_at`, **`addresses[]`** (cep, logradouro, numero, bairro, cidade, uf + type_address), **`documents[]`** (value + type_document com mask), **`contacts[]`** (value + type_contact com mask) — eager-loaded no index |

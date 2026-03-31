@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\PeopleAvatarController;
 use App\Models\People;
 use App\Models\PeopleCandidacy;
 use App\Models\Tenant;
@@ -87,6 +88,24 @@ class TenantController extends Controller
             'person'      => $person,
             'type_people' => $typePeople,
         ]);
+    }
+
+    public function people(int $id)
+    {
+        $people = People::with(['typePeople:id,name'])
+            ->where('tenant_id', $id)
+            ->orderBy('name')
+            ->get(['id', 'type_people_id', 'name', 'birth_date', 'photo_path', 'active']);
+
+        return response()->json($people->map(fn ($p) => array_merge([
+            'id'             => $p->id,
+            'name'           => $p->name,
+            'birth_date'     => $p->birth_date?->format('Y-m-d'),
+            'photo_path'     => $p->photo_path,
+            'type_people_id' => $p->type_people_id,
+            'type_people'    => $p->typePeople ? ['id' => $p->typePeople->id, 'name' => $p->typePeople->name] : null,
+            'active'         => $p->active,
+        ], PeopleAvatarController::avatarUrls($p->photo_path)))->values());
     }
 
     public function storePerson(Request $request, int $id)

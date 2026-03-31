@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { AlertTriangleIcon, CircleCheckIcon, InfoIcon, Eye, EyeOff, CheckIcon, PlayIcon, CircleIcon, MapIcon, DatabaseIcon } from "lucide-react";
+import { AlertTriangleIcon, CircleCheckIcon, InfoIcon, Eye, EyeOff, CheckIcon, PlayIcon, CircleIcon, MapIcon, DatabaseIcon, ChevronDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
 import { BirthDatePicker } from "@/components/people/birth-date-picker";
 import {
@@ -44,6 +43,18 @@ interface Tenant {
 interface TypePeople {
   id: number;
   name: string;
+}
+
+interface Plan {
+  id: number;
+  name: string;
+  description?: string | null;
+  price_month: number;
+  price_yearly: number;
+  price_setup: number;
+  max_users?: number | null;
+  has_schema: boolean;
+  recommended: boolean;
 }
 
 interface MapCandidate {
@@ -102,12 +113,15 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
 
   // Step 3 — Gabinete + Candidato + Subdomínio
   const [gabineteName, setGabineteName] = useState("");
-  const [hasSchema, setHasSchema] = useState(false);
+  const [plans,          setPlans]          = useState<Plan[]>([]);
+  const [selectedPlan,   setSelectedPlan]   = useState<string>("");
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<MapCandidate | null>(null);
   const [candidateQuery, setCandidateQuery] = useState("");
   const [candidateResults, setCandidateResults] = useState<MapCandidate[]>([]);
   const [candidateLoading, setCandidateLoading] = useState(false);
   const [candidateOpen, setCandidateOpen] = useState(false);
+  const [candidateHighlight, setCandidateHighlight] = useState(-1);
   const candidateDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const candidateRef = useRef<HTMLDivElement>(null);
   const [slug, setSlug] = useState("");
@@ -136,7 +150,7 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
     setPassword("");
     setPasswordConfirmation("");
     setGabineteName("");
-    setHasSchema(false);
+    setSelectedPlan("");
     setSelectedCandidate(null);
     setCandidateQuery("");
     setCandidateResults([]);
@@ -157,6 +171,10 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
   useEffect(() => {
     if (!open) return;
     api.get<TypePeople[]>("/type-people").then((res) => setTypePeople(res.data)).catch(() => {});
+    api.get<Plan[]>("/plans").then((res) => {
+      setPlans(res.data);
+      if (res.data.length > 0) setSelectedPlan(String(res.data[0].id));
+    }).catch((err) => console.error("[GabinetCreateModal] /plans error:", err));
   }, [open]);
 
   const slugTaken = slug.length > 0 && existingSlugs.includes(slug);
@@ -167,7 +185,7 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
     setCandidateLoading(true);
     setCandidateOpen(true);
     api.get<MapCandidate[]>("/map-candidates/search", { params: { q } })
-      .then((res) => setCandidateResults(res.data))
+      .then((res) => { setCandidateResults(res.data); setCandidateHighlight(-1); })
       .finally(() => setCandidateLoading(false));
   }, []);
 
@@ -181,15 +199,6 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
     setSelectedCandidate(c);
     setCandidateOpen(false);
     setCandidateQuery("");
-    if (!slugManual) {
-      const next = toSlug(c.name);
-      setSlug(next);
-      if (next.length > 0) {
-        setSlugChecking(true);
-        if (slugDebounce.current) clearTimeout(slugDebounce.current);
-        slugDebounce.current = setTimeout(() => setSlugChecking(false), 600);
-      }
-    }
   };
 
   useEffect(() => {
@@ -453,7 +462,20 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
                     <Input
                       id="gabinete-name"
                       value={gabineteName}
-                      onChange={(e) => setGabineteName(e.target.value)}
+                      onChange={(e) => {
+                        setGabineteName(e.target.value);
+                        if (!slugManual) {
+                          const next = toSlug(e.target.value);
+                          setSlug(next);
+                          if (next.length > 0) {
+                            setSlugChecking(true);
+                            if (slugDebounce.current) clearTimeout(slugDebounce.current);
+                            slugDebounce.current = setTimeout(() => setSlugChecking(false), 600);
+                          } else {
+                            setSlugChecking(false);
+                          }
+                        }
+                      }}
                       placeholder="Ex: Gabinete Neto Bota"
                       autoFocus
                     />
@@ -486,6 +508,21 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
                           onChange={(e) => handleCandidateQueryChange(e.target.value)}
                           placeholder="Digite o nome do candidato..."
                           autoComplete="off"
+                          onKeyDown={(e) => {
+                            if (!candidateOpen || candidateResults.length === 0) return;
+                            if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setCandidateHighlight((h) => Math.min(h + 1, candidateResults.length - 1));
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setCandidateHighlight((h) => Math.max(h - 1, 0));
+                            } else if (e.key === "Enter" && candidateHighlight >= 0) {
+                              e.preventDefault();
+                              handleCandidateSelect(candidateResults[candidateHighlight]);
+                            } else if (e.key === "Escape") {
+                              setCandidateOpen(false);
+                            }
+                          }}
                         />
                       )}
                       {candidateOpen && (
@@ -495,12 +532,13 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
                           ) : candidateResults.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-muted-foreground">Nenhum candidato encontrado.</div>
                           ) : (
-                            candidateResults.map((c) => (
+                            candidateResults.map((c, idx) => (
                               <button
                                 key={c.id}
                                 type="button"
                                 onMouseDown={(e) => { e.preventDefault(); handleCandidateSelect(c); }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted transition-colors"
+                                onMouseEnter={() => setCandidateHighlight(idx)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${idx === candidateHighlight ? "bg-muted" : "hover:bg-muted"}`}
                               >
                                 {c.photo_url ? (
                                   <img src={c.photo_url} className="size-8 rounded-full object-cover shrink-0" />
@@ -567,45 +605,91 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
                 </div>
 
                 {/* Plano */}
-                <div className="space-y-1.5">
-                  <Label>Plano</Label>
-                  <RadioGroup
-                    value={hasSchema ? "crm" : "mapa"}
-                    onValueChange={(v) => setHasSchema(v === "crm")}
-                    className="grid grid-cols-2 gap-3"
-                  >
-                    {[
-                      { value: "mapa", title: "Mapa", description: "Visualização de votos e heatmap eleitoral.", Icon: MapIcon },
-                      { value: "crm", title: "Mapa + CRM", description: "Mapa completo + gestão de pessoas e atendimentos.", Icon: DatabaseIcon },
-                    ].map(({ value, title, description, Icon }) => (
-                      <label
-                        key={value}
-                        htmlFor={`plan-${value}`}
-                        className={`flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
-                          (hasSchema ? "crm" : "mapa") === value
-                            ? "border-primary bg-primary/5"
-                            : "border-input hover:border-muted-foreground/40"
-                        }`}
+                {(() => {
+                  const activePlan = plans.find((p) => String(p.id) === selectedPlan);
+                  const fmtBRL = (v: number) => parseFloat(String(v)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+                  return (
+                    <div className="space-y-1.5">
+                      <Label>Plano <span className="text-destructive">*</span></Label>
+                      <button
+                        type="button"
+                        onClick={() => setPlanPickerOpen(true)}
+                        className="w-full flex items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs hover:border-muted-foreground/40 transition-colors"
                       >
-                        <RadioGroupItem value={value} id={`plan-${value}`} className="mt-0.5 shrink-0" />
-                        <Field orientation="horizontal" className="gap-0">
-                          <FieldContent className="gap-0.5">
-                            <FieldTitle className="flex items-center gap-1.5 text-sm font-medium">
-                              <Icon className="size-3.5 text-muted-foreground" />
-                              {title}
-                            </FieldTitle>
-                            <FieldDescription className="text-xs">{description}</FieldDescription>
-                          </FieldContent>
-                        </Field>
-                      </label>
-                    ))}
-                  </RadioGroup>
-                </div>
+                        {activePlan ? (
+                          <span className="flex items-center gap-2">
+                            {activePlan.has_schema ? <DatabaseIcon className="size-3.5 text-muted-foreground shrink-0" /> : <MapIcon className="size-3.5 text-muted-foreground shrink-0" />}
+                            <span className="font-medium">{activePlan.name}</span>
+                            {activePlan.price_month > 0 && (
+                              <span className="text-muted-foreground text-xs">{fmtBRL(activePlan.price_month)}/mês</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Selecione um plano...</span>
+                        )}
+                        <ChevronDown className="size-4 text-muted-foreground shrink-0" />
+                      </button>
+
+                      {/* Picker de planos */}
+                      <Dialog open={planPickerOpen} onOpenChange={setPlanPickerOpen}>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Selecionar Plano</DialogTitle>
+                          </DialogHeader>
+                          <DialogBody>
+                            <div className="grid grid-cols-2 gap-3">
+                              {plans.map((plan) => {
+                                const Icon = plan.has_schema ? DatabaseIcon : MapIcon;
+                                const val = String(plan.id);
+                                const isSelected = selectedPlan === val;
+                                return (
+                                  <button
+                                    key={plan.id}
+                                    type="button"
+                                    onClick={() => { setSelectedPlan(val); setPlanPickerOpen(false); }}
+                                    className={`relative flex items-start gap-3 rounded-lg border px-4 py-3 text-left cursor-pointer transition-colors w-full ${
+                                      isSelected ? "border-primary bg-primary/5" : "border-input hover:border-muted-foreground/40"
+                                    }`}
+                                  >
+                                    {plan.recommended && (
+                                      <span className="absolute top-2 right-2 text-[10px] font-semibold text-primary bg-primary/10 rounded px-1.5 py-0.5">
+                                        Recomendado
+                                      </span>
+                                    )}
+                                    {isSelected && <CheckIcon className="absolute bottom-2 right-2 size-3.5 text-primary" />}
+                                    <Icon className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+                                    <div className="space-y-0.5 min-w-0">
+                                      <p className="text-sm font-medium leading-none">{plan.name}</p>
+                                      {plan.description && (
+                                        <p className="text-xs text-muted-foreground whitespace-pre-line">{plan.description}</p>
+                                      )}
+                                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1">
+                                        {plan.price_setup > 0 && (
+                                          <p className="text-xs text-muted-foreground">Setup: <span className="font-semibold text-foreground">{fmtBRL(plan.price_setup)}</span></p>
+                                        )}
+                                        {plan.price_month > 0 && (
+                                          <p className="text-xs text-muted-foreground">Mensal: <span className="font-semibold text-foreground">{fmtBRL(plan.price_month)}</span></p>
+                                        )}
+                                        {plan.max_users != null && (
+                                          <p className="text-xs text-muted-foreground">Até <span className="font-semibold text-foreground">{plan.max_users}</span> usuário{Number(plan.max_users) !== 1 ? "s" : ""}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </DialogBody>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  );
+                })()}
 
               </div>
             </DialogBody>
 
-            <DialogFooter className="mt-5">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setStep(2)}>
                 Voltar
               </Button>
@@ -742,7 +826,8 @@ export function GabinetCreateModal({ open, onClose, onCreated, existingSlugs }: 
                     const tenantRes = await api.post("/tenants", {
                       name: gabineteName,
                       slug,
-                      has_schema: hasSchema,
+                      has_schema: plans.find((p) => String(p.id) === selectedPlan)?.has_schema ?? false,
+                      plan_id: selectedPlan ? Number(selectedPlan) : null,
                       active: true,
                       valid_until: validUntil,
                       people_id: personId,

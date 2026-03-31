@@ -13,6 +13,7 @@ export const MENU_MEGA: MenuConfig = [
         icon: Users,
         children: [
           { title: 'Tipo de Pessoas', section: 'type-people', icon: BookmarkCheck },
+      { title: 'Planos', section: 'plans', icon: BookmarkCheck },
         ],
       },
       {

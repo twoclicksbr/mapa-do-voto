@@ -2,7 +2,7 @@
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md -->
 > Documentação completa do banco de dados PostgreSQL 17.
 > Banco: `cm_politico` | Usuário: `mapadovoto`
-> Atualizado em: 29/03/2026 (fin_wallets redesign ledger; event_types/events all_day+recurrence; seeds bancários ampliados)
+> Atualizado em: 31/03/2026 (plans: nova tabela de planos de assinatura com seeds; gabinete-edit-modal: sub-recursos de tenant via TenantContact/Address/Document/NoteController; /tenants/{id}/people)
 
 ---
 
@@ -737,6 +737,30 @@ Pivot entre eventos e pessoas convidadas. Migração `000075`.
 | `deleted_at` | timestamp | NULL | Soft delete |
 
 **Índice único:** `(event_id, people_id)`.
+
+---
+
+### `gabinete_master.plans`
+Planos de assinatura disponíveis para os gabinetes. Migração `000076`.
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `name` | varchar | NOT NULL | Nome do plano |
+| `description` | text | NULL | Descrição |
+| `price_month` | decimal(10,2) | NOT NULL | Preço mensal |
+| `price_yearly` | decimal(10,2) | NOT NULL | Preço anual |
+| `price_setup` | decimal(10,2) | NOT NULL | Taxa de setup (default 6000) |
+| `max_users` | int unsigned | NULL | Limite de usuários (null = ilimitado) |
+| `has_schema` | boolean | NOT NULL | Inclui schema de gabinete (CRM) |
+| `recommended` | boolean | NOT NULL | Plano em destaque |
+| `order` | integer | NOT NULL | Ordem de exibição (auto-incremento) |
+| `active` | boolean | NOT NULL | Ativo |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Seeds iniciais:** Mapa (R$0/R$0, has_schema=false), Mapa+Gabinete Go (R$299/R$2990), Plus (R$499/R$4990), Pro (R$799/R$7990, recommended=true), Enterprise (R$899/R$8990, max_users=null).
 
 ---
 

@@ -82,6 +82,9 @@ import { AgendaTab } from "@/components/agenda/agenda-tab";
 import { EventTypesDataGrid, EventType } from "@/components/event-types/event-types-data-grid";
 import { EventTypesModal } from "@/components/event-types/event-types-modal";
 import { EventTypesFilterModal, EventTypesFilters } from "@/components/event-types/event-types-filter-modal";
+import { PlansDataGrid, Plan } from "@/components/plans/plans-data-grid";
+import { PlanModal } from "@/components/plans/plan-modal";
+import { PlansFilterModal, PlansFilters } from "@/components/plans/plans-filter-modal";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Home': Home,
@@ -96,6 +99,7 @@ const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Endereços': MapPin,
   'Tipo de Endereço': BookmarkCheck,
   'Tipo de Pessoas': BookmarkCheck,
+  'Planos': BookmarkCheck,
   'Permissões': ShieldCheck,
   'Configurações': Settings,
   'Dashboard': LayoutDashboard,
@@ -281,6 +285,14 @@ export function HomePage() {
 
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [eventTypesLoading, setEventTypesLoading] = useState(false);
+
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansSelected, setPlansSelected] = useState(0);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [plansFilterOpen, setPlansFilterOpen] = useState(false);
+  const [plansFilters, setPlansFilters] = useState<PlansFilters>({});
   const [eventTypesSelected, setEventTypesSelected] = useState(0);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState<EventType | null>(null);
@@ -728,6 +740,42 @@ export function HomePage() {
     return chips;
   };
 
+  const applyPlansFilters = (list: Plan[], f: PlansFilters) => list.filter((p) => {
+    if (f.filterId   && !String(p.id).includes(f.filterId))                         return false;
+    if (f.filterName && !p.name.toLowerCase().includes(f.filterName.toLowerCase())) return false;
+    if (f.status?.length) {
+      const wantActive   = f.status.includes("active");
+      const wantInactive = f.status.includes("inactive");
+      if (wantActive && !wantInactive && !p.active)  return false;
+      if (!wantActive && wantInactive && p.active)   return false;
+    }
+    if (f.hasSchema !== null && f.hasSchema !== undefined && p.has_schema !== f.hasSchema) return false;
+    if (f.dateValue && f.dateField) {
+      const raw = (p as Record<string, unknown>)[f.dateField] as string | null;
+      if (raw) {
+        const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
+        const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (!matchesDateFilter(dDay, f.dateValue)) return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredPlans = useMemo(() => applyPlansFilters(plans, plansFilters), [plans, plansFilters]);
+
+  const countPlansFilters = (f: PlansFilters) =>
+    [f.filterId, f.filterName, f.status?.length, f.hasSchema !== null && f.hasSchema !== undefined, f.dateValue].filter(Boolean).length;
+
+  const getPlansFilterChips = (f: PlansFilters, setF: (v: PlansFilters) => void) => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (f.filterId)   chips.push({ key: 'id',   label: `ID: ${f.filterId}`,     onRemove: () => setF({ ...f, filterId: undefined }) });
+    if (f.filterName) chips.push({ key: 'name', label: `Nome: ${f.filterName}`, onRemove: () => setF({ ...f, filterName: undefined }) });
+    f.status?.forEach(s => chips.push({ key: `status_${s}`, label: `Status: ${s === "active" ? "Ativo" : "Inativo"}`, onRemove: () => setF({ ...f, status: f.status!.filter(x => x !== s) }) }));
+    if (f.hasSchema !== null && f.hasSchema !== undefined) chips.push({ key: 'schema', label: `CRM: ${f.hasSchema ? "Sim" : "Não"}`, onRemove: () => setF({ ...f, hasSchema: null }) });
+    if (f.dateField && f.dateValue) chips.push({ key: 'date', label: `${({ created_at: "Criado em", updated_at: "Editado em" })[f.dateField] ?? f.dateField}: ${formatDateValue(f.dateValue, undefined, "dd/MM/yyyy")}`, onRemove: () => setF({ ...f, dateValue: undefined }) });
+    return chips;
+  };
+
   const [finSection, setFinSectionState] = useState<string>(
     () => localStorage.getItem('mapadovoto:finSection') ?? 'fin-dashboard'
   );
@@ -937,6 +985,14 @@ export function HomePage() {
 
   useEffect(() => {
     if (!isMaster || !loggedIn) return;
+    setPlansLoading(true);
+    api.get<Plan[]>('/plans')
+      .then(res => setPlans(res.data))
+      .finally(() => setPlansLoading(false));
+  }, [isMaster, loggedIn]);
+
+  useEffect(() => {
+    if (!isMaster || !loggedIn) return;
     setTypeContactsLoading(true);
     api.get<TypeContact[]>('/type-contacts')
       .then(res => setTypeContacts(res.data))
@@ -987,6 +1043,17 @@ export function HomePage() {
   const handleTypePeopleDelete = async (id: number) => {
     await api.delete(`/type-people/${id}`);
     setTypePeople(prev => prev.filter(tp => tp.id !== id));
+  };
+
+  const handlePlansReorder = async (id: number, newOrder: number) => {
+    await api.put(`/plans/${id}`, { order: newOrder });
+    const res = await api.get<Plan[]>('/plans');
+    setPlans(res.data);
+  };
+
+  const handlePlansDelete = async (id: number) => {
+    await api.delete(`/plans/${id}`);
+    setPlans(prev => prev.filter(p => p.id !== id));
   };
 
   const handleTypeContactsReorder = async (id: number, newOrder: number) => {
@@ -1716,6 +1783,25 @@ export function HomePage() {
         filters={typePeopleFilters}
         onClose={() => setTypePeopleFilterOpen(false)}
         onApply={(f) => setTypePeopleFilters(f)}
+      />
+      <PlanModal
+        open={planModalOpen || !!editingPlan}
+        plan={editingPlan}
+        onClose={() => { setPlanModalOpen(false); setEditingPlan(null); }}
+        onSaved={(saved) => {
+          setPlans(prev => {
+            const idx = prev.findIndex(p => p.id === saved.id);
+            return idx >= 0 ? prev.map(p => p.id === saved.id ? saved : p) : [...prev, saved];
+          });
+          setPlanModalOpen(false);
+          setEditingPlan(null);
+        }}
+      />
+      <PlansFilterModal
+        open={plansFilterOpen}
+        filters={plansFilters}
+        onClose={() => setPlansFilterOpen(false)}
+        onApply={(f) => setPlansFilters(f)}
       />
       <TypeContactsFilterModal
         open={typeContactsFilterOpen}
@@ -2656,6 +2742,73 @@ export function HomePage() {
                   onEdit={(tp) => setEditingTypePeople(tp)}
                   onDelete={handleTypePeopleDelete}
                   onReorder={handleTypePeopleReorder}
+                />
+              </div>
+              <PageFooter />
+            </div>
+          ) : settingsSection === 'plans' ? (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5" />Planos <Badge variant="success" appearance="light" size="md">{formatRecordCount(plans.length)}</Badge></h2>
+                  <SectionBreadcrumb items={['Home', 'Cadastros', 'Planos']} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {plansSelected > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700">
+                          Ações em massa ({plansSelected}) <ChevronDown className="size-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Status</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem><Badge variant="success" appearance="light" size="sm">Ativar</Badge></DropdownMenuItem>
+                            <DropdownMenuItem><Badge variant="destructive" appearance="light" size="sm">Inativar</Badge></DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => setPlansFilterOpen(true)}>
+                        <Search className="size-4 mr-2" />
+                        Pesquisar
+                        {countPlansFilters(plansFilters) > 0 && (
+                          <Badge variant="primary" appearance="light" size="sm" className="ml-1.5">
+                            {countPlansFilters(plansFilters)}
+                          </Badge>
+                        )}
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => setPlanModalOpen(true)}>
+                        <Plus className="size-4 mr-2" />
+                        Novo Registro
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {(() => { const chips = getPlansFilterChips(plansFilters, setPlansFilters); return chips.length > 0 && (
+                <div className="px-6 py-2 border-b border-border flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground">Filtros:</span>
+                  {chips.map(chip => (
+                    <span key={chip.key} className="inline-flex items-center gap-1 bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {chip.label}
+                      <button onClick={chip.onRemove} className="hover:opacity-70"><X className="size-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              ); })()}
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
+                <PlansDataGrid
+                  plans={filteredPlans}
+                  isLoading={plansLoading}
+                  onSelectionChange={setPlansSelected}
+                  onEdit={(p) => setEditingPlan(p)}
+                  onDelete={handlePlansDelete}
+                  onReorder={handlePlansReorder}
                 />
               </div>
               <PageFooter />
