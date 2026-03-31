@@ -342,6 +342,12 @@ function injectDiaLabel(wrapper: HTMLElement | null) {
   frame.appendChild(span);
 }
 
+interface CalendarPerson {
+  id: number;
+  name: string;
+  birth_date: string | null;
+}
+
 export function AgendaTab() {
   const calendarRef = useRef<FullCalendar>(null);
   const wrapperRef  = useRef<HTMLDivElement>(null);
@@ -349,22 +355,28 @@ export function AgendaTab() {
   const [selectedFinTitle, setSelectedFinTitle] = useState<FinTitleEvent | null>(null);
   const [todayEvents,      setTodayEvents]      = useState<AgendaEvent[]>([]);
   const [eventTypes,       setEventTypes]       = useState<EventType[]>([]);
+  const [calendarPeople,   setCalendarPeople]   = useState<CalendarPerson[]>([]);
   const [currentView,   setCurrentView]   = useState("dayGridMonth");
   const [eventModalOpen,    setEventModalOpen]    = useState(false);
   const [editingEvent,      setEditingEvent]      = useState<AgendaEventFull | null>(null);
   const [clickedDate,       setClickedDate]       = useState<{ date: string; time?: string; allDay?: boolean } | null>(null);
 
-  // Load sidebar data once
+  // Load sidebar data + event types + people once
   useEffect(() => {
     const today = todayIso();
     api
       .get<AgendaEvent[]>("/events", { params: { start_from: `${today}T00:00:00`, start_to: `${today}T23:59:59` } })
-      .then((r) => setTodayEvents(r.data))
+      .then((r) => setTodayEvents(r.data.filter(ev => ev.modulo !== "people")))
       .catch(() => {});
 
     api
       .get<EventType[]>("/event-types")
       .then((r) => setEventTypes(r.data))
+      .catch(() => {});
+
+    api
+      .get<CalendarPerson[]>("/people")
+      .then((r) => setCalendarPeople(r.data))
       .catch(() => {});
   }, []);
 
@@ -390,7 +402,8 @@ export function AgendaTab() {
           }),
         ]);
 
-        const regularEvents = eventsRes.data.map((ev) => {
+        // Exclude events stored with modulo='people' (old birthday records) — birthdays now generated dynamically
+        const regularEvents = eventsRes.data.filter(ev => ev.modulo !== "people").map((ev) => {
           const color = ev.event_type?.color ?? "#6b7280";
           return {
             id:              String((ev as AgendaEvent & { _fc_id?: string })._fc_id ?? ev.id),
@@ -420,18 +433,59 @@ export function AgendaTab() {
           };
         });
 
-        successCallback([...regularEvents, ...titleEvents]);
+        // Generate birthday events dynamically from people.birth_date
+        const birthdayType = eventTypes.find(t => t.name.toLowerCase().includes("anivers"));
+        const bdColor = birthdayType?.color ?? "#3fb6ea";
+        const rangeFrom = new Date(dateFrom + "T00:00:00");
+        const rangeTo   = new Date(dateTo   + "T00:00:00");
+        const birthdayEvents: object[] = [];
+        for (const person of calendarPeople) {
+          if (!person.birth_date) continue;
+          const [, bdMonth, bdDay] = person.birth_date.split("-");
+          const yearStart = rangeFrom.getFullYear();
+          const yearEnd   = rangeTo.getFullYear();
+          for (let year = yearStart; year <= yearEnd; year++) {
+            const dateStr = `${year}-${bdMonth}-${bdDay}`;
+            const d = new Date(dateStr + "T00:00:00");
+            if (d >= rangeFrom && d <= rangeTo) {
+              birthdayEvents.push({
+                id:              `birthday-${person.id}-${year}`,
+                title:           `Aniversário de ${person.name}`,
+                start:           dateStr,
+                allDay:          true,
+                backgroundColor: hexToRgba(bdColor, 0.15),
+                borderColor:     bdColor,
+                textColor:       bdColor,
+                extendedProps: {
+                  _type:      "birthday",
+                  id:         person.id,
+                  name:       `Aniversário de ${person.name}`,
+                  event_type: birthdayType ?? null,
+                  people_name: person.name,
+                  start_at:   dateStr + "T00:00:00",
+                  end_at:     null,
+                  all_day:    true,
+                  modulo:     "people",
+                  description: null,
+                  active:     true,
+                },
+              });
+            }
+          }
+        }
+
+        successCallback([...regularEvents, ...titleEvents, ...birthdayEvents]);
 
         // Sync sidebar: if fetched range includes today, filter from already-fetched data
         const todayStr = todayIso();
         if (info.startStr.slice(0, 10) <= todayStr && info.endStr.slice(0, 10) > todayStr) {
-          setTodayEvents(eventsRes.data.filter(ev => ev.start_at.slice(0, 10) === todayStr));
+          setTodayEvents(eventsRes.data.filter(ev => ev.modulo !== "people" && ev.start_at.slice(0, 10) === todayStr));
         }
       } catch (err) {
         failureCallback(err as Error);
       }
     },
-    [finPayColor, finReceiveColor]
+    [finPayColor, finReceiveColor, eventTypes, calendarPeople]
   );
 
   const handleEventClick = useCallback((arg: EventClickArg) => {

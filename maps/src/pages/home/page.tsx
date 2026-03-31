@@ -5,7 +5,7 @@ import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, Wallet, X, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, Wallet, X, CircleStar, MonitorCloud, LandPlot, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
@@ -99,7 +99,7 @@ const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Endereços': MapPin,
   'Tipo de Endereço': BookmarkCheck,
   'Tipo de Pessoas': BookmarkCheck,
-  'Planos': BookmarkCheck,
+  'Planos': LandPlot,
   'Permissões': ShieldCheck,
   'Configurações': Settings,
   'Dashboard': LayoutDashboard,
@@ -157,10 +157,15 @@ function getBaseDomain(): string {
 
 interface Tenant {
   id: number;
+  tenant_id?: number | null;
+  plan_id?: number | null;
   name: string;
   slug: string;
   active: boolean;
   valid_until: string;
+  logo_original?: string | null;
+  logo_md?: string | null;
+  logo_sm?: string | null;
 }
 
 const DATE_I18N: DateSelectorI18nConfig = {
@@ -1104,11 +1109,12 @@ export function HomePage() {
 
   useEffect(() => {
     if (!loggedIn) return;
+    if (activeTab !== 'pessoas' && settingsSection !== 'pessoas') return;
     setPeopleLoading(true);
     api.get<Person[]>('/people')
       .then(res => setPeople(res.data))
       .finally(() => setPeopleLoading(false));
-  }, [loggedIn]);
+  }, [loggedIn, activeTab, settingsSection]);
 
   const handlePeopleDelete = async (id: number) => {
     await api.delete(`/people/${id}`);
@@ -1895,10 +1901,10 @@ export function HomePage() {
                   </span>
                 )}
                 <TabsList size="xs">
-                  <TabsTrigger value="overview">Mapa</TabsTrigger>
-                  <TabsTrigger value="activity">Atendimentos</TabsTrigger>
+                  <TabsTrigger value="overview"><MapPinned className="size-3.5" />Mapa</TabsTrigger>
+                  <TabsTrigger value="activity"><MonitorCloud className="size-3.5" />Atendimentos</TabsTrigger>
                   <TabsTrigger value="metrics"><CalendarDays className="size-3.5" />Agenda</TabsTrigger>
-                  <TabsTrigger value="reports">Alianças</TabsTrigger>
+                  <TabsTrigger value="reports"><CircleStar className="size-3.5" />Alianças</TabsTrigger>
                   <TabsTrigger value="alerts" onClick={() => setFinSection('fin-dashboard')}><DollarSign className="size-3.5" />Finanças</TabsTrigger>
                   <TabsTrigger value="settings" onClick={() => setSettingsSection('settings-dashboard')}><Settings className="size-3.5" />Configurações</TabsTrigger>
                 </TabsList>
@@ -2750,7 +2756,7 @@ export function HomePage() {
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
-                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><BookmarkCheck className="size-5" />Planos <Badge variant="success" appearance="light" size="md">{formatRecordCount(plans.length)}</Badge></h2>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-2.5"><LandPlot className="size-5" />Planos <Badge variant="success" appearance="light" size="md">{formatRecordCount(plans.length)}</Badge></h2>
                   <SectionBreadcrumb items={['Home', 'Cadastros', 'Planos']} />
                 </div>
                 <div className="flex items-center gap-2">

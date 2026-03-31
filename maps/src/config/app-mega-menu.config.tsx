@@ -1,4 +1,4 @@
-import { ShieldCheck, Users, ReplaceAll, Phone, MapPin, FileText, BookmarkCheck, NotepadText, LayoutDashboard, Building2, CalendarDays } from 'lucide-react';
+import { ShieldCheck, Users, ReplaceAll, Phone, MapPin, FileText, BookmarkCheck, NotepadText, LayoutDashboard, Building2, CalendarDays, LandPlot } from 'lucide-react';
 import { MenuConfig } from '@/config/types';
 
 export const MENU_MEGA: MenuConfig = [
@@ -7,13 +7,13 @@ export const MENU_MEGA: MenuConfig = [
     title: 'Cadastros',
     icon: NotepadText,
     children: [
+      { title: 'Planos', section: 'plans', icon: LandPlot },
       { title: 'Permissões', section: 'permission-actions', icon: ShieldCheck },
       {
         title: 'Pessoas',
         icon: Users,
         children: [
           { title: 'Tipo de Pessoas', section: 'type-people', icon: BookmarkCheck },
-      { title: 'Planos', section: 'plans', icon: BookmarkCheck },
         ],
       },
       {

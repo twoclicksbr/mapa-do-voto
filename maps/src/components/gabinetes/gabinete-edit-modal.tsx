@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import "@/lib/leaflet-icon-fix";
@@ -23,10 +23,12 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Building2, Phone, MapPin, FileText, StickyNote, Folder, User, Users,
-  Plus, X, Check, Trash2, Pencil, LocateFixed, Minus,
+  Plus, X, Check, Trash2, Pencil, LocateFixed, Minus, Camera, Loader2,
+  CreditCard, DatabaseIcon, MapIcon,
 } from "lucide-react";
 import { PeopleFilesTab } from "@/components/people/people-files-tab";
 import { PeopleModal } from "@/components/people/people-modal";
+import { BirthDatePicker } from "@/components/people/birth-date-picker";
 import { formatDate } from "@/lib/helpers";
 import api from "@/lib/api";
 
@@ -45,12 +47,28 @@ const PIN_ICON = L.divIcon({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface Plan {
+  id: number;
+  name: string;
+  description: string | null;
+  price_month: number;
+  price_yearly: number;
+  price_setup: number;
+  max_users: number | null;
+  has_schema: boolean;
+  recommended: boolean;
+}
+
 interface Tenant {
   id: number;
   name: string;
   slug: string;
   active: boolean;
   valid_until: string;
+  plan_id?: number | null;
+  logo_original?: string | null;
+  logo_md?: string | null;
+  logo_sm?: string | null;
 }
 
 interface TypeContact {
@@ -722,6 +740,7 @@ function TenantPeopleTab({ tenantId }: { tenantId: number }) {
   const [people, setPeople] = useState<TenantPerson[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingPerson, setEditingPerson] = useState<TenantPerson | null>(null);
+  const [creatingPerson, setCreatingPerson] = useState(false);
   const [typePeople, setTypePeople] = useState<import("@/components/type-people/type-people-data-grid").TypePeople[]>([]);
   const [typeContacts, setTypeContacts] = useState<import("@/components/type-contacts/type-contacts-data-grid").TypeContact[]>([]);
   const [typeAddresses, setTypeAddresses] = useState<import("@/components/type-addresses/type-addresses-data-grid").TypeAddress[]>([]);
@@ -745,19 +764,21 @@ function TenantPeopleTab({ tenantId }: { tenantId: number }) {
   }, [tenantId]);
 
   const handleSaved = (saved: TenantPerson) => {
-    setPeople(prev => prev.map(p => p.id === saved.id ? { ...p, ...saved } : p));
+    setPeople(prev => {
+      const idx = prev.findIndex(p => p.id === saved.id);
+      return idx >= 0 ? prev.map(p => p.id === saved.id ? { ...p, ...saved } : p) : [...prev, saved as TenantPerson];
+    });
   };
 
   if (loading) {
     return <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">Carregando...</div>;
   }
 
-  if (people.length === 0) {
-    return <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">Nenhuma pessoa cadastrada.</div>;
-  }
-
   return (
     <>
+      {people.length === 0 && (
+        <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma pessoa cadastrada.</p>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -815,6 +836,21 @@ function TenantPeopleTab({ tenantId }: { tenantId: number }) {
         </table>
       </div>
 
+      <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setCreatingPerson(true)}>
+        <Plus className="size-3.5 [&_svg]:size-2.5" /> Adicionar pessoa
+      </Button>
+
+      <PeopleModal
+        open={creatingPerson}
+        person={null}
+        tenantId={tenantId}
+        typePeople={typePeople}
+        typeContacts={typeContacts}
+        typeAddresses={typeAddresses}
+        typeDocuments={typeDocuments}
+        onClose={() => setCreatingPerson(false)}
+        onSaved={(saved) => { handleSaved(saved as TenantPerson); setCreatingPerson(false); }}
+      />
       <PeopleModal
         open={!!editingPerson}
         person={editingPerson as import("@/components/people/people-data-grid").Person | null}
@@ -848,6 +884,74 @@ export function GabinetEditModal({ tenant, onClose, onUpdated, existingSlugs }: 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Avatar/logo
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [avatarLightbox, setAvatarLightbox] = useState(false);
+  const [logoOriginal, setLogoOriginal] = useState<string | null>(null);
+  const [logoMd, setLogoMd] = useState<string | null>(null);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !tenant) return;
+    setAvatarLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      const res = await api.post<{ logo_original: string; logo_md: string; logo_sm: string }>(
+        `/tenants/${tenant.id}/avatar`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      setLogoOriginal(res.data.logo_original);
+      setLogoMd(res.data.logo_md);
+      onUpdated({ ...tenant, name, slug, active, valid_until: validUntil, ...res.data });
+    } catch (err) {
+      console.error("Erro ao fazer upload do logo:", err);
+    } finally {
+      setAvatarLoading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!tenant) return;
+    setAvatarLoading(true);
+    try {
+      await api.delete(`/tenants/${tenant.id}/avatar`);
+      setLogoOriginal(null);
+      setLogoMd(null);
+      onUpdated({ ...tenant, name, slug, active, valid_until: validUntil, logo_original: null, logo_md: null, logo_sm: null });
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
+
+  // Plano
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [planSaving, setPlanSaving] = useState(false);
+
+  const handlePlanSelect = async (planId: number) => {
+    if (!tenant || planSaving) return;
+    const prev = selectedPlanId;
+    setSelectedPlanId(planId);
+    setPlanSaving(true);
+    try {
+      const res = await api.put<Tenant>(`/tenants/${tenant.id}`, {
+        name: tenant.name, slug: tenant.slug, active: tenant.active,
+        valid_until: tenant.valid_until, plan_id: planId,
+      });
+      onUpdated({ ...res.data, plan_id: planId });
+    } catch (err: unknown) {
+      setSelectedPlanId(prev);
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert('Erro ao salvar plano: ' + (msg ?? String(err)));
+    } finally {
+      setPlanSaving(false);
+    }
+  };
+
   // Tabs polimórficas
   const [contacts, setContacts] = useState<ContactItem[]>([]);
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
@@ -864,9 +968,14 @@ export function GabinetEditModal({ tenant, onClose, onUpdated, existingSlugs }: 
     setSlug(tenant.slug);
     setValidUntil(tenant.valid_until);
     setActive(tenant.active);
+    setLogoOriginal(tenant.logo_original ?? null);
+    setLogoMd(tenant.logo_md ?? null);
+    setSelectedPlanId(tenant.plan_id != null ? Number(tenant.plan_id) : null);
     setEditMode(false);
     setErrors({});
     setTabsLoading(true);
+
+    api.get<Plan[]>("/plans").then(r => setPlans(r.data)).catch(() => {});
 
     Promise.all([
       api.get<TypeContact[]>("/type-contacts"),
@@ -963,9 +1072,92 @@ export function GabinetEditModal({ tenant, onClose, onUpdated, existingSlugs }: 
           {/* ── Left panel ── */}
           <div className="w-64 shrink-0 border-r border-border flex flex-col overflow-y-auto">
             <div className="p-5 flex flex-col items-center gap-3 border-b border-border">
-              <div className="size-24 rounded-full bg-muted flex items-center justify-center">
-                <Building2 className="size-10 text-muted-foreground" />
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (avatarLoading) return;
+                    if (logoOriginal) setAvatarLightbox(true);
+                    else avatarInputRef.current?.click();
+                  }}
+                  className="size-24 rounded-full bg-muted flex items-center justify-center overflow-hidden relative"
+                >
+                  {logoMd ? (
+                    <img src={logoMd} alt={name} className="size-full object-cover" />
+                  ) : (
+                    <Building2 className="size-10 text-muted-foreground" />
+                  )}
+                  <div className={`absolute inset-0 bg-black/40 rounded-full transition-opacity flex items-center justify-center ${avatarLoading ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                    {avatarLoading ? (
+                      <Loader2 className="size-5 text-white animate-spin" />
+                    ) : (
+                      <Camera className="size-5 text-white" />
+                    )}
+                  </div>
+                </button>
+                {logoMd && !avatarLoading && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={handleAvatarRemove}
+                        className="absolute -top-0.5 -right-0.5 size-5 rounded-full bg-destructive text-white flex items-center justify-center hover:bg-destructive/80 transition-colors"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remover logo</TooltipContent>
+                  </Tooltip>
+                )}
               </div>
+
+              {/* Lightbox do logo */}
+              {avatarLightbox && logoOriginal && (
+                <div
+                  className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
+                  onClick={() => setAvatarLightbox(false)}
+                >
+                  <div className="relative flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
+                    <img
+                      src={logoOriginal}
+                      alt={name}
+                      className="max-w-[80vw] max-h-[75vh] object-contain rounded-xl shadow-2xl"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+                        onClick={() => { setAvatarLightbox(false); avatarInputRef.current?.click(); }}
+                      >
+                        <Camera className="size-3.5 [&_svg]:size-2.5" /> Alterar logo
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+                        onClick={() => { setAvatarLightbox(false); handleAvatarRemove(); }}
+                      >
+                        <X className="size-3.5 [&_svg]:size-2.5" /> Remover logo
+                      </Button>
+                    </div>
+                    <button
+                      onClick={() => setAvatarLightbox(false)}
+                      className="absolute -top-3 -right-3 size-8 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <p className="text-sm font-semibold text-center leading-snug">{name}</p>
             </div>
 
@@ -992,8 +1184,13 @@ export function GabinetEditModal({ tenant, onClose, onUpdated, existingSlugs }: 
                     {!slugTaken && errors.slug && <p className="text-xs text-destructive">{errors.slug}</p>}
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="ge-valid" className="text-xs">Validade</Label>
-                    <Input id="ge-valid" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className="h-8 text-sm" />
+                    <Label className="text-xs">Validade</Label>
+                    <BirthDatePicker
+                      value={validUntil}
+                      onChange={setValidUntil}
+                      minYear={2020}
+                      maxYear={2035}
+                    />
                     {errors.valid_until && <p className="text-xs text-destructive">{errors.valid_until}</p>}
                   </div>
                   <div className="flex items-center justify-between">
@@ -1069,6 +1266,10 @@ export function GabinetEditModal({ tenant, onClose, onUpdated, existingSlugs }: 
                     <Folder />
                     Arquivos
                   </TabsTrigger>
+                  <TabsTrigger value="plan">
+                    <CreditCard />
+                    Plano
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -1113,6 +1314,57 @@ export function GabinetEditModal({ tenant, onClose, onUpdated, existingSlugs }: 
 
                 <TabsContent value="files" className="p-5 mt-0 flex-1 overflow-y-auto">
                   {tenant && <PeopleFilesTab personId={tenant.id} basePath={`/files/tenants/${tenant.id}`} />}
+                </TabsContent>
+
+                <TabsContent value="plan" className="p-5 mt-0 flex-1 overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-3">
+                    {plans.map((plan) => {
+                      const Icon = plan.has_schema ? DatabaseIcon : MapIcon;
+                      const isSelected = selectedPlanId !== null && Number(selectedPlanId) === Number(plan.id);
+                      const fmtBRL = (v: number) => parseFloat(String(v)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+                      return (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          disabled={planSaving}
+                          onClick={() => handlePlanSelect(plan.id)}
+                          className={`relative text-left rounded-xl border-2 p-4 transition-all ${
+                            isSelected
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card hover:border-primary/40 hover:bg-muted/40"
+                          } ${planSaving ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                        >
+                          {plan.recommended && (
+                            <span className="absolute top-3 right-3 text-[10px] font-semibold bg-muted text-muted-foreground rounded px-1.5 py-0.5">
+                              Recomendado
+                            </span>
+                          )}
+                          {isSelected && (
+                            <span className="absolute bottom-3 right-3 text-primary">
+                              <Check className="size-4" />
+                            </span>
+                          )}
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Icon className="size-4 text-muted-foreground shrink-0" />
+                            <span className="font-semibold text-sm">{plan.name}</span>
+                          </div>
+                          {plan.description && (
+                            <p className="text-xs text-muted-foreground whitespace-pre-line mb-2 leading-relaxed">
+                              {plan.description}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                            {plan.price_setup > 0 && <span>Setup: <strong className="text-foreground">{fmtBRL(plan.price_setup)}</strong></span>}
+                            {plan.price_month > 0 && <span>Mensal: <strong className="text-foreground">{fmtBRL(plan.price_month)}</strong></span>}
+                            {plan.max_users != null
+                              ? <span>Até <strong className="text-foreground">{plan.max_users}</strong> {plan.max_users === 1 ? "usuário" : "usuários"}</span>
+                              : plan.has_schema && <span>Usuários <strong className="text-foreground">ilimitados</strong></span>
+                            }
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </TabsContent>
 
               </div>

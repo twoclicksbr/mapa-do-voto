@@ -39,6 +39,7 @@ use App\Http\Controllers\TenantContactController;
 use App\Http\Controllers\TenantAddressController;
 use App\Http\Controllers\TenantDocumentController;
 use App\Http\Controllers\TenantNoteController;
+use App\Http\Controllers\TenantAvatarController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn () => ['status' => 'ok']);
@@ -125,6 +126,8 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::get('/tenants/{id}/people', [TenantController::class, 'people']);
     Route::post('/tenants/{id}/person', [TenantController::class, 'storePerson']);
     Route::post('/tenants/{id}/clients', [TenantController::class, 'storeClient']);
+    Route::post('/tenants/{id}/avatar', [TenantAvatarController::class, 'store']);
+    Route::delete('/tenants/{id}/avatar', [TenantAvatarController::class, 'destroy']);
     Route::get('/tenants/{tenantId}/contacts', [TenantContactController::class, 'index']);
     Route::post('/tenants/{tenantId}/contacts', [TenantContactController::class, 'store']);
     Route::put('/tenants/{tenantId}/contacts/{id}', [TenantContactController::class, 'update']);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\PeopleAvatarController;
+use App\Http\Controllers\TenantAvatarController;
 use App\Models\People;
 use App\Models\PeopleCandidacy;
 use App\Models\Tenant;
@@ -14,13 +15,19 @@ class TenantController extends Controller
 {
     public function index()
     {
-        $tenants = DB::table('gabinete_master.tenants')
-            ->where('active', true)
-            ->whereNull('deleted_at')
+        $tenants = Tenant::where('active', true)
             ->orderBy('name')
-            ->get(['id', 'tenant_id', 'name', 'slug', 'active', 'valid_until']);
+            ->get(['id', 'tenant_id', 'plan_id', 'name', 'slug', 'active', 'valid_until', 'logo_path']);
 
-        return response()->json($tenants);
+        return response()->json($tenants->map(fn ($t) => array_merge([
+            'id'          => $t->id,
+            'tenant_id'   => $t->tenant_id,
+            'plan_id'     => $t->plan_id,
+            'name'        => $t->name,
+            'slug'        => $t->slug,
+            'active'      => $t->active,
+            'valid_until' => $t->valid_until?->format('Y-m-d'),
+        ], TenantAvatarController::logoUrls($t->logo_path)))->values());
     }
 
     public function store(Request $request)
@@ -32,6 +39,7 @@ class TenantController extends Controller
             'active'      => 'boolean',
             'valid_until' => 'required|date',
             'people_id'   => 'nullable|integer',
+            'plan_id'     => 'nullable|integer|exists:plans,id',
         ]);
 
         $schema = 'gabinete_' . $validated['slug'];
@@ -54,6 +62,7 @@ class TenantController extends Controller
             'slug'        => $validated['slug'],
             'schema'      => $schema,
             'has_schema'  => $hasSchema,
+            'plan_id'     => $validated['plan_id'] ?? null,
             'active'      => $validated['active'] ?? true,
             'valid_until' => $validated['valid_until'],
         ]);
@@ -68,6 +77,7 @@ class TenantController extends Controller
 
         return response()->json([
             'id'          => $tenant->id,
+            'plan_id'     => $tenant->plan_id,
             'name'        => $tenant->name,
             'slug'        => $tenant->slug,
             'active'      => $tenant->active,
@@ -197,6 +207,7 @@ class TenantController extends Controller
             'slug'        => 'required|string|max:255',
             'active'      => 'boolean',
             'valid_until' => 'required|date',
+            'plan_id'     => 'nullable|integer|exists:plans,id',
         ]);
 
         $slugExists = DB::table('gabinete_master.tenants')
@@ -213,12 +224,13 @@ class TenantController extends Controller
 
         $tenant->update($validated);
 
-        return response()->json([
+        return response()->json(array_merge([
             'id'          => $tenant->id,
+            'plan_id'     => $tenant->plan_id,
             'name'        => $tenant->name,
             'slug'        => $tenant->slug,
             'active'      => $tenant->active,
             'valid_until' => $tenant->valid_until->format('Y-m-d'),
-        ]);
+        ], TenantAvatarController::logoUrls($tenant->logo_path)));
     }
 }

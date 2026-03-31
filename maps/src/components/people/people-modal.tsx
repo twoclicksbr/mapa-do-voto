@@ -126,6 +126,7 @@ interface PeopleModalProps {
   typeDocuments: TypeDocument[];
   onClose: () => void;
   onSaved: (person: Person) => void;
+  tenantId?: number;
 }
 
 // ─── Create Modal (small) ─────────────────────────────────────────────────────
@@ -135,11 +136,13 @@ function CreatePersonModal({
   typePeople,
   onClose,
   onSaved,
+  tenantId,
 }: {
   open: boolean;
   typePeople: TypePeople[];
   onClose: () => void;
   onSaved: (person: Person) => void;
+  tenantId?: number;
 }) {
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -167,40 +170,10 @@ function CreatePersonModal({
         birth_date: birthDate || null,
         type_people_id: typePeopleId ? Number(typePeopleId) : null,
         active,
+        ...(tenantId ? { tenant_id: tenantId } : {}),
       });
       onSaved(res.data);
       onClose();
-
-      // Se preencheu data de nascimento, cria evento de aniversário na agenda
-      if (birthDate && res.data.id) {
-        const personId = res.data.id;
-        const savedName = name;
-        const savedBirthDate = birthDate;
-        (async () => {
-          try {
-            const typesRes = await api.get<{ id: number; name: string }[]>("/event-types");
-            const birthdayType = typesRes.data.find((t) =>
-              t.name.toLowerCase().includes("anivers")
-            );
-            if (!birthdayType) return;
-            const [, month, day] = savedBirthDate.split("-");
-            const year = new Date().getFullYear();
-            await api.post("/events", {
-              name: `Aniversário de ${savedName}`,
-              event_type_id: birthdayType.id,
-              modulo: "people",
-              start_at: `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}T00:00:00`,
-              end_at: null,
-              all_day: true,
-              recurrence: "yearly",
-              people_id: personId,
-              people_ids: [personId],
-            });
-          } catch (err: unknown) {
-            console.error("Erro ao criar evento de aniversário:", (err as { response?: { data?: unknown } })?.response?.data ?? err);
-          }
-        })();
-      }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { errors?: Record<string, string[]> } } };
       const apiErrors = axiosErr?.response?.data?.errors;
@@ -1311,57 +1284,6 @@ function PersonDetailModal({
       setCurrentPerson(res.data);
       onSaved(res.data);
       setEditMode(false);
-
-      // Se birth_date foi preenchida ou alterada, faz upsert do evento de aniversário
-      const prevBirthDate = currentPerson.birth_date ?? "";
-      if (birthDate && birthDate !== prevBirthDate) {
-        const personId = currentPerson.id;
-        const savedName = name;
-        const savedBirthDate = birthDate;
-        (async () => {
-          try {
-            const typesRes = await api.get<{ id: number; name: string }[]>("/event-types");
-            const birthdayType = typesRes.data.find((t) =>
-              t.name.toLowerCase().includes("anivers")
-            );
-            if (!birthdayType) return;
-
-            const [, month, day] = savedBirthDate.split("-");
-            const year = new Date().getFullYear();
-            const startAt = `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}T00:00:00`;
-
-            // Verifica se já existe evento de aniversário para essa pessoa
-            const existingRes = await api.get<{ id: number }[]>("/events", {
-              params: { people_id: personId, event_type_id: birthdayType.id },
-            });
-            const existing = existingRes.data[0];
-
-            if (existing) {
-              await api.put(`/events/${existing.id}`, {
-                name: `Aniversário de ${savedName}`,
-                modulo: "people",
-                start_at: startAt,
-                all_day: true,
-                recurrence: "yearly",
-              });
-            } else {
-              await api.post("/events", {
-                name: `Aniversário de ${savedName}`,
-                event_type_id: birthdayType.id,
-                modulo: "people",
-                start_at: startAt,
-                end_at: null,
-                all_day: true,
-                recurrence: "yearly",
-                people_id: personId,
-                people_ids: [personId],
-              });
-            }
-          } catch (err: unknown) {
-            console.error("Erro ao salvar evento de aniversário:", (err as { response?: { data?: unknown } })?.response?.data ?? err);
-          }
-        })();
-      }
     } finally {
       setSaving(false);
     }
@@ -1765,11 +1687,13 @@ export function PeopleModal({
   typeDocuments,
   onClose,
   onSaved,
+  tenantId,
 }: PeopleModalProps) {
   if (!person) {
     return (
       <CreatePersonModal
         open={open}
+        tenantId={tenantId}
         typePeople={typePeople}
         onClose={onClose}
         onSaved={onSaved}

@@ -17,6 +17,7 @@ class PeopleRequest extends FormRequest
             'name'           => ['required', 'string', 'max:255'],
             'birth_date'     => ['nullable', 'date'],
             'type_people_id' => ['nullable', 'integer', 'exists:type_people,id'],
+            'tenant_id'      => ['nullable', 'integer'],
             'active'         => ['boolean'],
         ];
     }

@@ -22,17 +22,20 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { ExternalLink, Pencil, Trash2, Building2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface Tenant {
   id: number;
   tenant_id: number | null;
+  plan_id?: number | null;
   name: string;
   slug: string;
   active: boolean;
   valid_until: string;
+  logo_sm?: string | null;
+  logo_md?: string | null;
   _depth?: number;
 }
 
@@ -157,8 +160,15 @@ export function GabinetesDataGrid({ tenants, isLoading, onSelectionChange, onEdi
           <DataGridColumnHeader title="Nome" column={column} />
         ),
         cell: ({ row }) => (
-          <div style={{ paddingLeft: `${(row.original._depth ?? 0) * 20}px` }} className="flex items-center gap-1.5">
+          <div style={{ paddingLeft: `${(row.original._depth ?? 0) * 20}px` }} className="flex items-center gap-2.5">
             {(row.original._depth ?? 0) > 0 && <span className="text-muted-foreground">↳</span>}
+            <div className="size-7 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+              {row.original.logo_sm ? (
+                <img src={row.original.logo_sm} alt={row.original.name} className="size-full object-cover" />
+              ) : (
+                <Building2 className="size-3.5 text-muted-foreground" />
+              )}
+            </div>
             <button onClick={() => onEdit?.(row.original)} className="font-medium text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 transition-colors text-left">
               {row.original.name}
             </button>

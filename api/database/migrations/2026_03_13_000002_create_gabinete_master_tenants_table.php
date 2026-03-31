@@ -17,17 +17,24 @@ return new class extends Migration
             $table->string('slug')->unique();
             $table->string('schema')->unique();
             $table->unsignedBigInteger('tenant_id')->nullable();
+            $table->unsignedBigInteger('plan_id')->nullable();
             $table->boolean('has_schema')->default(false);
             $table->boolean('active')->default(true);
             $table->date('valid_until');
+            $table->string('logo_path')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
 
+        $enterprisePlanId = DB::table('gabinete_master.plans')
+            ->where('name', 'Mapa + Gabinete - Enterprise')
+            ->value('id');
+
         DB::table('gabinete_master.tenants')->insert([
-            'name'       => 'Mapa do Voto',
-            'slug'       => 'master',
-            'schema'     => 'gabinete_master',
+            'name'        => 'Mapa do Voto',
+            'slug'        => 'master',
+            'schema'      => 'gabinete_master',
+            'plan_id'     => $enterprisePlanId,
             'active'      => true,
             'valid_until' => '2026-06-24',
             'created_at'  => now(),

@@ -13,12 +13,14 @@ class Tenant extends Model
 
     protected $fillable = [
         'tenant_id',
+        'plan_id',
         'name',
         'slug',
         'schema',
         'has_schema',
         'active',
         'valid_until',
+        'logo_path',
     ];
 
     protected $casts = [
