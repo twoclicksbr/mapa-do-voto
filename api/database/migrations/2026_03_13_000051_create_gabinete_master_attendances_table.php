@@ -13,15 +13,17 @@ return new class extends Migration
 
         Schema::create('attendances', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('people_id')->constrained('gabinete_master.people');
+            $table->foreignId('people_id')->nullable()->constrained('gabinete_master.people');
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('address')->nullable();
             $table->decimal('lat', 10, 7)->nullable();
             $table->decimal('lng', 10, 7)->nullable();
             $table->enum('status', ['aberto', 'em_andamento', 'resolvido'])->default('aberto');
+            $table->string('priority')->default('media');
             $table->timestamp('opened_at')->nullable();
             $table->timestamp('resolved_at')->nullable();
+            $table->unsignedInteger('order')->default(0);
             $table->timestamps();
             $table->softDeletes();
         });

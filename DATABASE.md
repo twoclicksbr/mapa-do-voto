@@ -256,13 +256,15 @@ Atendimentos realizados pelo político. Cada atendimento é um pin no mapa com e
 | Coluna | Tipo | Nullable | Descrição |
 |---|---|---|---|
 | `id` | bigint | NOT NULL | PK autoincrement |
-| `people_id` | bigint | NOT NULL | FK → `people.id` — pessoa que registrou |
+| `people_id` | bigint | NULL | FK → `people.id` — responsável principal (nullable) |
 | `title` | varchar | NOT NULL | Título/assunto do atendimento |
 | `description` | text | NULL | Descrição detalhada |
 | `address` | varchar | NULL | Endereço textual |
 | `lat` | decimal(10,7) | NULL | Latitude |
 | `lng` | decimal(10,7) | NULL | Longitude |
 | `status` | enum | NOT NULL | Estado: `aberto`, `em_andamento`, `resolvido` (default: `aberto`) |
+| `priority` | varchar | NOT NULL | Prioridade: `alta`, `media`, `baixa` (default: `media`) |
+| `order` | integer | NOT NULL | Ordem de exibição (default: `0`) |
 | `opened_at` | timestamp | NULL | Data de abertura |
 | `resolved_at` | timestamp | NULL | Data de resolução |
 | `created_at` | timestamp | NULL | — |
@@ -272,6 +274,28 @@ Atendimentos realizados pelo político. Cada atendimento é um pin no mapa com e
 **Relacionamentos:**
 - `belongsTo` → `people`
 - `hasMany` → `attendance_history`
+- `hasMany` → `attendance_people`
+
+---
+
+### `gabinete_master.attendance_people`
+Pessoas vinculadas a um atendimento (pivot).
+
+| Coluna | Tipo | Nullable | Descrição |
+|---|---|---|---|
+| `id` | bigint | NOT NULL | PK autoincrement |
+| `attendance_id` | bigint | NOT NULL | FK → `attendances.id` cascade delete |
+| `people_id` | bigint | NOT NULL | Referência à pessoa (sem FK) |
+| `active` | boolean | NOT NULL | default: `true` |
+| `created_at` | timestamp | NULL | — |
+| `updated_at` | timestamp | NULL | — |
+| `deleted_at` | timestamp | NULL | Soft delete |
+
+**Unique:** `(attendance_id, people_id)`
+
+**Relacionamentos:**
+- `belongsTo` → `attendances`
+- `belongsTo` → `people`
 
 ---
 
@@ -1089,7 +1113,8 @@ gabinete_master
 │   ├── permissions ←─── people_id ──── permission_actions
 │   ├── files ←─── (modulo=people, record_id)
 │   ├── attendances ←─── people_id
-│   │   └── attendance_history ←─── attendance_id
+│   │   ├── attendance_history ←─── attendance_id
+│   │   └── attendance_people ←─── attendance_id
 │   └── people_candidacies ←─── people_id
 │       ├── → maps.candidacies
 │       └── split_candidacies ←─── people_candidacy_id

@@ -65,6 +65,7 @@ function TimelineItem({ step, className, children, ...props }: TimelineItemProps
       <li
         data-orientation={orientation}
         data-status={status}
+        {...(status === "completed" ? { "data-completed": "" } : {})}
         className={cn(
           "group/timeline-item relative",
           orientation === "horizontal" && "flex-1",

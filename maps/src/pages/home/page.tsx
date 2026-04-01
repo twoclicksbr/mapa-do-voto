@@ -79,6 +79,7 @@ import { FinDashboardTab } from "@/components/financeiro/fin-dashboard-tab";
 import { SettingsDashboardTab } from "@/components/settings/settings-dashboard-tab";
 import { PageFooter } from "@/components/common/page-footer";
 import { AgendaTab } from "@/components/agenda/agenda-tab";
+import { AttendanceTab } from "@/components/attendances/attendance-tab";
 import { EventTypesDataGrid, EventType } from "@/components/event-types/event-types-data-grid";
 import { EventTypesModal } from "@/components/event-types/event-types-modal";
 import { EventTypesFilterModal, EventTypesFilters } from "@/components/event-types/event-types-filter-modal";
@@ -2057,10 +2058,8 @@ export function HomePage() {
           <PageFooter />
         </TabsContent>
 
-        <TabsContent value="activity" className="flex-1 min-h-0 mt-0">
-          <div className="rounded-lg overflow-hidden h-full flex items-center justify-center border border-border">
-            <p className="text-muted-foreground">Atendimentos — em breve</p>
-          </div>
+        <TabsContent value="activity" className="flex-1 min-h-0 mt-0 flex flex-col">
+          <AttendanceTab />
         </TabsContent>
 
         <TabsContent value="metrics" className="flex-1 min-h-0 mt-0">

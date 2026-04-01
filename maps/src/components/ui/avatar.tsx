@@ -64,4 +64,8 @@ function AvatarStatus({
   return <div data-slot="avatar-status" className={cn(avatarStatusVariants({ variant }), className)} {...props} />;
 }
 
-export { Avatar, AvatarFallback, AvatarImage, AvatarIndicator, AvatarStatus, avatarStatusVariants };
+function AvatarGroup({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div data-slot="avatar-group" className={cn('flex -space-x-2.5', className)} {...props} />;
+}
+
+export { Avatar, AvatarFallback, AvatarImage, AvatarIndicator, AvatarStatus, AvatarGroup, avatarStatusVariants };

@@ -612,15 +612,21 @@ function AddressesTab({
 
   const updateForm = (f: Partial<AddressForm>) => setForm((prev) => ({ ...prev, ...f }));
 
-  const geocode = async (logradouro: string, cidade: string, uf: string): Promise<{ lat: number; lng: number } | null> => {
-    const q = [logradouro, cidade, uf, "Brazil"].filter(Boolean).join(", ");
+  const geocode = async (logradouro: string, numero: string, bairro: string, cidade: string, uf: string, cep?: string): Promise<{ lat: number; lng: number } | null> => {
+    const key = import.meta.env.VITE_GOOGLE_MAPS_KEY;
+    const cleanCep = cep?.replace(/\D/g, "");
+    // formato brasileiro: Rua X, 5, Bairro, Cidade, UF, CEP, Brasil
+    const street = [logradouro, numero].filter(Boolean).join(", ");
+    const cityState = [cidade, uf].filter(Boolean).join(" - ");
+    const cepFmt = cleanCep ? cleanCep.slice(0, 5) + "-" + cleanCep.slice(5) : "";
+    const address = [street + (bairro ? ` - ${bairro}` : ""), cityState, cepFmt].filter(Boolean).join(", ");
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
-        { headers: { "Accept-Language": "pt-BR" } }
-      );
+      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${key}`);
       const data = await res.json();
-      if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      if (data.results?.length > 0) {
+        const { lat, lng } = data.results[0].geometry.location;
+        return { lat, lng };
+      }
     } catch {}
     return null;
   };
@@ -630,21 +636,22 @@ function AddressesTab({
     if (clean.length !== 8) return;
     setCepLoading(true);
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${clean}`);
       const data = await res.json();
-      if (!data.erro) {
-        const logradouro = data.logradouro ?? "";
-        const cidade = data.localidade ?? "";
-        const uf = data.uf ?? "";
+      if (!data.errors) {
+        const logradouro = data.street ?? "";
+        const cidade = data.city ?? "";
+        const uf = data.state ?? "";
+        const ibge = data.ibge ?? "";
         updateForm({
           logradouro,
-          bairro: data.bairro ?? "",
+          bairro: data.neighborhood ?? "",
           cidade,
           uf,
-          ibge: data.ibge ?? "",
-          complemento: data.complemento ?? "",
+          ibge,
+          complemento: "",
         });
-        const coords = await geocode(logradouro, cidade, uf);
+        const coords = await geocode(logradouro, form.numero ?? "", data.neighborhood ?? "", cidade, uf, clean);
         if (coords) updateForm({ lat: coords.lat, lng: coords.lng });
       }
     } finally {
@@ -655,7 +662,26 @@ function AddressesTab({
   const handleLocate = async (a: AddressItem) => {
     setLocatingId(a.id);
     try {
-      const coords = await geocode(a.logradouro ?? "", a.cidade ?? "", a.uf ?? "");
+      let coords: { lat: number; lng: number } | null = null;
+
+      // 1ª tentativa: BrasilAPI v2 pelo CEP
+      const cleanCep = a.cep?.replace(/\D/g, "");
+      if (cleanCep?.length === 8) {
+        try {
+          const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
+          const data = await res.json();
+          const c = data.location?.coordinates;
+          if (c?.latitude && c?.longitude) {
+            coords = { lat: Number(c.latitude), lng: Number(c.longitude) };
+          }
+        } catch {}
+      }
+
+      // 2ª tentativa: Nominatim
+      if (!coords) {
+        coords = await geocode(a.logradouro ?? "", a.numero ?? "", a.bairro ?? "", a.cidade ?? "", a.uf ?? "", a.cep ?? "");
+      }
+
       if (coords) {
         await api.put(`/people/${personId}/addresses/${a.id}`, { lat: coords.lat, lng: coords.lng });
         const updated = { ...a, lat: coords.lat, lng: coords.lng };
@@ -671,6 +697,11 @@ function AddressesTab({
     if (!form.typeId) return;
     setSaving(true);
     try {
+      // geocodifica com endereço completo (incluindo número já preenchido)
+      const coords = await geocode(form.logradouro, form.numero, form.bairro, form.cidade, form.uf, form.cep);
+      const lat = coords?.lat ?? form.lat;
+      const lng = coords?.lng ?? form.lng;
+
       const res = await api.post<AddressItem>(`/people/${personId}/addresses`, {
         type_address_id: Number(form.typeId),
         cep: form.cep || null,
@@ -681,8 +712,8 @@ function AddressesTab({
         cidade: form.cidade || null,
         uf: form.uf || null,
         ibge: form.ibge || null,
-        lat: form.lat,
-        lng: form.lng,
+        lat,
+        lng,
       });
       onChange([...addresses, res.data]);
       setAdding(false);
@@ -725,20 +756,6 @@ function AddressesTab({
               {a.cep && <p className="text-[10px] text-muted-foreground">{a.cep}</p>}
             </div>
             <div className="flex flex-col gap-1 shrink-0">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-6 text-blue-500 hover:text-blue-600 hover:bg-blue-50"
-                    onClick={(e) => { e.stopPropagation(); handleLocate(a); }}
-                    disabled={locatingId === a.id}
-                  >
-                    <LocateFixed className={`size-3 ${locatingId === a.id ? "animate-spin" : ""}`} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Localizar no mapa</TooltipContent>
-              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
