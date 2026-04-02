@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, X, ClipboardList, Home } from "lucide-react";
+import { Plus, Search, X, ClipboardList, Home, LayoutGrid, Table2 } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,6 +13,7 @@ import api from "@/lib/api";
 import { PageFooter } from "@/components/common/page-footer";
 import { formatRecordCount } from "@/lib/helpers";
 import { AttendanceDataGrid, type Attendance } from "./attendance-data-grid";
+import { AttendanceKanban } from "./attendance-kanban";
 import { AttendanceModal } from "./attendance-modal";
 import { AttendanceFilterModal, type AttendanceFilters } from "./attendance-filter-modal";
 // ─── Filtering ────────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ export function AttendanceTab() {
   const [editItem, setEditItem]           = useState<Attendance | null>(null);
   const [filterOpen, setFilterOpen]       = useState(false);
   const [filters, setFilters]             = useState<AttendanceFilters>({});
+  const [viewMode, setViewMode]           = useState<"grid" | "kanban">("grid");
 
   const load = async () => {
     setIsLoading(true);
@@ -162,18 +164,49 @@ export function AttendanceTab() {
               <Plus className="size-4 mr-2" />
               Novo Registro
             </Button>
+            <div className="flex items-center border border-border rounded-md overflow-hidden">
+              <button
+                className={`p-1.5 transition-colors ${viewMode === "kanban" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+                onClick={() => setViewMode("kanban")}
+                title="Kanban"
+              >
+                <LayoutGrid className="size-4" />
+              </button>
+              <button
+                className={`p-1.5 transition-colors ${viewMode === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+                onClick={() => setViewMode("grid")}
+                title="Grid"
+              >
+                <Table2 className="size-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* DataGrid */}
+        {/* Content */}
         <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
-          <AttendanceDataGrid
-            attendances={filtered}
-            isLoading={isLoading}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onReorder={handleReorder}
-          />
+          {viewMode === "kanban" ? (
+            <AttendanceKanban
+              attendances={filtered}
+              isLoading={isLoading}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onStatusChange={(id, newStatus) => {
+                setAttendances((prev) =>
+                  prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a)),
+                )
+              }}
+              onReorderAll={(flat) => setAttendances(flat)}
+            />
+          ) : (
+            <AttendanceDataGrid
+              attendances={filtered}
+              isLoading={isLoading}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onReorder={handleReorder}
+            />
+          )}
         </div>
       </div>
 
