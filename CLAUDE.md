@@ -1,5 +1,5 @@
 ﻿# CLAUDE.md — Mapa do Voto
-<!-- Atualizado em: 01/04/2026 22:59 (entity-tabs.tsx: tabs reutilizáveis ContactsTab/NotesTab/DocumentsTab/AddressesTab com prop basePath; attendance-kanban.tsx: board kanban 3 colunas; kanban.tsx: primitivo genérico dnd-kit; attendance-tab.tsx: toggle Grid/Kanban; people-modal.tsx + attendance-modal.tsx: removidas tabs inline, agora usam entity-tabs; CreateAttendanceModal: botão + para criar pessoa inline) -->
+<!-- Atualizado em: 01/04/2026 23:30 (CLAUDE.md: URLs de leitura obrigatória atualizadas para ?plain=1 — exibe versão raw no GitHub) -->
 <!-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md -->
 
 > Plataforma de mapas geoespaciais para inteligência eleitoral. Permite visualizar dados de votação, atendimentos e estratégias de campanha em mapa interativo.
@@ -10,8 +10,8 @@
 
 Sempre ler os dois arquivos abaixo ao iniciar uma nova conversa:
 
-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md
-- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md
+- https://github.com/twoclicksbr/mapa-do-voto/blob/main/CLAUDE.md?plain=1
+- https://github.com/twoclicksbr/mapa-do-voto/blob/main/DATABASE.md?plain=1
 
 ---
 
