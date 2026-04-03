@@ -2315,14 +2315,40 @@ export function HomePage() {
                   <div className="h-[172px] overflow-y-auto pr-1">
                     {!mapNovoSearch && mapNovoCandidates.length === 0 ? (
                       mapNovoLoading ? (
-                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Buscando...</div>
+                        <div className="space-y-1 animate-pulse">
+                          {[40, 55, 35, 48].map((w, i) => (
+                            <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                              <div className="size-9 rounded-full bg-muted shrink-0" />
+                              <div className="flex-1 space-y-1.5 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="h-3.5 bg-muted rounded" style={{ width: `${w}%` }} />
+                                  <div className="h-4 w-8 bg-muted rounded" />
+                                </div>
+                                <div className="h-3 bg-muted rounded w-3/5" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       ) : (
                         <div className="h-full flex items-center justify-center text-muted-foreground text-sm text-center px-4">
                           Pesquise pelo Nome, cargo, ano, partido
                         </div>
                       )
                     ) : mapNovoLoading ? (
-                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Buscando...</div>
+                      <div className="space-y-1 animate-pulse">
+                        {[50, 40, 60, 35].map((w, i) => (
+                          <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                            <div className="size-9 rounded-full bg-muted shrink-0" />
+                            <div className="flex-1 space-y-1.5 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <div className="h-3.5 bg-muted rounded" style={{ width: `${w}%` }} />
+                                <div className="h-4 w-8 bg-muted rounded" />
+                              </div>
+                              <div className="h-3 bg-muted rounded w-3/5" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     ) : mapNovoCandidates.length === 0 ? (
                       <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Nenhuma candidatura encontrada</div>
                     ) : (
@@ -2742,13 +2768,32 @@ export function HomePage() {
                     </div>
                   )}
                   {mapNovoStatsLoading ? (
-                    <div className="space-y-2 pt-2">
-                      <div className="text-xs text-muted-foreground">Carregando dados eleitorais...</div>
-                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="h-1.5 bg-primary rounded-full transition-all duration-700 ease-out"
-                          style={{ width: `${mapNovoLoadProgress}%` }}
-                        />
+                    <div className="space-y-3 pt-1 animate-pulse">
+                      {/* turno tabs skeleton */}
+                      <div className="space-y-1">
+                        <div className="h-3 w-10 bg-muted rounded" />
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          <div className="flex-1 h-7 bg-muted" />
+                          <div className="flex-1 h-7 bg-muted/60 border-l border-border" />
+                        </div>
+                      </div>
+                      {/* stats card skeleton */}
+                      <div className="rounded-lg border border-border pb-1">
+                        <div className="p-3 space-y-2.5">
+                          <div className="h-4 w-3/4 bg-muted rounded" />
+                          <div className="space-y-1.5">
+                            <div className="h-3 w-1/2 bg-muted rounded" />
+                            <div className="w-full bg-muted rounded-full h-1.5">
+                              <div
+                                className="h-1.5 bg-primary/40 rounded-full transition-all duration-700 ease-out"
+                                style={{ width: `${mapNovoLoadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-center pb-1">
+                          <div className="size-7 rounded-full bg-muted" />
+                        </div>
                       </div>
                     </div>
                   ) : mapNovoStats && mapNovoStats.rounds.length > 0 ? (() => {
@@ -2842,43 +2887,34 @@ export function HomePage() {
                   )}
                 </div>
               ) : (
-              <div className="grid grid-cols-2 gap-2.5 p-3 overflow-y-auto flex-1 content-start">
-                {([
-                  { label: 'Dashboard',         icon: LayoutDashboard, active: true },
-                  { label: 'UI Bloks',          icon: LayoutList },
-                  { label: 'Business Concepts', icon: Landmark },
-                  { label: 'Apps',              icon: MonitorCloud },
-                  { label: 'Public Profiles',   icon: Users },
-                  { label: 'Account Settings',  icon: Settings },
-                  { label: 'Network',           icon: Globe },
-                  { label: 'Authentication',    icon: ShieldCheck },
-                  { label: 'Dashboard 2',       icon: LayoutDashboard },
-                  { label: 'UI Bloks 2',        icon: LayoutList },
-                  { label: 'Business 2',        icon: Landmark },
-                  { label: 'Apps 2',            icon: MonitorCloud },
-                  { label: 'Profiles 2',        icon: Users },
-                  { label: 'Settings 2',        icon: Settings },
-                  { label: 'Network 2',         icon: Globe },
-                  { label: 'Auth 2',            icon: ShieldCheck },
-                  { label: 'Dashboard 3',       icon: LayoutDashboard },
-                  { label: 'UI Bloks 3',        icon: LayoutList },
-                  { label: 'Business 3',        icon: Landmark },
-                  { label: 'Apps 3',            icon: MonitorCloud },
-                  { label: 'Profiles 3',        icon: Users },
-                  { label: 'Settings 3',        icon: Settings },
-                  { label: 'Network 3',         icon: Globe },
-                  { label: 'Auth 3',            icon: ShieldCheck },
-                ] as { label: string; icon: LucideIcon; active?: boolean }[]).map(({ label, icon: Icon, active }) => (
-                  <button
-                    key={label}
-                    className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-colors text-center ${active ? 'bg-foreground text-background border-foreground' : 'border-border hover:bg-muted/50'}`}
-                  >
-                    <div className={`p-2 rounded-lg ${active ? 'bg-background/10' : 'bg-muted'}`}>
-                      <Icon className="size-5" />
+              <div className="p-3 space-y-3 animate-pulse overflow-y-auto flex-1">
+                {/* switch row */}
+                <div className="flex items-center justify-between py-0.5">
+                  <div className="h-3 w-28 bg-muted rounded" />
+                  <div className="h-5 w-9 bg-muted rounded-full" />
+                </div>
+                {/* turno tabs */}
+                <div className="space-y-1">
+                  <div className="h-3 w-10 bg-muted rounded" />
+                  <div className="flex rounded-lg border border-border overflow-hidden">
+                    <div className="flex-1 h-7 bg-muted/50" />
+                    <div className="flex-1 h-7 bg-muted border-l border-border" />
+                  </div>
+                </div>
+                {/* stats card */}
+                <div className="rounded-lg border border-border relative mt-4 pb-1">
+                  <div className="absolute -top-3 right-3 h-5 w-14 bg-muted rounded-full" />
+                  <div className="p-3 space-y-2.5">
+                    <div className="h-4 w-3/4 bg-muted rounded" />
+                    <div className="space-y-1.5">
+                      <div className="h-3 w-1/2 bg-muted rounded" />
+                      <div className="w-2/3 bg-muted rounded-full h-1.5" />
                     </div>
-                    <span className="text-xs font-medium leading-tight">{label}</span>
-                  </button>
-                ))}
+                  </div>
+                  <div className="flex justify-center py-1">
+                    <div className="size-7 rounded-full bg-muted" />
+                  </div>
+                </div>
               </div>
               )}
             </aside>
