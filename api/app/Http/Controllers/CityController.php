@@ -7,6 +7,79 @@ use Illuminate\Support\Facades\DB;
 
 class CityController extends Controller
 {
+    public function zones(Request $request, int $cityId)
+    {
+        $candidacyId = $request->integer('candidacy_id') ?: null;
+
+        if ($candidacyId) {
+            $candidacy = \App\Models\Candidacy::findOrFail($candidacyId);
+            $year = $candidacy->year;
+
+            $zones = DB::connection('pgsql_maps')->select("
+                SELECT z.id, z.zone_number,
+                       COALESCE(SUM(v.qty_votes), 0) AS qty_votes
+                FROM maps.zones z
+                LEFT JOIN maps.votes v ON v.zone_id = z.id
+                    AND v.candidacy_id = ?
+                    AND v.vote_type = 'candidate'
+                    AND v.year = ?
+                    AND v.round = (SELECT MAX(round) FROM maps.votes WHERE candidacy_id = ? AND year = ?)
+                WHERE z.city_id = ?
+                GROUP BY z.id, z.zone_number
+                ORDER BY qty_votes DESC, z.zone_number ASC
+            ", [$candidacyId, $year, $candidacyId, $year, $cityId]);
+        } else {
+            $zones = DB::connection('pgsql_maps')
+                ->table('maps.zones')
+                ->select('id', 'zone_number')
+                ->where('city_id', $cityId)
+                ->orderBy('zone_number')
+                ->get();
+        }
+
+        return response()->json($zones);
+    }
+
+    public function votingLocations(Request $request, int $cityId)
+    {
+        $candidacyId = $request->integer('candidacy_id') ?: null;
+        $zoneId      = $request->integer('zone_id') ?: null;
+
+        if ($candidacyId) {
+            $candidacy = \App\Models\Candidacy::findOrFail($candidacyId);
+            $year = $candidacy->year;
+            $zoneFilter = $zoneId ? 'AND z.id = ?' : '';
+            $bindings   = $zoneId
+                ? [$candidacyId, $year, $candidacyId, $year, $cityId, $zoneId]
+                : [$candidacyId, $year, $candidacyId, $year, $cityId];
+
+            $rows = DB::connection('pgsql_maps')->select("
+                SELECT vl.id, vl.name, vl.tse_number,
+                       COALESCE(SUM(v.qty_votes), 0) AS qty_votes
+                FROM maps.voting_locations vl
+                JOIN maps.zones z ON z.id = vl.zone_id
+                LEFT JOIN maps.votes v ON v.voting_location_id = vl.id
+                    AND v.candidacy_id = ?
+                    AND v.vote_type = 'candidate'
+                    AND v.year = ?
+                    AND v.round = (SELECT MAX(round) FROM maps.votes WHERE candidacy_id = ? AND year = ?)
+                WHERE z.city_id = ? {$zoneFilter}
+                GROUP BY vl.id, vl.name, vl.tse_number
+                ORDER BY qty_votes DESC, vl.name ASC
+            ", $bindings);
+        } else {
+            $query = DB::connection('pgsql_maps')
+                ->table('maps.voting_locations as vl')
+                ->join('maps.zones as z', 'z.id', '=', 'vl.zone_id')
+                ->select('vl.id', 'vl.name', 'vl.tse_number')
+                ->where('z.city_id', $cityId);
+            if ($zoneId) $query->where('vl.zone_id', $zoneId);
+            $rows = $query->orderBy('vl.name')->get();
+        }
+
+        return response()->json($rows);
+    }
+
     public function search(Request $request)
     {
         $request->validate([

@@ -6,6 +6,7 @@ use App\Models\Candidate;
 use App\Models\Candidacy;
 use App\Models\PeopleCandidacy;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class CandidateController extends Controller
@@ -174,9 +175,23 @@ class CandidateController extends Controller
         ];
         $isStateLevelRole = in_array(strtoupper($candidacy->role ?? ''), $stateRoles);
 
-        $filterCityId = $request->integer('city_id') ?: null;
+        $filterCityId           = $request->integer('city_id') ?: null;
+        $filterZoneId           = $request->integer('zone_id') ?: null;
+        $filterVotingLocationId = $request->integer('voting_location_id') ?: null;
 
-        if ($filterCityId) {
+        $cacheKey = "candidacy_stats_{$id}_city_{$filterCityId}_zone_{$filterZoneId}_vl_{$filterVotingLocationId}";
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            return response()->json($cached);
+        }
+
+        if ($filterVotingLocationId) {
+            $scopeCol = 'v.voting_location_id';
+            $scopeVal = $filterVotingLocationId;
+        } elseif ($filterZoneId) {
+            $scopeCol = 'v.zone_id';
+            $scopeVal = $filterZoneId;
+        } elseif ($filterCityId) {
             $scopeCol = 'v.city_id';
             $scopeVal = $filterCityId;
         } elseif ($isStateLevelRole) {
@@ -187,11 +202,20 @@ class CandidateController extends Controller
             $scopeVal = $candidacy->city_id;
         }
 
-        // candidate_by_round: quando filterCityId, limita votos do candidato à cidade filtrada
-        $candidateCityFilter = $filterCityId ? 'AND city_id = ?' : '';
-        $candidateBindings   = $filterCityId
-            ? [$id, $candidacy->year, $filterCityId]
-            : [$id, $candidacy->year];
+        // candidate_by_round: limita votos do candidato ao escopo filtrado
+        if ($filterVotingLocationId) {
+            $candidateScopeFilter = 'AND voting_location_id = ?';
+            $candidateBindings    = [$id, $candidacy->year, $filterVotingLocationId];
+        } elseif ($filterZoneId) {
+            $candidateScopeFilter = 'AND zone_id = ?';
+            $candidateBindings    = [$id, $candidacy->year, $filterZoneId];
+        } elseif ($filterCityId) {
+            $candidateScopeFilter = 'AND city_id = ?';
+            $candidateBindings    = [$id, $candidacy->year, $filterCityId];
+        } else {
+            $candidateScopeFilter = '';
+            $candidateBindings    = [$id, $candidacy->year];
+        }
 
         // party_ids CTE: resolve candidacy_ids do partido sem JOIN na varredura principal
         // scope_by_round usa IN (subquery) em vez de LEFT JOIN — elimina hash join em 18M+ linhas
@@ -203,7 +227,7 @@ class CandidateController extends Controller
             candidate_by_round AS (
                 SELECT round, SUM(qty_votes) AS qty_votes
                 FROM maps.votes
-                WHERE candidacy_id = ? AND year = ? {$candidateCityFilter}
+                WHERE candidacy_id = ? AND year = ? {$candidateScopeFilter}
                 GROUP BY round
             ),
             scope_by_round AS (
@@ -257,17 +281,21 @@ class CandidateController extends Controller
                 'qty_blank'       => (int) $row->qty_blank,
                 'qty_null'        => (int) $row->qty_null,
                 'qty_legend'      => $qtyLegend,
-                'qty_party_total' => (int) $row->qty_party_nominal + $qtyLegend,
+                'qty_party_total' => (int) $row->qty_party_nominal,
                 'qty_total'       => (int) $row->qty_total,
                 'status'          => $candidacy->status,
             ];
         }
 
-        return response()->json([
+        $result = [
             'rounds'        => $rounds,
             'default_round' => max($rounds),
             'stats'         => $stats,
-        ]);
+        ];
+
+        Cache::forever($cacheKey, $result);
+
+        return response()->json($result);
     }
 
     public function cities(int $id)

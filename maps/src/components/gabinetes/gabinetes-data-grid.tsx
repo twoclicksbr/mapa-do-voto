@@ -26,9 +26,9 @@ import { ExternalLink, Pencil, Trash2, Building2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 
-interface Tenant {
+export interface Tenant {
   id: number;
-  tenant_id: number | null;
+  tenant_id?: number | null;
   plan_id?: number | null;
   name: string;
   slug: string;

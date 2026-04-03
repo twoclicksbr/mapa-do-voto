@@ -4,10 +4,13 @@ import { LoginModal } from "@/components/auth/login-modal";
 import { useLayout } from "@/components/layouts/layout-33/components/context";
 import { Toolbar, ToolbarHeading, ToolbarActions } from "@/components/layouts/layout-33/components/toolbar";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { ChevronDown, Search, Plus, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, Wallet, X, CircleStar, MonitorCloud, LandPlot, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, Plus, Minus, Check, Crosshair, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, Wallet, X, CircleStar, MonitorCloud, LandPlot, PanelLeft, PanelRight, Globe, Grid3x2, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
+import { MapaDoVotoSidebarContent } from "@/components/mapa-do-voto/sidebar";
 import { Navbar } from "@/components/layouts/layout-33/components/navbar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +28,7 @@ import api from "@/lib/api";
 import { formatRecordCount } from "@/lib/helpers";
 import { useActiveTab } from "@/components/layout/active-tab-context";
 import { useLoginModal } from "@/components/auth/login-modal-context";
-import { GabinetesDataGrid } from "@/components/gabinetes/gabinetes-data-grid";
+import { GabinetesDataGrid, type Tenant } from "@/components/gabinetes/gabinetes-data-grid";
 import { GabinetCreateModal } from "@/components/gabinetes/gabinete-create-modal";
 import { GabinetEditModal } from "@/components/gabinetes/gabinete-edit-modal";
 import { GabinetesFilterModal, GabinetesFilters } from "@/components/gabinetes/gabinetes-filter-modal";
@@ -70,7 +73,7 @@ import { FinAccountsFilterModal, FinAccountsFilters } from "@/components/finance
 import { FinTitleModal } from "@/components/financeiro/fin-title-modal";
 import { FinTitlesFilterModal, FinTitlesFilters } from "@/components/financeiro/fin-titles-filter-modal";
 import { DateSelector, formatDateValue, type DateSelectorValue, type DateSelectorI18nConfig } from "@/components/reui/date-selector";
-import { format, addDays, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, subYears } from "date-fns";
+import { format, addDays, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths } from "date-fns";
 import { FinExtractDataGrid, FinExtractEntry, ExtractViewToggle, ExtractView, EXTRACT_VIEW_KEY } from "@/components/financeiro/fin-extract-data-grid";
 import { FinExtractFilterModal, FinExtractFilters } from "@/components/financeiro/fin-extract-filter-modal";
 import { FinExtractModal } from "@/components/financeiro/fin-extract-modal";
@@ -86,6 +89,11 @@ import { EventTypesFilterModal, EventTypesFilters } from "@/components/event-typ
 import { PlansDataGrid, Plan } from "@/components/plans/plans-data-grid";
 import { PlanModal } from "@/components/plans/plan-modal";
 import { PlansFilterModal, PlansFilters } from "@/components/plans/plans-filter-modal";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BrazilMap, type BrazilMapHandle } from "@/components/map/brazil-map";
+
+import { type Candidate } from "@/components/map/candidate-search";
+import { getPartyColors } from "@/lib/party-colors";
 
 const BREADCRUMB_ICONS: Record<string, LucideIcon> = {
   'Home': Home,
@@ -156,18 +164,6 @@ function getBaseDomain(): string {
   return window.location.hostname;
 }
 
-interface Tenant {
-  id: number;
-  tenant_id?: number | null;
-  plan_id?: number | null;
-  name: string;
-  slug: string;
-  active: boolean;
-  valid_until: string;
-  logo_original?: string | null;
-  logo_md?: string | null;
-  logo_sm?: string | null;
-}
 
 const DATE_I18N: DateSelectorI18nConfig = {
   selectDate: "Selecionar data",
@@ -224,7 +220,7 @@ function extractDateRange(v: DateSelectorValue): { dateFrom: string; dateTo: str
   if (v.period === "half-year") {
     if (v.rangeStart && v.rangeEnd) {
       const s = new Date(v.rangeStart.year, v.rangeStart.value * 6, 1);
-      const e = new Date(v.rangeEnd.year,   v.rangeEnd.value   * 6, 1);
+      const _e = new Date(v.rangeEnd.year,   v.rangeEnd.value   * 6, 1); void _e;
       const eEnd = new Date(v.rangeEnd.year, v.rangeEnd.value * 6 + 5, 1);
       return { dateFrom: fmt(startOfMonth(s)), dateTo: fmt(endOfMonth(eEnd)) };
     }
@@ -259,11 +255,151 @@ function extractDateRange(v: DateSelectorValue): { dateFrom: string; dateTo: str
   return { dateFrom: fmt(subMonths(now, 6)), dateTo: fmt(now) };
 }
 
+
 export function HomePage() {
   const { isMobile } = useLayout();
   const { activeTab, setActiveTab } = useActiveTab();
   const { loggedIn } = useLoginModal();
-  const { isSplit, setIsSplit } = useActiveCandidate();
+  const [mapNovoSidebarOpen, setMapNovoSidebarOpen] = useState(true);
+  const [mapNovoChecked, setMapNovoChecked] = useState<Record<string, boolean>>({ overview: false, activity: false, metrics: false, reports: false, alerts: false });
+  const brazilMapRef = useRef<BrazilMapHandle>(null);
+  const [mapNovoProfileOpen, setMapNovoProfileOpen] = useState(false);
+  const [mapNovoSearch, setMapNovoSearch] = useState('');
+  const [mapNovoCandidates, setMapNovoCandidates] = useState<Candidate[]>([]);
+  const [mapNovoInitialCandidates, setMapNovoInitialCandidates] = useState<Candidate[]>([]);
+  const [mapNovoLoading, setMapNovoLoading] = useState(false);
+  const [mapNovoCandidate, setMapNovoCandidate] = useState<Candidate | null>(null);
+  const mapNovoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mapNovoStats, setMapNovoStats] = useState<{ rounds: number[]; default_round: number | null; stats: Record<string, { qty_votes: number; percentage: number; total_valid: number; qty_blank: number; qty_null: number; qty_legend: number; qty_party_total: number; qty_total: number; status: string | null }> } | null>(null);
+  const [mapNovoStatsLoading, setMapNovoStatsLoading] = useState(false);
+  const [mapNovoRound, setMapNovoRound] = useState<number | null>(null);
+  const [mapNovoLoadProgress, setMapNovoLoadProgress] = useState(0);
+  const [mapNovoStatsOpen, setMapNovoStatsOpen] = useState(false);
+  const [mapNovoShowCities, setMapNovoShowCities] = useState(false);
+  const [mapNovoCitySearch, setMapNovoCitySearch] = useState('');
+  const [mapNovoCities, setMapNovoCities] = useState<{ id: number; name: string; qty_votes: number }[]>([]);
+  const [mapNovoCitiesLoading, setMapNovoCitiesLoading] = useState(false);
+  const [mapNovoSelectedCity, setMapNovoSelectedCity] = useState<{ id: number; name: string; qty_votes: number } | null>(null);
+  const [mapNovoCityOpen, setMapNovoCityOpen] = useState(false);
+  const [mapNovoShowZones, setMapNovoShowZones] = useState(false);
+  const [mapNovoZones, setMapNovoZones] = useState<{ id: number; zone_number: number; qty_votes: number }[]>([]);
+  const [mapNovoShowVotingLocations, setMapNovoShowVotingLocations] = useState(false);
+  const [mapNovoVotingLocations, setMapNovoVotingLocations] = useState<{ id: number; name: string; tse_number: string; qty_votes: number }[]>([]);
+  const [mapNovoVotingLocationsLoading, setMapNovoVotingLocationsLoading] = useState(false);
+  const [mapNovoVotingLocationSearch, setMapNovoVotingLocationSearch] = useState('');
+  const [mapNovoVotingLocationOpen, setMapNovoVotingLocationOpen] = useState(false);
+  const [mapNovoSelectedVotingLocation, setMapNovoSelectedVotingLocation] = useState<{ id: number; name: string; tse_number: string; qty_votes: number } | null>(null);
+  const [mapNovoZonesLoading, setMapNovoZonesLoading] = useState(false);
+  const [mapNovoZoneSearch, setMapNovoZoneSearch] = useState('');
+  const [mapNovoZoneOpen, setMapNovoZoneOpen] = useState(false);
+  const [mapNovoSelectedZone, setMapNovoSelectedZone] = useState<{ id: number; zone_number: number; qty_votes: number } | null>(null);
+
+  useEffect(() => {
+    if (!loggedIn) {
+      setMapNovoCandidate(null);
+      setMapNovoCandidates([]);
+      setMapNovoInitialCandidates([]);
+      setMapNovoSearch('');
+    }
+  }, [loggedIn]);
+
+  useEffect(() => {
+    setMapNovoShowCities(false);
+    setMapNovoSelectedCity(null);
+    setMapNovoCitySearch('');
+    setMapNovoCities([]);
+    setMapNovoShowZones(false);
+    setMapNovoZones([]);
+    setMapNovoSelectedZone(null);
+    setMapNovoZoneSearch('');
+    setMapNovoShowVotingLocations(false);
+    setMapNovoVotingLocations([]);
+    setMapNovoSelectedVotingLocation(null);
+    setMapNovoVotingLocationSearch('');
+  }, [mapNovoCandidate]);
+
+  useEffect(() => {
+    if (!mapNovoCandidate) { setMapNovoStats(null); setMapNovoRound(null); return; }
+    setMapNovoStatsLoading(true);
+    setMapNovoLoadProgress(0);
+    const t1 = setTimeout(() => setMapNovoLoadProgress(55), 80);
+    const t2 = setTimeout(() => setMapNovoLoadProgress(75), 1200);
+    const t3 = setTimeout(() => setMapNovoLoadProgress(88), 3000);
+    const params: Record<string, number> = {};
+    if (mapNovoSelectedVotingLocation) params.voting_location_id = mapNovoSelectedVotingLocation.id;
+    else if (mapNovoSelectedZone) params.zone_id = mapNovoSelectedZone.id;
+    else if (mapNovoSelectedCity) params.city_id = mapNovoSelectedCity.id;
+    api.get(`/candidacies/${mapNovoCandidate.id}/stats`, { params })
+      .then(res => {
+        setMapNovoStats(res.data);
+        setMapNovoRound(res.data.default_round ?? res.data.rounds?.[0] ?? null);
+        setMapNovoLoadProgress(100);
+      })
+      .catch(() => { setMapNovoStats(null); setMapNovoRound(null); setMapNovoLoadProgress(100); })
+      .finally(() => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); setTimeout(() => setMapNovoStatsLoading(false), 300); });
+  }, [mapNovoCandidate, mapNovoSelectedCity, mapNovoSelectedZone, mapNovoSelectedVotingLocation]);
+
+  useEffect(() => {
+    if (!mapNovoShowCities || !mapNovoCandidate) { setMapNovoCities([]); return; }
+    if (mapNovoCities.length > 0) return;
+    setMapNovoCitiesLoading(true);
+    api.get(`/candidacies/${mapNovoCandidate.id}/cities`)
+      .then(res => {
+        const sorted = [...res.data].sort((a: { qty_votes: number }, b: { qty_votes: number }) => b.qty_votes - a.qty_votes);
+        setMapNovoCities(sorted);
+      })
+      .catch(() => setMapNovoCities([]))
+      .finally(() => setMapNovoCitiesLoading(false));
+  }, [mapNovoShowCities, mapNovoCandidate]);
+
+  useEffect(() => {
+    const isMunicipal = ['PREFEITO','PREFEITA','VEREADOR','VEREADORA','VICE-PREFEITO','VICE-PREFEITA'].includes((mapNovoCandidate?.role ?? '').toUpperCase());
+    const cityId = mapNovoSelectedCity?.id ?? (isMunicipal ? mapNovoCandidate?.city_id : null);
+    if (!mapNovoShowVotingLocations || !cityId) { setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); return; }
+    setMapNovoVotingLocationsLoading(true);
+    api.get(`/cities/${cityId}/voting-locations`, {
+      params: { candidacy_id: mapNovoCandidate?.id, ...(mapNovoSelectedZone ? { zone_id: mapNovoSelectedZone.id } : {}) }
+    })
+      .then(res => setMapNovoVotingLocations(res.data))
+      .catch(() => setMapNovoVotingLocations([]))
+      .finally(() => setMapNovoVotingLocationsLoading(false));
+  }, [mapNovoShowVotingLocations, mapNovoSelectedCity, mapNovoSelectedZone, mapNovoCandidate]);
+
+  useEffect(() => {
+    const isMunicipal = ['PREFEITO','PREFEITA','VEREADOR','VEREADORA','VICE-PREFEITO','VICE-PREFEITA'].includes((mapNovoCandidate?.role ?? '').toUpperCase());
+    const cityId = mapNovoSelectedCity?.id ?? (isMunicipal ? mapNovoCandidate?.city_id : null);
+    if (!mapNovoShowZones || !cityId) { setMapNovoZones([]); setMapNovoSelectedZone(null); return; }
+    setMapNovoZonesLoading(true);
+    api.get(`/cities/${cityId}/zones`, { params: { candidacy_id: mapNovoCandidate?.id } })
+      .then(res => setMapNovoZones(res.data))
+      .catch(() => setMapNovoZones([]))
+      .finally(() => setMapNovoZonesLoading(false));
+  }, [mapNovoShowZones, mapNovoSelectedCity, mapNovoCandidate]);
+
+  useEffect(() => {
+    if (!mapNovoProfileOpen) return;
+    if (mapNovoCandidates.length > 0 || mapNovoSearch) return;
+    setMapNovoLoading(true);
+    api.get('/candidates').then(res => {
+      const mapped: Candidate[] = res.data.map((c: { id: number; name: string; ballot_name: string | null; ballot_number?: string | null; role: string; year: number; state_id: number | null; state_uf: string | null; city_id: number | null; city_name: string | null; city_ibge_code: string | null; party: { abbreviation: string }; photo_url?: string | null; avatar_url?: string | null }) => ({
+        id: String(c.id),
+        name: c.name,
+        ballot_name: c.ballot_name,
+        ballot_number: c.ballot_number ?? null,
+        role: c.role,
+        year: c.year,
+        state_id: c.state_id,
+        state_uf: c.state_uf,
+        city_id: c.city_id,
+        city: c.city_name ?? null,
+        city_ibge_code: c.city_ibge_code,
+        party: c.party?.abbreviation ?? '',
+        photo_url: c.photo_url ?? c.avatar_url ?? null,
+      }));
+      if (mapped.length <= 10) { setMapNovoCandidates(mapped); setMapNovoInitialCandidates(mapped); }
+    }).finally(() => setMapNovoLoading(false));
+  }, [mapNovoProfileOpen]);
+  const { isSplit } = useActiveCandidate();
   const tenantName = getTenantName();
   const isMaster = tenantName.toLowerCase() === 'master';
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -331,7 +467,7 @@ export function HomePage() {
 
   const [permissionActions, setPermissionActions] = useState<PermissionAction[]>([]);
   const [permissionActionsLoading, setPermissionActionsLoading] = useState(false);
-  const [permissionActionsSelected, setPermissionActionsSelected] = useState(0);
+  const [permissionActionsSelected, _setPermissionActionsSelected] = useState(0); void permissionActionsSelected;
   const [permissionActionsModalOpen, setPermissionActionsModalOpen] = useState(false);
   const [editingPermissionAction, setEditingPermissionAction] = useState<PermissionAction | null>(null);
   const [permissionActionsFilterOpen, setPermissionActionsFilterOpen] = useState(false);
@@ -396,7 +532,7 @@ export function HomePage() {
       if (!wantActive && wantInactive && p.active)   return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (p as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (p as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -506,7 +642,7 @@ export function HomePage() {
       if (!wantActive && wantInactive && tc.active)   return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (tc as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (tc as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -540,7 +676,7 @@ export function HomePage() {
       if (!wantActive && wantInactive && ta.active)   return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (ta as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (ta as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -606,7 +742,7 @@ export function HomePage() {
       if (!inAction && !inNameAction) return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (pa as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (pa as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (!raw) return false;
       const dDay = new Date(raw); dDay.setHours(0, 0, 0, 0);
       if (!matchesDateFilter(dDay, f.dateValue)) return false;
@@ -651,7 +787,7 @@ export function HomePage() {
       if (!wantActive && wantInactive && td.active)   return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (td as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (td as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -687,7 +823,7 @@ export function HomePage() {
       if (!wantActive && wantInactive && et.active)   return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (et as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (et as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -722,7 +858,7 @@ export function HomePage() {
       if (!wantActive && wantInactive && tp.active)   return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (tp as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (tp as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -757,7 +893,7 @@ export function HomePage() {
     }
     if (f.hasSchema !== null && f.hasSchema !== undefined && p.has_schema !== f.hasSchema) return false;
     if (f.dateValue && f.dateField) {
-      const raw = (p as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (p as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -851,7 +987,7 @@ export function HomePage() {
       }
     }
     if (f.dateValue && f.dateField) {
-      const raw = (t as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (t as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const v = f.dateValue;
@@ -1007,6 +1143,7 @@ export function HomePage() {
     } else {
       const TAB_LABELS: Record<string, string> = {
         overview:  'Mapa',
+        'map-novo': 'Mapa novo',
         activity:  'Atendimentos',
         metrics:   'Agenda',
         reports:   'Alianças',
@@ -1205,7 +1342,7 @@ export function HomePage() {
   const handleFinTitleExpenseDelete = async (id: number) => {
     await api.delete(`/fin-titles/${id}`);
     setFinTitles(prev => prev.filter(t => t.id !== id));
-  };
+  }; void handleFinTitleExpenseDelete;
 
   const handleBulkCancelExpense = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -1230,7 +1367,7 @@ export function HomePage() {
   const handleFinTitleIncomeDelete = async (id: number) => {
     await api.delete(`/fin-titles/${id}`);
     setFinTitlesIncome(prev => prev.filter(t => t.id !== id));
-  };
+  }; void handleFinTitleIncomeDelete;
 
   useEffect(() => {
     if (!loggedIn || finSection !== 'fin-banks') return;
@@ -1265,7 +1402,7 @@ export function HomePage() {
       if (!f.status.includes(isActive)) return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (b as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (b as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (!raw) return false;
       const dDay = new Date(raw); dDay.setHours(0, 0, 0, 0);
       if (!matchesDateFilter(dDay, f.dateValue)) return false;
@@ -1301,7 +1438,7 @@ export function HomePage() {
       if (!wantActive && wantInactive && m.active)   return false;
     }
     if (f.dateField && f.dateValue) {
-      const raw = (m as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (m as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const d = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -1374,7 +1511,7 @@ export function HomePage() {
       if (!f.status.includes(isActive)) return false;
     }
     if (f.dateValue && f.dateField) {
-      const raw = (t as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (t as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (!raw) return false;
       const dDay = new Date(raw); dDay.setHours(0, 0, 0, 0);
       if (!matchesDateFilter(dDay, f.dateValue)) return false;
@@ -1426,7 +1563,7 @@ export function HomePage() {
       if (!wantActive && wantInactive && d.active)   return false;
     }
     if (f.dateField && f.dateValue) {
-      const raw = (d as Record<string, unknown>)[f.dateField] as string | null;
+      const raw = (d as unknown as Record<string, unknown>)[f.dateField] as string | null;
       if (raw) {
         const dt = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
         const dDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
@@ -1499,7 +1636,7 @@ export function HomePage() {
         if (!wantActive && wantInactive && a.active)   return false;
       }
       if (f.dateField && f.dateValue) {
-        const raw = (a as Record<string, unknown>)[f.dateField] as string | null;
+        const raw = (a as unknown as Record<string, unknown>)[f.dateField] as string | null;
         if (raw) {
           const dt = new Date(raw.length === 10 ? raw + "T00:00:00" : raw);
           const dDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
@@ -1538,7 +1675,7 @@ export function HomePage() {
     return chips;
   };
 
-  const handleFinAccountSaved = (saved: FinAccount) => {
+  const handleFinAccountSaved = (_saved: FinAccount) => {
     // Reload full tree from server to keep hierarchy consistent
     api.get<FinAccount[]>('/fin-accounts')
       .then(res => setFinAccounts(res.data))
@@ -1551,6 +1688,7 @@ export function HomePage() {
   const mapRef1 = useRef<L.Map | null>(null);
   const mapRef2 = useRef<L.Map | null>(null);
   const [cityBounds, setCityBounds] = useState<L.LatLngBounds | null>(null);
+  const [mapPanelOpen, setMapPanelOpen] = useState(true);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -1571,6 +1709,15 @@ export function HomePage() {
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSplit]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      mapRef1.current?.invalidateSize();
+      if (cityBounds) mapRef1.current?.fitBounds(cityBounds, { padding: [40, 40], animate: false });
+    }, 300);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapPanelOpen]);
 
   const getMap2InitialView = () => {
     if (mapRef1.current) {
@@ -1947,6 +2094,7 @@ export function HomePage() {
                 )}
                 <TabsList size="xs">
                   <TabsTrigger value="overview"><MapPinned className="size-3.5" />Mapa</TabsTrigger>
+                  <TabsTrigger value="map-novo"><MapPin className="size-3.5" />Mapa novo</TabsTrigger>
                   <TabsTrigger value="activity"><MonitorCloud className="size-3.5" />Atendimentos</TabsTrigger>
                   <TabsTrigger value="metrics"><CalendarDays className="size-3.5" />Agenda</TabsTrigger>
                   <TabsTrigger value="reports"><CircleStar className="size-3.5" />Alianças</TabsTrigger>
@@ -2034,28 +2182,748 @@ export function HomePage() {
 
         <TabsContent value="overview" className="flex-1 min-h-0 mt-0 flex flex-col">
           <div className="flex-1 min-h-0 rounded-lg overflow-hidden flex flex-row">
-            <div className={isSplit ? "w-1/2 h-full" : "w-full h-full"}>
-              <MapaDoVotoMap
-                mapRef={mapRef1}
-                syncRef={isSplit ? mapRef2 : undefined}
-                onCityBoundsReady={setCityBounds}
-                cityBounds={cityBounds}
-              />
-            </div>
-            {isSplit && (
-              <div className="w-1/2 h-full border-l border-border">
-                <MapaDoVotoMap
-                  key="map2"
-                  mapRef={mapRef2}
-                  syncRef={mapRef1}
-                  initialView={getMap2InitialView()}
-                  cityBounds={cityBounds}
-                  isCompare={true}
-                />
+            {/* Painel esquerdo — desktop only */}
+            {!isMobile && mapPanelOpen && (
+              <div className="w-[280px] h-full bg-background border-r border-border flex flex-col shrink-0 overflow-hidden">
+                <MapaDoVotoSidebarContent inline onClose={() => setMapPanelOpen(false)} />
               </div>
             )}
+
+            {/* Área do(s) mapa(s) */}
+            <div className="flex-1 min-h-0 h-full relative flex flex-row">
+              {/* Botão reabrir painel */}
+              {!isMobile && !mapPanelOpen && (
+                <button
+                  onClick={() => setMapPanelOpen(true)}
+                  className="absolute top-4 left-4 z-[1000] w-9 h-9 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+                >
+                  <PanelLeft size={16} />
+                </button>
+              )}
+
+              <div className={isSplit ? "w-1/2 h-full" : "w-full h-full"}>
+                <MapaDoVotoMap
+                  mapRef={mapRef1}
+                  syncRef={isSplit ? mapRef2 : undefined}
+                  onCityBoundsReady={setCityBounds}
+                  cityBounds={cityBounds}
+                  showOverlays={isMobile || !mapPanelOpen}
+                />
+              </div>
+              {isSplit && (
+                <div className="w-1/2 h-full border-l border-border">
+                  <MapaDoVotoMap
+                    key="map2"
+                    mapRef={mapRef2}
+                    syncRef={mapRef1}
+                    initialView={getMap2InitialView()}
+                    cityBounds={cityBounds}
+                    isCompare={true}
+                  />
+                </div>
+              )}
+            </div>
           </div>
           <PageFooter />
+        </TabsContent>
+
+        <TabsContent value="map-novo" className="flex-1 min-h-0 mt-0 flex overflow-hidden">
+          {/* Sidebar esquerda */}
+          {mapNovoSidebarOpen && (
+            <aside className="w-[310px] shrink-0 border-e border-border bg-background flex flex-col overflow-hidden">
+              {/* Profile block */}
+              <div className="flex items-center border-b border-border shrink-0">
+                <button
+                  onClick={() => {
+                    if (!mapNovoCandidate) {
+                      setMapNovoSearch('');
+                      setMapNovoCandidates([]);
+                      setMapNovoInitialCandidates([]);
+                    }
+                    setMapNovoProfileOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-3 py-3 hover:bg-muted/50 transition-colors text-left flex-1 min-w-0"
+                >
+                  {mapNovoCandidate ? (() => {
+                    const colors = getPartyColors(mapNovoCandidate.party);
+                    const initial = (mapNovoCandidate.ballot_name ?? mapNovoCandidate.name).charAt(0).toUpperCase();
+                    return (
+                      <>
+                        <div className="size-9 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-bold overflow-hidden" style={colors.gradient ? { background: colors.gradient } : { backgroundColor: colors.hex }}>
+                          {mapNovoCandidate.photo_url ? <img src={mapNovoCandidate.photo_url} className="size-full object-cover" /> : initial}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold truncate">{mapNovoCandidate.ballot_name ?? mapNovoCandidate.name}</span>
+                            {mapNovoCandidate.party && (
+                              <span className="text-[10px] px-1 py-0.5 rounded font-bold shrink-0 text-white" style={colors.gradient ? { background: colors.gradient } : { backgroundColor: colors.hex }}>{mapNovoCandidate.party}</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">{(() => { const municipal = ['PREFEITO','PREFEITA','VICE-PREFEITO','VICE-PREFEITA','VEREADOR','VEREADORA'].includes((mapNovoCandidate.role ?? '').toUpperCase()); return [mapNovoCandidate.role, municipal ? mapNovoCandidate.city : mapNovoCandidate.state_uf, mapNovoCandidate.year].filter(Boolean).join(' · '); })()}</div>
+                        </div>
+                      </>
+                    );
+                  })() : (
+                    <>
+                      <Avatar className="size-9 shrink-0">
+                        <AvatarFallback><Search className="size-4 text-muted-foreground" /></AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-semibold text-muted-foreground">Selecionar candidatura</span>
+                        <span className="text-muted-foreground text-xs">Clique para pesquisar</span>
+                      </div>
+                    </>
+                  )}
+                </button>
+                {mapNovoCandidate && (
+                  <button
+                    onClick={() => setMapNovoCandidate(null)}
+                    className="shrink-0 mr-3 size-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <Dialog open={mapNovoProfileOpen} onOpenChange={setMapNovoProfileOpen}>
+                <DialogContent className="sm:max-w-xl">
+                  <DialogHeader>
+                    <DialogTitle>Selecione a Candidatura</DialogTitle>
+                  </DialogHeader>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Pesquise pelo Nome, cargo, ano, partido"
+                      value={mapNovoSearch}
+                      onChange={(e) => {
+                        const q = e.target.value.toUpperCase();
+                        setMapNovoSearch(q);
+                        if (mapNovoDebounceRef.current) clearTimeout(mapNovoDebounceRef.current);
+                        if (q.length < 2) { setMapNovoCandidates(mapNovoInitialCandidates); setMapNovoLoading(false); return; }
+                        setMapNovoLoading(true);
+                        mapNovoDebounceRef.current = setTimeout(() => {
+                          api.get('/candidates/search', { params: { q } })
+                            .then(res => setMapNovoCandidates(res.data.map((c: { id: number; name: string; ballot_name: string | null; ballot_number: string | null; role: string; year: number; state_uf: string | null; city: string | null; party: string; photo_url: string | null; state_id: number | null; city_id: number | null; city_ibge_code: string | null }) => ({ ...c, id: String(c.id) }))))
+                            .finally(() => setMapNovoLoading(false));
+                        }, 300);
+                      }}
+                      className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    />
+                  </div>
+                  <div className="h-[172px] overflow-y-auto pr-1">
+                    {!mapNovoSearch && mapNovoCandidates.length === 0 ? (
+                      mapNovoLoading ? (
+                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Buscando...</div>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm text-center px-4">
+                          Pesquise pelo Nome, cargo, ano, partido
+                        </div>
+                      )
+                    ) : mapNovoLoading ? (
+                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Buscando...</div>
+                    ) : mapNovoCandidates.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Nenhuma candidatura encontrada</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {mapNovoCandidates.map((c) => {
+                          const colors = getPartyColors(c.party);
+                          const initial = (c.ballot_name ?? c.name).charAt(0).toUpperCase();
+                          return (
+                            <button
+                              key={c.id}
+                              onClick={() => { setMapNovoCandidate(c); setMapNovoProfileOpen(false); }}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 transition-colors text-left border border-transparent hover:border-border"
+                            >
+                              <div className="size-9 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-bold overflow-hidden" style={colors.gradient ? { background: colors.gradient } : { backgroundColor: colors.hex }}>
+                                {c.photo_url ? <img src={c.photo_url} className="size-full object-cover" /> : initial}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-semibold truncate">{c.ballot_name ?? c.name}</span>
+                                  {c.party && (
+                                    <span className="text-[10px] px-1 py-0.5 rounded font-bold shrink-0 text-white" style={colors.gradient ? { background: colors.gradient } : { backgroundColor: colors.hex }}>{c.party}</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground truncate">{(() => { const municipal = ['PREFEITO','PREFEITA','VICE-PREFEITO','VICE-PREFEITA','VEREADOR','VEREADORA'].includes((c.role ?? '').toUpperCase()); return [c.role, municipal ? c.city : c.state_uf, c.year].filter(Boolean).join(' · '); })()}</div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="outline" size="sm">Fechar</Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Stats ou Nav cards */}
+              {mapNovoCandidate ? (
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                  {/* Exibir Cidades — apenas cargos estaduais */}
+                  {['DEPUTADO ESTADUAL','DEPUTADA ESTADUAL','DEPUTADO FEDERAL','DEPUTADA FEDERAL','SENADOR','SENADORA','GOVERNADOR','GOVERNADORA'].includes((mapNovoCandidate.role ?? '').toUpperCase()) && <div className="space-y-2">
+                    <div
+                      className="flex items-center justify-between cursor-pointer"
+                      onClick={() => setMapNovoShowCities(v => { if (v) { setMapNovoCitySearch(''); setMapNovoSelectedCity(null); setMapNovoShowZones(false); setMapNovoZones([]); setMapNovoSelectedZone(null); setMapNovoZoneSearch(''); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } return !v; })}
+                    >
+                      <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                        <Building className="size-3.5" />
+                        Exibir Cidades
+                      </span>
+                      <Switch
+                        checked={mapNovoShowCities}
+                        onCheckedChange={(v) => { setMapNovoShowCities(v); if (!v) { setMapNovoCitySearch(''); setMapNovoSelectedCity(null); setMapNovoShowZones(false); setMapNovoZones([]); setMapNovoSelectedZone(null); setMapNovoZoneSearch(''); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } }}
+                        className="scale-75 origin-right pointer-events-none"
+                      />
+                    </div>
+                    {mapNovoShowCities && (
+                      <Popover open={mapNovoCityOpen} onOpenChange={setMapNovoCityOpen}>
+                        <div className="flex items-center gap-1">
+                          <PopoverTrigger asChild>
+                            <button className="flex-1 flex items-center justify-between px-3 py-1.5 text-xs border border-border rounded-md bg-background hover:bg-muted transition-colors text-left">
+                              <span className={mapNovoSelectedCity ? 'font-medium' : 'text-muted-foreground'}>
+                                {mapNovoSelectedCity ? mapNovoSelectedCity.name : 'Selecionar cidade...'}
+                              </span>
+                              <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-2" />
+                            </button>
+                          </PopoverTrigger>
+                          {mapNovoSelectedCity && (
+                            <button
+                              onClick={() => { setMapNovoSelectedCity(null); setMapNovoShowZones(false); setMapNovoZones([]); setMapNovoSelectedZone(null); setMapNovoZoneSearch(''); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); }}
+                              className="size-7 shrink-0 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
+                            >
+                              <X className="size-3.5 text-muted-foreground" />
+                            </button>
+                          )}
+                        </div>
+                        <PopoverContent className="p-0 w-64" align="start">
+                          <div className="p-2 border-b border-border">
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                              <input
+                                autoFocus
+                                type="text"
+                                placeholder="Buscar cidade..."
+                                value={mapNovoCitySearch}
+                                onChange={(e) => setMapNovoCitySearch(e.target.value.toUpperCase())}
+                                className="w-full pl-8 pr-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:normal-case uppercase"
+                              />
+                            </div>
+                          </div>
+                          <div className="max-h-52 overflow-y-auto">
+                            {mapNovoCitiesLoading ? (
+                              <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Carregando...</div>
+                            ) : (() => {
+                              const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+                              const filtered = mapNovoCities.filter(c =>
+                                !mapNovoCitySearch || norm(c.name).includes(norm(mapNovoCitySearch))
+                              );
+                              return filtered.length === 0 ? (
+                                <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Nenhuma cidade encontrada</div>
+                              ) : filtered.map(c => (
+                                <div
+                                  key={c.id}
+                                  onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedCity(c); setMapNovoCitySearch(''); setMapNovoCityOpen(false); }}
+                                  className={`flex items-center justify-between px-3 py-1.5 cursor-pointer border-b border-border last:border-0 hover:bg-muted ${mapNovoSelectedCity?.id === c.id ? 'bg-muted' : ''}`}
+                                >
+                                  <span className="text-xs font-medium truncate">{c.name}</span>
+                                  <span className="text-xs text-muted-foreground tabular-nums ml-2 shrink-0">{Number(c.qty_votes).toLocaleString('pt-BR')}</span>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                    {mapNovoSelectedCity && (
+                      <>
+                        <div
+                          className="flex items-center justify-between cursor-pointer"
+                          onClick={() => setMapNovoShowZones(v => { if (v) { setMapNovoZoneSearch(''); setMapNovoSelectedZone(null); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } else { setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } return !v; })}
+                        >
+                          <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                            <Grid3x2 className="size-3.5" />
+                            Exibir Zonas Eleitorais
+                          </span>
+                          <Switch
+                            checked={mapNovoShowZones}
+                            onCheckedChange={(v) => { setMapNovoShowZones(v); if (!v) { setMapNovoZoneSearch(''); setMapNovoSelectedZone(null); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } else { setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } }}
+                            className="scale-75 origin-right pointer-events-none"
+                          />
+                        </div>
+                        {mapNovoShowZones && (
+                          <Popover open={mapNovoZoneOpen} onOpenChange={setMapNovoZoneOpen}>
+                            <div className="flex items-center gap-1">
+                              <PopoverTrigger asChild>
+                                <button className="flex-1 flex items-center justify-between px-3 py-1.5 text-xs border border-border rounded-md bg-background hover:bg-muted transition-colors text-left">
+                                  <span className={mapNovoSelectedZone ? 'font-medium' : 'text-muted-foreground'}>
+                                    {mapNovoSelectedZone ? `Zona ${mapNovoSelectedZone.zone_number}` : 'Selecionar zona...'}
+                                  </span>
+                                  <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-2" />
+                                </button>
+                              </PopoverTrigger>
+                              {mapNovoSelectedZone && (
+                                <button
+                                  onClick={() => { setMapNovoSelectedZone(null); setMapNovoZoneSearch(''); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); }}
+                                  className="size-7 shrink-0 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
+                                >
+                                  <X className="size-3.5 text-muted-foreground" />
+                                </button>
+                              )}
+                            </div>
+                            <PopoverContent className="p-0 w-56" align="start">
+                              <div className="p-2 border-b border-border">
+                                <div className="relative">
+                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder="Buscar zona..."
+                                    value={mapNovoZoneSearch}
+                                    onChange={(e) => setMapNovoZoneSearch(e.target.value)}
+                                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                                  />
+                                </div>
+                              </div>
+                              <div className="max-h-52 overflow-y-auto">
+                                {mapNovoZonesLoading ? (
+                                  <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Carregando...</div>
+                                ) : (() => {
+                                  const filtered = mapNovoZones.filter(z =>
+                                    !mapNovoZoneSearch || String(z.zone_number).includes(mapNovoZoneSearch)
+                                  );
+                                  return filtered.length === 0 ? (
+                                    <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Nenhuma zona encontrada</div>
+                                  ) : filtered.map(z => (
+                                    <div
+                                      key={z.id}
+                                      onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedZone(z); setMapNovoZoneSearch(''); setMapNovoZoneOpen(false); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); setMapNovoVotingLocations([]); }}
+                                      className={`flex items-center justify-between px-3 py-1.5 cursor-pointer border-b border-border last:border-0 hover:bg-muted ${mapNovoSelectedZone?.id === z.id ? 'bg-muted' : ''}`}
+                                    >
+                                      <span className="text-xs font-medium">Zona {z.zone_number}</span>
+                                      <span className="text-xs text-muted-foreground tabular-nums ml-2 shrink-0">{Number(z.qty_votes).toLocaleString('pt-BR')}</span>
+                                    </div>
+                                  ));
+                                })()}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                        {/* Colégio Eleitoral */}
+                        <div
+                          className="flex items-center justify-between cursor-pointer"
+                          onClick={() => setMapNovoShowVotingLocations(v => { if (v) { setMapNovoVotingLocationSearch(''); setMapNovoSelectedVotingLocation(null); } return !v; })}
+                        >
+                          <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                            <Home className="size-3.5" />
+                            Colégio Eleitoral
+                          </span>
+                          <Switch
+                            checked={mapNovoShowVotingLocations}
+                            onCheckedChange={(v) => { setMapNovoShowVotingLocations(v); if (!v) { setMapNovoVotingLocationSearch(''); setMapNovoSelectedVotingLocation(null); } }}
+                            className="scale-75 origin-right pointer-events-none"
+                          />
+                        </div>
+                        {mapNovoShowVotingLocations && (
+                          <div className="flex items-center gap-1">
+                          <Popover open={mapNovoVotingLocationOpen} onOpenChange={setMapNovoVotingLocationOpen}>
+                            <PopoverTrigger asChild>
+                              <button className="flex-1 min-w-0 flex items-center justify-between px-3 py-1.5 text-xs border border-border rounded-md bg-background hover:bg-muted transition-colors text-left">
+                                <span className={mapNovoSelectedVotingLocation ? 'font-medium truncate' : 'text-muted-foreground'}>
+                                  {mapNovoSelectedVotingLocation ? mapNovoSelectedVotingLocation.name : 'Selecionar colégio...'}
+                                </span>
+                                <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-2" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="p-0 w-64" align="start">
+                              <div className="p-2 border-b border-border">
+                                <div className="relative">
+                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder="Buscar colégio..."
+                                    value={mapNovoVotingLocationSearch}
+                                    onChange={(e) => setMapNovoVotingLocationSearch(e.target.value.toUpperCase())}
+                                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:normal-case uppercase"
+                                  />
+                                </div>
+                              </div>
+                              <div className="max-h-52 overflow-y-auto">
+                                {mapNovoVotingLocationsLoading ? (
+                                  <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Carregando...</div>
+                                ) : (() => {
+                                  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+                                  const filtered = mapNovoVotingLocations.filter(vl =>
+                                    !mapNovoVotingLocationSearch || norm(vl.name).includes(norm(mapNovoVotingLocationSearch))
+                                  );
+                                  return filtered.length === 0 ? (
+                                    <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Nenhum colégio encontrado</div>
+                                  ) : filtered.map(vl => (
+                                    <div
+                                      key={vl.id}
+                                      onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedVotingLocation(vl); setMapNovoVotingLocationSearch(''); setMapNovoVotingLocationOpen(false); }}
+                                      className={`flex items-center justify-between px-3 py-1.5 cursor-pointer border-b border-border last:border-0 hover:bg-muted ${mapNovoSelectedVotingLocation?.id === vl.id ? 'bg-muted' : ''}`}
+                                    >
+                                      <span className="text-xs font-medium truncate">{vl.name}</span>
+                                      <span className="text-xs text-muted-foreground tabular-nums ml-2 shrink-0">{Number(vl.qty_votes).toLocaleString('pt-BR')}</span>
+                                    </div>
+                                  ));
+                                })()}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                          {mapNovoSelectedVotingLocation && (
+                            <button
+                              onClick={() => { setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); }}
+                              className="size-7 shrink-0 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
+                            >
+                              <X className="size-3.5 text-muted-foreground" />
+                            </button>
+                          )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>}
+                  {/* Exibir Zonas e Colégio — eleições municipais (cidade já é da candidatura) */}
+                  {['PREFEITO','PREFEITA','VEREADOR','VEREADORA','VICE-PREFEITO','VICE-PREFEITA'].includes((mapNovoCandidate.role ?? '').toUpperCase()) && (
+                    <div className="space-y-2">
+                      <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => setMapNovoShowZones(v => { if (v) { setMapNovoZoneSearch(''); setMapNovoSelectedZone(null); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } else { setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } return !v; })}
+                      >
+                        <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                          <Grid3x2 className="size-3.5" />
+                          Exibir Zonas Eleitorais
+                        </span>
+                        <Switch
+                          checked={mapNovoShowZones}
+                          onCheckedChange={(v) => { setMapNovoShowZones(v); if (!v) { setMapNovoZoneSearch(''); setMapNovoSelectedZone(null); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } else { setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); } }}
+                          className="scale-75 origin-right pointer-events-none"
+                        />
+                      </div>
+                      {mapNovoShowZones && (
+                        <Popover open={mapNovoZoneOpen} onOpenChange={setMapNovoZoneOpen}>
+                          <div className="flex items-center gap-1">
+                            <PopoverTrigger asChild>
+                              <button className="flex-1 flex items-center justify-between px-3 py-1.5 text-xs border border-border rounded-md bg-background hover:bg-muted transition-colors text-left">
+                                <span className={mapNovoSelectedZone ? 'font-medium' : 'text-muted-foreground'}>
+                                  {mapNovoSelectedZone ? `Zona ${mapNovoSelectedZone.zone_number}` : 'Selecionar zona...'}
+                                </span>
+                                <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-2" />
+                              </button>
+                            </PopoverTrigger>
+                            {mapNovoSelectedZone && (
+                              <button
+                                onClick={() => { setMapNovoSelectedZone(null); setMapNovoZoneSearch(''); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); }}
+                                className="size-7 shrink-0 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
+                              >
+                                <X className="size-3.5 text-muted-foreground" />
+                              </button>
+                            )}
+                          </div>
+                          <PopoverContent className="p-0 w-56" align="start">
+                            <div className="p-2 border-b border-border">
+                              <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  placeholder="Buscar zona..."
+                                  value={mapNovoZoneSearch}
+                                  onChange={(e) => setMapNovoZoneSearch(e.target.value)}
+                                  className="w-full pl-8 pr-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                                />
+                              </div>
+                            </div>
+                            <div className="max-h-52 overflow-y-auto">
+                              {mapNovoZonesLoading ? (
+                                <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Carregando...</div>
+                              ) : (() => {
+                                const filtered = mapNovoZones.filter(z =>
+                                  !mapNovoZoneSearch || String(z.zone_number).includes(mapNovoZoneSearch)
+                                );
+                                return filtered.length === 0 ? (
+                                  <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Nenhuma zona encontrada</div>
+                                ) : filtered.map(z => (
+                                  <div
+                                    key={z.id}
+                                    onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedZone(z); setMapNovoZoneSearch(''); setMapNovoZoneOpen(false); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); setMapNovoVotingLocations([]); }}
+                                    className={`flex items-center justify-between px-3 py-1.5 cursor-pointer border-b border-border last:border-0 hover:bg-muted ${mapNovoSelectedZone?.id === z.id ? 'bg-muted' : ''}`}
+                                  >
+                                    <span className="text-xs font-medium">Zona {z.zone_number}</span>
+                                    <span className="text-xs text-muted-foreground tabular-nums ml-2 shrink-0">{Number(z.qty_votes).toLocaleString('pt-BR')}</span>
+                                  </div>
+                                ));
+                              })()}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                      <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => setMapNovoShowVotingLocations(v => { if (v) { setMapNovoVotingLocationSearch(''); setMapNovoSelectedVotingLocation(null); } return !v; })}
+                      >
+                        <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                          <Home className="size-3.5" />
+                          Colégio Eleitoral
+                        </span>
+                        <Switch
+                          checked={mapNovoShowVotingLocations}
+                          onCheckedChange={(v) => { setMapNovoShowVotingLocations(v); if (!v) { setMapNovoVotingLocationSearch(''); setMapNovoSelectedVotingLocation(null); } }}
+                          className="scale-75 origin-right pointer-events-none"
+                        />
+                      </div>
+                      {mapNovoShowVotingLocations && (
+                        <div className="flex items-center gap-1">
+                          <Popover open={mapNovoVotingLocationOpen} onOpenChange={setMapNovoVotingLocationOpen}>
+                            <PopoverTrigger asChild>
+                              <button className="flex-1 min-w-0 flex items-center justify-between px-3 py-1.5 text-xs border border-border rounded-md bg-background hover:bg-muted transition-colors text-left">
+                                <span className={mapNovoSelectedVotingLocation ? 'font-medium truncate' : 'text-muted-foreground'}>
+                                  {mapNovoSelectedVotingLocation ? mapNovoSelectedVotingLocation.name : 'Selecionar colégio...'}
+                                </span>
+                                <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-2" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="p-0 w-64" align="start">
+                              <div className="p-2 border-b border-border">
+                                <div className="relative">
+                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder="Buscar colégio..."
+                                    value={mapNovoVotingLocationSearch}
+                                    onChange={(e) => setMapNovoVotingLocationSearch(e.target.value.toUpperCase())}
+                                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:normal-case uppercase"
+                                  />
+                                </div>
+                              </div>
+                              <div className="max-h-52 overflow-y-auto">
+                                {mapNovoVotingLocationsLoading ? (
+                                  <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Carregando...</div>
+                                ) : (() => {
+                                  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+                                  const filtered = mapNovoVotingLocations.filter(vl =>
+                                    !mapNovoVotingLocationSearch || norm(vl.name).includes(norm(mapNovoVotingLocationSearch))
+                                  );
+                                  return filtered.length === 0 ? (
+                                    <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Nenhum colégio encontrado</div>
+                                  ) : filtered.map(vl => (
+                                    <div
+                                      key={vl.id}
+                                      onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedVotingLocation(vl); setMapNovoVotingLocationSearch(''); setMapNovoVotingLocationOpen(false); }}
+                                      className={`flex items-center justify-between px-3 py-1.5 cursor-pointer border-b border-border last:border-0 hover:bg-muted ${mapNovoSelectedVotingLocation?.id === vl.id ? 'bg-muted' : ''}`}
+                                    >
+                                      <span className="text-xs font-medium truncate">{vl.name}</span>
+                                      <span className="text-xs text-muted-foreground tabular-nums ml-2 shrink-0">{Number(vl.qty_votes).toLocaleString('pt-BR')}</span>
+                                    </div>
+                                  ));
+                                })()}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                          {mapNovoSelectedVotingLocation && (
+                            <button
+                              onClick={() => { setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); }}
+                              className="size-7 shrink-0 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
+                            >
+                              <X className="size-3.5 text-muted-foreground" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {mapNovoStatsLoading ? (
+                    <div className="space-y-2 pt-2">
+                      <div className="text-xs text-muted-foreground">Carregando dados eleitorais...</div>
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-1.5 bg-primary rounded-full transition-all duration-700 ease-out"
+                          style={{ width: `${mapNovoLoadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : mapNovoStats && mapNovoStats.rounds.length > 0 ? (() => {
+                    const activeRound = mapNovoRound ?? mapNovoStats.rounds[0];
+                    const s = mapNovoStats.stats[String(activeRound)];
+                    const STATUS_LABEL: Record<string, string> = {
+                      'ELEITO': 'ELEITO', 'ELEITO POR QP': 'ELEITO', 'ELEITO POR MÉDIA': 'ELEITO',
+                      '2º TURNO': 'ELEITO (2° TURNO)', 'NÃO ELEITO': 'NÃO ELEITO', 'SUPLENTE': 'SUPLENTE',
+                    };
+                    const STATUS_COLOR: Record<string, string> = {
+                      'ELEITO': 'bg-green-100 text-green-700', 'ELEITO POR QP': 'bg-green-100 text-green-700',
+                      'ELEITO POR MÉDIA': 'bg-green-100 text-green-700', '2º TURNO': 'bg-green-100 text-green-700',
+                      'NÃO ELEITO': 'bg-red-100 text-red-700', 'SUPLENTE': 'bg-yellow-100 text-yellow-700',
+                    };
+                    return (
+                      <>
+                        {/* Turno tabs */}
+                        {mapNovoStats.rounds.length > 1 && (
+                          <div className="space-y-1">
+                            <span className="text-xs text-muted-foreground font-medium">Turno:</span>
+                            <div className="flex rounded-lg border border-border overflow-hidden">
+                              {mapNovoStats.rounds.map((r) => (
+                                <button
+                                  key={r}
+                                  onClick={() => setMapNovoRound(r)}
+                                  className={`flex-1 text-xs py-1.5 font-medium transition-colors ${activeRound === r ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
+                                >
+                                  {r}° turno
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Stats card */}
+                        {s && (
+                          <div className="rounded-lg border border-border relative mt-4 overflow-visible pb-1">
+                            {s.status && (
+                              <span className={`absolute -top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_COLOR[s.status] ?? 'bg-red-100 text-red-700'}`}>
+                                {STATUS_LABEL[s.status] ?? s.status}
+                              </span>
+                            )}
+                            {/* Header sempre visível */}
+                            <div className="p-3 space-y-2">
+                              <div className="text-sm font-semibold">
+                                Quantidade de Votos:{' '}
+                                <span className="font-bold">{Number(s.qty_votes).toLocaleString('pt-BR')}</span>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-sm text-muted-foreground">{s.percentage?.toFixed(2)}% dos votos válidos</div>
+                                <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                                  <div className="h-1.5 rounded-full bg-foreground transition-all duration-500" style={{ width: `${Math.min(s.percentage ?? 0, 100)}%` }} />
+                                </div>
+                              </div>
+                            </div>
+                            {/* Detalhes colapsáveis */}
+                            <div className={`relative overflow-hidden transition-all duration-500 ease-in-out ${mapNovoStatsOpen ? 'max-h-96' : 'max-h-0'}`}>
+                              <div className="px-3 pb-3 pt-1 border-t border-border space-y-2">
+                                {[
+                                  ['Votos válidos',   s.total_valid],
+                                  ['Votos brancos',   s.qty_blank],
+                                  ['Votos nulos',     s.qty_null],
+                                  ['Votos legenda',   s.qty_legend],
+                                  ['Total partido',   s.qty_party_total],
+                                  ['Comparecimento',  s.qty_total],
+                                ].filter(([, value]) => Number(value) !== 0).map(([label, value]) => (
+                                  <div key={label as string} className="flex justify-between text-xs">
+                                    <span className="text-muted-foreground">{label}</span>
+                                    <span className="font-medium tabular-nums">{Number(value).toLocaleString('pt-BR')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              {!mapNovoStatsOpen && (
+                                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
+                              )}
+                            </div>
+                            {/* Botão chevron */}
+                            <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2">
+                              <button
+                                onClick={() => setMapNovoStatsOpen(o => !o)}
+                                className="size-7 rounded-full border border-border bg-background shadow-sm flex items-center justify-center hover:bg-muted transition-colors"
+                              >
+                                <ChevronDown className={`size-3.5 transition-transform duration-300 ${mapNovoStatsOpen ? 'rotate-180' : ''}`} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })() : (
+                    <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">Sem dados de votação</div>
+                  )}
+                </div>
+              ) : (
+              <div className="grid grid-cols-2 gap-2.5 p-3 overflow-y-auto flex-1 content-start">
+                {([
+                  { label: 'Dashboard',         icon: LayoutDashboard, active: true },
+                  { label: 'UI Bloks',          icon: LayoutList },
+                  { label: 'Business Concepts', icon: Landmark },
+                  { label: 'Apps',              icon: MonitorCloud },
+                  { label: 'Public Profiles',   icon: Users },
+                  { label: 'Account Settings',  icon: Settings },
+                  { label: 'Network',           icon: Globe },
+                  { label: 'Authentication',    icon: ShieldCheck },
+                  { label: 'Dashboard 2',       icon: LayoutDashboard },
+                  { label: 'UI Bloks 2',        icon: LayoutList },
+                  { label: 'Business 2',        icon: Landmark },
+                  { label: 'Apps 2',            icon: MonitorCloud },
+                  { label: 'Profiles 2',        icon: Users },
+                  { label: 'Settings 2',        icon: Settings },
+                  { label: 'Network 2',         icon: Globe },
+                  { label: 'Auth 2',            icon: ShieldCheck },
+                  { label: 'Dashboard 3',       icon: LayoutDashboard },
+                  { label: 'UI Bloks 3',        icon: LayoutList },
+                  { label: 'Business 3',        icon: Landmark },
+                  { label: 'Apps 3',            icon: MonitorCloud },
+                  { label: 'Profiles 3',        icon: Users },
+                  { label: 'Settings 3',        icon: Settings },
+                  { label: 'Network 3',         icon: Globe },
+                  { label: 'Auth 3',            icon: ShieldCheck },
+                ] as { label: string; icon: LucideIcon; active?: boolean }[]).map(({ label, icon: Icon, active }) => (
+                  <button
+                    key={label}
+                    className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-colors text-center ${active ? 'bg-foreground text-background border-foreground' : 'border-border hover:bg-muted/50'}`}
+                  >
+                    <div className={`p-2 rounded-lg ${active ? 'bg-background/10' : 'bg-muted'}`}>
+                      <Icon className="size-5" />
+                    </div>
+                    <span className="text-xs font-medium leading-tight">{label}</span>
+                  </button>
+                ))}
+              </div>
+              )}
+            </aside>
+          )}
+
+          {/* Conteúdo principal */}
+          <div className="flex-1 flex flex-col min-w-0 container-fluid">
+            <div className="flex flex-wrap items-center justify-between gap-3.5 pt-0 pb-2">
+              <div className="flex items-center gap-3">
+                {!mapNovoSidebarOpen && (
+                  <Button mode="icon" variant="dim" onClick={() => setMapNovoSidebarOpen(true)} className="-ms-2">
+                    <PanelRight />
+                  </Button>
+                )}
+                <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
+                  {(['overview', 'activity', 'metrics', 'reports', 'alerts'] as const).map((key) => (
+                    <button
+                      key={key}
+                      onClick={() => setMapNovoChecked((prev) => ({ ...prev, [key]: !prev[key] }))}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors capitalize"
+                    >
+                      <span className={`size-3.5 shrink-0 rounded-[3px] border flex items-center justify-center transition-colors ${mapNovoChecked[key] ? 'bg-primary border-primary' : 'border-input bg-background'}`}>
+                        {mapNovoChecked[key] && <Check className="size-2.5 text-primary-foreground" />}
+                      </span>
+                      {key.charAt(0).toUpperCase() + key.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {!isMobile && (
+                <div className="flex items-center gap-2.5">
+                  <Button variant="outline" size="sm">Reports</Button>
+                  <Button size="sm"><Plus className="size-3.5" />Add</Button>
+                  <div className="flex items-center border border-border rounded-xl overflow-hidden shadow-sm">
+                    <Button mode="icon" variant="ghost" size="sm" className="rounded-none border-0 border-r border-border size-8" onClick={() => brazilMapRef.current?.fitBrazil()}><Crosshair className="size-4" /></Button>
+                    <Button mode="icon" variant="ghost" size="sm" className="rounded-none border-0 border-r border-border size-8" onClick={() => brazilMapRef.current?.zoomIn()}><Plus className="size-4" /></Button>
+                    <Button mode="icon" variant="ghost" size="sm" className="rounded-none border-0 size-8" onClick={() => brazilMapRef.current?.zoomOut()}><Minus className="size-4" /></Button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border">
+              <BrazilMap ref={brazilMapRef} />
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="activity" className="flex-1 min-h-0 mt-0 flex flex-col">
@@ -3253,7 +4121,7 @@ export function HomePage() {
                   isLoading={permissionActionsLoading}
                   onEdit={(pa) => setEditingPermissionAction(pa)}
                   onDelete={handlePermissionActionDelete}
-                  onAddToModule={(module) => { setEditingPermissionAction({ id: 0, module, action: '', description: null }); }}
+                  onAddToModule={(module) => { setEditingPermissionAction({ id: 0, module, name_module: '', action: '', name_action: '', description: null, order: 0 }); }}
                 />
               </div>
               <PageFooter />

@@ -10,6 +10,8 @@ interface ActiveCandidateContextValue {
   setShowCard: (v: boolean) => void;
   isSplit: boolean;
   setIsSplit: (v: boolean) => void;
+  showAttendances: boolean;
+  setShowAttendances: (v: boolean) => void;
   mapClickedCity: { name: string; ibge_code: string; city_id?: number } | null;
   setMapClickedCity: (v: { name: string; ibge_code: string; city_id?: number } | null) => void;
   focusCityOnMap: { name: string } | null;
@@ -25,12 +27,13 @@ export function ActiveCandidateProvider({ children }: { children: React.ReactNod
   const [showCities, setShowCities] = useState(false);
   const [showCard, setShowCard] = useState(true);
   const [isSplit, setIsSplit] = useState(false);
+  const [showAttendances, setShowAttendances] = useState(false);
   const [mapClickedCity, setMapClickedCity] = useState<{ name: string; ibge_code: string; city_id?: number } | null>(null);
   const [focusCityOnMap, setFocusCityOnMap] = useState<{ name: string } | null>(null);
   const [clearCityHighlight, setClearCityHighlight] = useState(false);
 
   return (
-    <ActiveCandidateContext.Provider value={{ activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, isSplit, setIsSplit, mapClickedCity, setMapClickedCity, focusCityOnMap, setFocusCityOnMap, clearCityHighlight, setClearCityHighlight }}>
+    <ActiveCandidateContext.Provider value={{ activeCandidate, setActiveCandidate, showCities, setShowCities, showCard, setShowCard, isSplit, setIsSplit, showAttendances, setShowAttendances, mapClickedCity, setMapClickedCity, focusCityOnMap, setFocusCityOnMap, clearCityHighlight, setClearCityHighlight }}>
       {children}
     </ActiveCandidateContext.Provider>
   );

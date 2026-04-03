@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import * as L from 'leaflet';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import { useActiveCandidate } from '@/components/map/active-candidate-context';
-import { Plus, Minus, Crosshair, X, Eye, EyeOff, Columns2 } from 'lucide-react';
+import { Plus, Minus, Crosshair, X, Eye, EyeOff, Columns2, MonitorCloud } from 'lucide-react';
 import { getPartyColors } from '@/lib/party-colors';
 import { CandidateSearch, type Candidate } from '@/components/map/candidate-search';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -334,7 +334,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function StatsCard() {
-  const { activeCandidate, showCities, setShowCities, showCard, setShowCard, isSplit, setIsSplit, setFocusCityOnMap, mapClickedCity, setMapClickedCity, setClearCityHighlight } = useActiveCandidate();
+  const { activeCandidate, showCities, setShowCities, showCard, setShowCard, isSplit, setIsSplit, showAttendances, setShowAttendances, setFocusCityOnMap, mapClickedCity, setMapClickedCity, setClearCityHighlight } = useActiveCandidate();
   const isMaster = (() => {
     const parts = window.location.hostname.split('.');
     const slug = parts.length >= 3 ? parts[0] : (parts.length === 2 ? parts[0] : 'master');
@@ -434,6 +434,10 @@ function StatsCard() {
                         <span className="text-sm flex items-center gap-1.5"><Columns2 className="size-3.5" /> Split view</span>
                       </label>
                     )}
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <Switch size="sm" checked={showAttendances} onCheckedChange={setShowAttendances} />
+                      <span className="text-sm flex items-center gap-1.5"><MonitorCloud className="size-3.5" /> Atendimentos</span>
+                    </label>
                     {isStateLevel && (
                       <label className="flex items-center gap-2.5 cursor-pointer">
                         <Switch size="sm" checked={showCities} onCheckedChange={setShowCities} />
@@ -495,6 +499,10 @@ function StatsCard() {
                       <span className="text-sm flex items-center gap-1.5"><Columns2 className="size-3.5" /> Split view</span>
                     </label>
                   )}
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <Switch size="sm" checked={showAttendances} onCheckedChange={setShowAttendances} />
+                    <span className="text-sm flex items-center gap-1.5"><MonitorCloud className="size-3.5" /> Atendimentos</span>
+                  </label>
                   {isStateLevel && (
                     <label className="flex items-center gap-2.5 cursor-pointer">
                       <Switch size="sm" checked={showCities} onCheckedChange={setShowCities} />
@@ -1008,9 +1016,10 @@ interface MapaDoVotoMapProps {
   onCityBoundsReady?: (bounds: L.LatLngBounds) => void;
   cityBounds?: L.LatLngBounds | null;
   isCompare?: boolean;
+  showOverlays?: boolean;
 }
 
-export function MapaDoVotoMap({ mapRef, syncRef, initialView, onCityBoundsReady, cityBounds, isCompare }: MapaDoVotoMapProps) {
+export function MapaDoVotoMap({ mapRef, syncRef, initialView, onCityBoundsReady, cityBounds, isCompare, showOverlays = true }: MapaDoVotoMapProps) {
   const center: L.LatLngTuple = initialView?.center ?? [-15.7801, -47.9292];
   const zoom = initialView?.zoom ?? 4;
   const isSyncingRef = useRef(false);
@@ -1032,7 +1041,7 @@ export function MapaDoVotoMap({ mapRef, syncRef, initialView, onCityBoundsReady,
       />
       {isCompare
         ? <CompareOverlay onCandidateChange={setActiveCandidate} />
-        : (
+        : showOverlays && (
           <div className={`absolute top-4 left-4 z-[1000] w-64 flex flex-col gap-2 transition-opacity duration-200 ${showCard ? 'opacity-100' : 'opacity-20 hover:opacity-100'}`}>
             <CandidateCard />
             <StatsCard />

@@ -1,8 +1,8 @@
 import { ReactNode } from 'react';
 
-function Toolbar({ children }: { children?: ReactNode }) {
+function Toolbar({ children, className }: { children?: ReactNode; className?: string }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3.5 pt-0 pb-0 lg:py-5">
+    <div className={`flex flex-wrap items-center justify-between gap-3.5 pt-0 pb-0 lg:py-5 ${className ?? ''}`}>
       {children}
     </div>
   );

@@ -184,6 +184,8 @@ Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
     Route::get('/candidacies/{id}/stats', [CandidateController::class, 'stats']);
     Route::get('/candidacies/{id}/cities', [CandidateController::class, 'cities']);
     Route::get('/cities/search', [CityController::class, 'search']);
+    Route::get('/cities/{id}/zones', [CityController::class, 'zones']);
+    Route::get('/cities/{id}/voting-locations', [CityController::class, 'votingLocations']);
 
     // Financeiro — Bancos
     Route::get('/fin-banks', [FinBankController::class, 'index']);

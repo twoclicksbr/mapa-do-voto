@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Menu, MapPinned } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { SidebarContent } from './sidebar-content';
+import { MapaDoVotoSidebarContent } from '@/components/mapa-do-voto/sidebar';
 import { Link, useLocation } from 'react-router';
 import { ToolbarActions } from './toolbar';
 import { Navbar } from './navbar';
@@ -49,7 +49,7 @@ export function Header() {
             >
               <SheetHeader className="p-0 space-y-0" />
               <SheetBody className="flex grow p-0">
-                <SidebarContent />
+                <MapaDoVotoSidebarContent />
               </SheetBody>
             </SheetContent>
           </Sheet>
