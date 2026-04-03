@@ -261,7 +261,9 @@ export function HomePage() {
   const { activeTab, setActiveTab } = useActiveTab();
   const { loggedIn } = useLoginModal();
   const [mapNovoSidebarOpen, setMapNovoSidebarOpen] = useState(true);
-  const [mapNovoChecked, setMapNovoChecked] = useState<Record<string, boolean>>({ overview: false, activity: false, metrics: false, reports: false, alerts: false });
+  const [mapNovoChecked, setMapNovoChecked] = useState<Record<string, boolean>>({ pessoas: false, atendimentos: false });
+  const [mapNovoPessoasMarkers, setMapNovoPessoasMarkers] = useState<{ id: number; name: string; lat: number; lng: number }[]>([]);
+  const [mapNovoAtendimentosMarkers, setMapNovoAtendimentosMarkers] = useState<{ id: number; name: string; lat: number; lng: number }[]>([]);
   const brazilMapRef = useRef<BrazilMapHandle>(null);
   const [mapNovoProfileOpen, setMapNovoProfileOpen] = useState(false);
   const [mapNovoSearch, setMapNovoSearch] = useState('');
@@ -282,9 +284,9 @@ export function HomePage() {
   const [mapNovoSelectedCity, setMapNovoSelectedCity] = useState<{ id: number; name: string; qty_votes: number } | null>(null);
   const [mapNovoCityOpen, setMapNovoCityOpen] = useState(false);
   const [mapNovoShowZones, setMapNovoShowZones] = useState(false);
-  const [mapNovoZones, setMapNovoZones] = useState<{ id: number; zone_number: number; qty_votes: number }[]>([]);
+  const [mapNovoZones, setMapNovoZones] = useState<{ id: number; zone_number: number; qty_votes: number; geometry?: GeoJSON.Geometry | null }[]>([]);
   const [mapNovoShowVotingLocations, setMapNovoShowVotingLocations] = useState(false);
-  const [mapNovoVotingLocations, setMapNovoVotingLocations] = useState<{ id: number; name: string; tse_number: string; qty_votes: number }[]>([]);
+  const [mapNovoVotingLocations, setMapNovoVotingLocations] = useState<{ id: number; name: string; tse_number: string; qty_votes: number; latitude: number | null; longitude: number | null }[]>([]);
   const [mapNovoVotingLocationsLoading, setMapNovoVotingLocationsLoading] = useState(false);
   const [mapNovoVotingLocationSearch, setMapNovoVotingLocationSearch] = useState('');
   const [mapNovoVotingLocationOpen, setMapNovoVotingLocationOpen] = useState(false);
@@ -410,8 +412,30 @@ export function HomePage() {
   }, [mapNovoProfileOpen]);
 
   useEffect(() => {
+    if (mapNovoChecked.pessoas) {
+      api.get('/addresses/map?modulo=people').then(res => setMapNovoPessoasMarkers(res.data)).catch(() => setMapNovoPessoasMarkers([]));
+    } else {
+      setMapNovoPessoasMarkers([]);
+    }
+  }, [mapNovoChecked.pessoas]);
+
+  useEffect(() => {
+    if (mapNovoChecked.atendimentos) {
+      api.get('/addresses/map?modulo=attendances').then(res => setMapNovoAtendimentosMarkers(res.data)).catch(() => setMapNovoAtendimentosMarkers([]));
+    } else {
+      setMapNovoAtendimentosMarkers([]);
+    }
+  }, [mapNovoChecked.atendimentos]);
+
+  useEffect(() => {
     if (activeTab !== 'map-novo') return;
-    const t = setTimeout(() => brazilMapRef.current?.fitBrazil(), 100);
+    const t = setTimeout(() => {
+      if (!mapNovoCandidate) {
+        brazilMapRef.current?.fitBrazil();
+      } else {
+        brazilMapRef.current?.invalidateSize();
+      }
+    }, 100);
     return () => clearTimeout(t);
   }, [activeTab]);
 
@@ -2243,7 +2267,7 @@ export function HomePage() {
           <PageFooter />
         </TabsContent>
 
-        <TabsContent value="map-novo" className="flex-1 min-h-0 mt-0 flex overflow-hidden">
+        <TabsContent forceMount value="map-novo" className="flex-1 min-h-0 mt-0 flex overflow-hidden" style={{ display: activeTab === 'map-novo' ? undefined : 'none' }}>
           {/* Sidebar esquerda */}
           {mapNovoSidebarOpen && (
             <aside className="w-[310px] shrink-0 border-e border-border bg-background flex flex-col overflow-hidden">
@@ -2470,7 +2494,7 @@ export function HomePage() {
                               ) : filtered.map(c => (
                                 <div
                                   key={c.id}
-                                  onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedCity(c); setMapNovoCitySearch(''); setMapNovoCityOpen(false); brazilMapRef.current?.focusCity(c.name); }}
+                                  onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedCity(c); setMapNovoCitySearch(''); setMapNovoCityOpen(false); setMapNovoShowZones(false); setMapNovoZones([]); setMapNovoSelectedZone(null); setMapNovoZoneSearch(''); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); brazilMapRef.current?.focusCity(c.name); }}
                                   className={`flex items-center justify-between px-3 py-1.5 cursor-pointer border-b border-border last:border-0 hover:bg-muted ${mapNovoSelectedCity?.id === c.id ? 'bg-muted' : ''}`}
                                 >
                                   <span className="text-xs font-medium truncate">{c.name}</span>
@@ -2946,16 +2970,16 @@ export function HomePage() {
                   </Button>
                 )}
                 <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
-                  {(['overview', 'activity', 'metrics', 'reports', 'alerts'] as const).map((key) => (
+                  {([['pessoas', 'Pessoas'], ['atendimentos', 'Atendimentos']] as const).map(([key, label]) => (
                     <button
                       key={key}
                       onClick={() => setMapNovoChecked((prev) => ({ ...prev, [key]: !prev[key] }))}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors capitalize"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <span className={`size-3.5 shrink-0 rounded-[3px] border flex items-center justify-center transition-colors ${mapNovoChecked[key] ? 'bg-primary border-primary' : 'border-input bg-background'}`}>
                         {mapNovoChecked[key] && <Check className="size-2.5 text-primary-foreground" />}
                       </span>
-                      {key.charAt(0).toUpperCase() + key.slice(1)}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -2965,7 +2989,12 @@ export function HomePage() {
                   <Button variant="outline" size="sm">Reports</Button>
                   <Button size="sm"><Plus className="size-3.5" />Add</Button>
                   <div className="flex items-center border border-border rounded-xl overflow-hidden shadow-sm">
-                    <Button mode="icon" variant="ghost" size="sm" className="rounded-none border-0 border-r border-border size-8" onClick={() => brazilMapRef.current?.fitBrazil()}><Crosshair className="size-4" /></Button>
+                    <Button mode="icon" variant="ghost" size="sm" className="rounded-none border-0 border-r border-border size-8" onClick={() => {
+                      if (!mapNovoCandidate) { brazilMapRef.current?.fitBrazil(); }
+                      else if (mapNovoSelectedZone) { brazilMapRef.current?.focusZone(); }
+                      else if (mapNovoSelectedCity) { brazilMapRef.current?.focusCity(mapNovoSelectedCity.name); }
+                      else { brazilMapRef.current?.fitState(); }
+                    }}><Crosshair className="size-4" /></Button>
                     <Button mode="icon" variant="ghost" size="sm" className="rounded-none border-0 border-r border-border size-8" onClick={() => brazilMapRef.current?.zoomIn()}><Plus className="size-4" /></Button>
                     <Button mode="icon" variant="ghost" size="sm" className="rounded-none border-0 size-8" onClick={() => brazilMapRef.current?.zoomOut()}><Minus className="size-4" /></Button>
                   </div>
@@ -2976,10 +3005,27 @@ export function HomePage() {
               <BrazilMap
                 ref={brazilMapRef}
                 candidate={mapNovoCandidate}
+                showCities={mapNovoShowCities}
+                selectedCityName={mapNovoSelectedCity?.name ?? null}
                 onCityClick={(name) => {
                   setMapNovoShowCities(true);
                   setMapNovoPendingCity(name);
                 }}
+                showZones={mapNovoShowZones}
+                zones={mapNovoZones}
+                selectedZoneId={mapNovoSelectedZone?.id ?? null}
+                onZoneClick={(id) => {
+                  const zone = mapNovoZones.find((z) => z.id === id) ?? null;
+                  setMapNovoSelectedZone(zone);
+                }}
+                votingLocations={mapNovoShowVotingLocations ? mapNovoVotingLocations : []}
+                selectedVotingLocationId={mapNovoSelectedVotingLocation?.id ?? null}
+                onVotingLocationClick={(id) => {
+                  const vl = mapNovoVotingLocations.find((v) => v.id === id) ?? null;
+                  setMapNovoSelectedVotingLocation(vl);
+                }}
+                pessoasMarkers={mapNovoPessoasMarkers}
+                atendimentosMarkers={mapNovoAtendimentosMarkers}
               />
             </div>
           </div>

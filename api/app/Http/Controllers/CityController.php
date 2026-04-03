@@ -16,7 +16,7 @@ class CityController extends Controller
             $year = $candidacy->year;
 
             $zones = DB::connection('pgsql_maps')->select("
-                SELECT z.id, z.zone_number,
+                SELECT z.id, z.zone_number, z.geometry,
                        COALESCE(SUM(v.qty_votes), 0) AS qty_votes
                 FROM maps.zones z
                 LEFT JOIN maps.votes v ON v.zone_id = z.id
@@ -25,19 +25,26 @@ class CityController extends Controller
                     AND v.year = ?
                     AND v.round = (SELECT MAX(round) FROM maps.votes WHERE candidacy_id = ? AND year = ?)
                 WHERE z.city_id = ?
-                GROUP BY z.id, z.zone_number
+                GROUP BY z.id, z.zone_number, z.geometry::text
                 ORDER BY qty_votes DESC, z.zone_number ASC
             ", [$candidacyId, $year, $candidacyId, $year, $cityId]);
         } else {
             $zones = DB::connection('pgsql_maps')
                 ->table('maps.zones')
-                ->select('id', 'zone_number')
+                ->select('id', 'zone_number', 'geometry')
                 ->where('city_id', $cityId)
                 ->orderBy('zone_number')
                 ->get();
         }
 
-        return response()->json($zones);
+        return response()->json(
+            collect($zones)->map(fn ($z) => [
+                'id'          => $z->id,
+                'zone_number' => $z->zone_number,
+                'qty_votes'   => $z->qty_votes ?? 0,
+                'geometry'    => $z->geometry ? json_decode($z->geometry) : null,
+            ])
+        );
     }
 
     public function votingLocations(Request $request, int $cityId)
@@ -54,7 +61,7 @@ class CityController extends Controller
                 : [$candidacyId, $year, $candidacyId, $year, $cityId];
 
             $rows = DB::connection('pgsql_maps')->select("
-                SELECT vl.id, vl.name, vl.tse_number,
+                SELECT vl.id, vl.name, vl.tse_number, vl.latitude, vl.longitude,
                        COALESCE(SUM(v.qty_votes), 0) AS qty_votes
                 FROM maps.voting_locations vl
                 JOIN maps.zones z ON z.id = vl.zone_id
@@ -64,14 +71,14 @@ class CityController extends Controller
                     AND v.year = ?
                     AND v.round = (SELECT MAX(round) FROM maps.votes WHERE candidacy_id = ? AND year = ?)
                 WHERE z.city_id = ? {$zoneFilter}
-                GROUP BY vl.id, vl.name, vl.tse_number
+                GROUP BY vl.id, vl.name, vl.tse_number, vl.latitude, vl.longitude
                 ORDER BY qty_votes DESC, vl.name ASC
             ", $bindings);
         } else {
             $query = DB::connection('pgsql_maps')
                 ->table('maps.voting_locations as vl')
                 ->join('maps.zones as z', 'z.id', '=', 'vl.zone_id')
-                ->select('vl.id', 'vl.name', 'vl.tse_number')
+                ->select('vl.id', 'vl.name', 'vl.tse_number', 'vl.latitude', 'vl.longitude')
                 ->where('z.city_id', $cityId);
             if ($zoneId) $query->where('vl.zone_id', $zoneId);
             $rows = $query->orderBy('vl.name')->get();

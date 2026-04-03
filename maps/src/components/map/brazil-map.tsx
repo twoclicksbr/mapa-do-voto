@@ -24,24 +24,294 @@ function normalizeName(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
 }
 
+
+export interface Zone {
+  id: number;
+  zone_number: number | string;
+  qty_votes: number;
+  geometry?: GeoJSON.Geometry | null;
+}
+
+export interface AddressMarker {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+}
+
+export interface VotingLocation {
+  id: number;
+  name: string;
+  tse_number: string | number;
+  qty_votes: number;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 export interface BrazilMapHandle {
   zoomIn: () => void;
   zoomOut: () => void;
   fitBrazil: () => void;
   fitState: () => void;
   focusCity: (name: string) => void;
+  focusZone: () => void;
+  invalidateSize: () => void;
 }
 
-function MapCore({ candidate, onCityClick, stateBoundsRef, focusCityRef }: {
+function MapCore({
+  candidate, showCities, selectedCityName, onCityClick,
+  showZones, zones, selectedZoneId, onZoneClick,
+  votingLocations, selectedVotingLocationId, onVotingLocationClick,
+  pessoasMarkers, atendimentosMarkers,
+  stateBoundsRef, focusCityRef, focusZoneRef,
+}: {
   candidate: Candidate | null;
+  showCities: boolean;
+  selectedCityName?: string | null;
   onCityClick?: (name: string) => void;
+  showZones?: boolean;
+  zones?: Zone[];
+  selectedZoneId?: number | null;
+  onZoneClick?: (id: number) => void;
+  votingLocations?: VotingLocation[];
+  selectedVotingLocationId?: number | null;
+  onVotingLocationClick?: (id: number) => void;
+  pessoasMarkers?: AddressMarker[];
+  atendimentosMarkers?: AddressMarker[];
   stateBoundsRef: React.MutableRefObject<L.LatLngBounds | null>;
   focusCityRef: React.MutableRefObject<((name: string) => void) | null>;
+  focusZoneRef: React.MutableRefObject<(() => void) | null>;
 }) {
   const map = useMap();
-  const brazilLayerRef  = useRef<L.GeoJSON | null>(null);
-  const polygonLayerRef = useRef<L.GeoJSON | null>(null);
-  const citiesLayerRef  = useRef<L.GeoJSON | null>(null);
+  const brazilLayerRef          = useRef<L.GeoJSON | null>(null);
+  const polygonLayerRef         = useRef<L.GeoJSON | null>(null);
+  const citiesLayerRef          = useRef<L.GeoJSON | null>(null);
+  const selectedCityLayerRef    = useRef<L.GeoJSON | null>(null);
+  const zonesLayerRef           = useRef<L.GeoJSON | null>(null);
+  const vlMarkersRef            = useRef<L.LayerGroup | null>(null);
+  const pessoasMarkersRef       = useRef<L.LayerGroup | null>(null);
+  const atendimentosMarkersRef  = useRef<L.LayerGroup | null>(null);
+  const showCitiesRef        = useRef(showCities);
+  useEffect(() => { showCitiesRef.current = showCities; }, [showCities]);
+
+  // Adiciona/remove camadas quando showCities muda
+  useEffect(() => {
+    if (!citiesLayerRef.current && !polygonLayerRef.current) return;
+    if (showCities) {
+      if (!selectedCityName) citiesLayerRef.current?.addTo(map);
+      polygonLayerRef.current?.remove();
+    } else {
+      citiesLayerRef.current?.remove();
+      selectedCityLayerRef.current?.remove();
+      selectedCityLayerRef.current = null;
+      polygonLayerRef.current?.addTo(map);
+      if (stateBoundsRef.current) {
+        map.flyToBounds(stateBoundsRef.current, { padding: [20, 20], duration: 1 });
+      }
+    }
+  }, [showCities, map]);
+
+  // Quando cidade selecionada muda: esconde todas as cidades, mostra só a selecionada
+  useEffect(() => {
+    selectedCityLayerRef.current?.remove();
+    selectedCityLayerRef.current = null;
+
+    if (!showCities) return;
+
+    if (selectedCityName && citiesLayerRef.current) {
+      citiesLayerRef.current.remove();
+      const normTarget = normalizeName(selectedCityName);
+      citiesLayerRef.current.eachLayer((lyr) => {
+        const feature = (lyr as L.GeoJSON).feature as GeoJSON.Feature | undefined;
+        const name: string = feature?.properties?.name ?? '';
+        if (normalizeName(name) !== normTarget) return;
+        const singleLayer = L.geoJSON(feature as GeoJSON.GeoJsonObject, {
+          style: { color: '#1D3557', weight: 2, fillColor: '#1D3557', fillOpacity: 0.18 },
+          onEachFeature: (_f, l) => {
+            if (name) (l as L.Path).bindTooltip(name, { permanent: false, sticky: true, direction: 'top' });
+            (l as L.Path).on('click', () => onCityClick?.(name));
+          },
+        });
+        singleLayer.addTo(map);
+        selectedCityLayerRef.current = singleLayer;
+        const bounds = singleLayer.getBounds();
+        if (bounds.isValid()) map.flyToBounds(bounds, { padding: [40, 40], duration: 1 });
+      });
+    } else if (!selectedCityName && citiesLayerRef.current) {
+      citiesLayerRef.current.eachLayer((l) => citiesLayerRef.current!.resetStyle(l as L.Layer));
+      citiesLayerRef.current.addTo(map);
+      if (stateBoundsRef.current) {
+        map.flyToBounds(stateBoundsRef.current, { padding: [20, 20], duration: 1 });
+      }
+    }
+  }, [selectedCityName, showCities, map]);
+
+  // Render de zonas eleitorais — cidade some quando zonas aparecem
+  useEffect(() => {
+    zonesLayerRef.current?.remove();
+    zonesLayerRef.current = null;
+
+    if (!showZones || !zones || zones.length === 0) {
+      // Zonas desligadas → restaura cidade selecionada se existir
+      if (selectedCityLayerRef.current) selectedCityLayerRef.current.addTo(map);
+      return;
+    }
+
+    const withGeometry = zones.filter((z) => z.geometry);
+    if (withGeometry.length === 0) return;
+
+    // Esconde a cidade — zona substitui
+    selectedCityLayerRef.current?.remove();
+
+    const featureCollection: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: withGeometry.map((z) => ({
+        type: 'Feature',
+        properties: { id: z.id, zone_number: z.zone_number, qty_votes: z.qty_votes },
+        geometry: z.geometry as GeoJSON.Geometry,
+      })),
+    };
+
+    const layer = L.geoJSON(featureCollection, {
+      style: (feature) => {
+        const zoneId = feature?.properties?.id;
+        const isSelected = selectedZoneId != null && zoneId === selectedZoneId;
+        return isSelected
+          ? { color: '#1D3557', weight: 2, fillColor: '#1D3557', fillOpacity: 0.18 }
+          : { color: '#1D3557', weight: 1, fillColor: '#1D3557', fillOpacity: 0.08 };
+      },
+      onEachFeature: (feature, lyr) => {
+        const zoneNum = feature.properties?.zone_number;
+        const zoneId  = feature.properties?.id;
+        const city    = selectedCityName ?? '';
+        const label   = `${city} - Zona: ${zoneNum}`;
+        (lyr as L.Path).bindTooltip(label, { permanent: false, sticky: true, direction: 'top' });
+        (lyr as L.Path).on('click', () => onZoneClick?.(zoneId));
+      },
+    });
+
+    layer.addTo(map);
+    zonesLayerRef.current = layer;
+
+    const bounds = layer.getBounds();
+    if (bounds.isValid()) map.flyToBounds(bounds, { padding: [30, 30], duration: 1 });
+  }, [showZones, zones, map]);
+
+  // Atualiza estilo da zona selecionada sem recriar a camada
+  useEffect(() => {
+    focusZoneRef.current = null;
+    if (!zonesLayerRef.current) return;
+    zonesLayerRef.current.eachLayer((lyr) => {
+      const feature = (lyr as L.GeoJSON).feature as GeoJSON.Feature | undefined;
+      const zoneId  = feature?.properties?.id;
+      const isSelected = selectedZoneId != null && zoneId === selectedZoneId;
+      (lyr as L.Path).setStyle(
+        isSelected
+          ? { color: '#1D3557', weight: 2, fillColor: '#1D3557', fillOpacity: 0.18 }
+          : { color: '#1D3557', weight: 1, fillColor: '#1D3557', fillOpacity: 0.08 }
+      );
+      if (isSelected) {
+        const bounds = (lyr as L.Polygon).getBounds();
+        if (bounds.isValid()) {
+          map.flyToBounds(bounds, { padding: [30, 30], duration: 1 });
+          focusZoneRef.current = () => map.flyToBounds(bounds, { padding: [30, 30], duration: 1 });
+        }
+      }
+    });
+  }, [selectedZoneId, map]);
+
+  // Markers de colégios eleitorais
+  useEffect(() => {
+    vlMarkersRef.current?.remove();
+    vlMarkersRef.current = null;
+
+    const valid = (votingLocations ?? []).filter((vl) => vl.latitude != null && vl.longitude != null);
+    if (valid.length === 0) return;
+
+    const group = L.layerGroup();
+
+    valid.forEach((vl) => {
+      const isSelected = selectedVotingLocationId != null && vl.id === selectedVotingLocationId;
+      const color      = isSelected ? '#E63946' : '#2A9D8F';
+      const size       = isSelected ? 36 : 30;
+
+      const icon = L.divIcon({
+        className: '',
+        iconSize:  [size, size],
+        iconAnchor: [size / 2, size / 2],
+        html: `<div style="
+          width:${size}px;height:${size}px;border-radius:50%;
+          background:${color};
+          border:2.5px solid #fff;
+          box-shadow:0 1px 4px rgba(0,0,0,0.3);
+          display:flex;align-items:center;justify-content:center;
+        ">
+          <svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(size * 0.52)}" height="${Math.round(size * 0.52)}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </div>`,
+      });
+
+      const marker = L.marker([vl.latitude as number, vl.longitude as number], { icon });
+
+      marker.bindTooltip(vl.name, { sticky: true, direction: 'top' });
+
+      marker.on('click', () => onVotingLocationClick?.(vl.id));
+      group.addLayer(marker);
+    });
+
+    group.addTo(map);
+    vlMarkersRef.current = group;
+  }, [votingLocations, selectedVotingLocationId, map]);
+
+  // Markers de pessoas (azul)
+  useEffect(() => {
+    pessoasMarkersRef.current?.remove();
+    pessoasMarkersRef.current = null;
+    if (!pessoasMarkers || pessoasMarkers.length === 0) return;
+    const group = L.layerGroup();
+    pessoasMarkers.forEach((m) => {
+      const size = 28;
+      const icon = L.divIcon({
+        className: '',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:#3B82F6;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(size*0.52)}" height="${Math.round(size*0.52)}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>`,
+      });
+      L.marker([m.lat, m.lng], { icon }).bindTooltip(m.name, { sticky: true, direction: 'top' }).addTo(group);
+    });
+    group.addTo(map);
+    pessoasMarkersRef.current = group;
+  }, [pessoasMarkers, map]);
+
+  // Markers de atendimentos (amarelo)
+  useEffect(() => {
+    atendimentosMarkersRef.current?.remove();
+    atendimentosMarkersRef.current = null;
+    if (!atendimentosMarkers || atendimentosMarkers.length === 0) return;
+    const group = L.layerGroup();
+    atendimentosMarkers.forEach((m) => {
+      const size = 28;
+      const icon = L.divIcon({
+        className: '',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:#F59E0B;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(size*0.52)}" height="${Math.round(size*0.52)}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M9.5 11.5 12 9l2.5 2.5"/><path d="M12 9v6"/>
+          </svg>
+        </div>`,
+      });
+      L.marker([m.lat, m.lng], { icon }).bindTooltip(m.name, { sticky: true, direction: 'top' }).addTo(group);
+    });
+    group.addTo(map);
+    atendimentosMarkersRef.current = group;
+  }, [atendimentosMarkers, map]);
 
   // Carrega o contorno do Brasil uma única vez
   useEffect(() => {
@@ -66,24 +336,20 @@ function MapCore({ candidate, onCityClick, stateBoundsRef, focusCityRef }: {
   useEffect(() => {
     let cancelled = false;
 
-    // Limpa camadas anteriores do candidato
     if (polygonLayerRef.current) { polygonLayerRef.current.remove(); polygonLayerRef.current = null; }
     if (citiesLayerRef.current)  { citiesLayerRef.current.remove();  citiesLayerRef.current  = null; }
 
     if (!candidate) {
-      // Sem candidato → mostra Brasil
       if (brazilLayerRef.current) brazilLayerRef.current.addTo(map);
       map.fitBounds(BRAZIL_BOUNDS);
       return () => { cancelled = true; };
     }
 
-    // Com candidato → esconde Brasil
     if (brazilLayerRef.current) brazilLayerRef.current.remove();
 
     const role = candidate.role?.toUpperCase() ?? '';
 
     if (MUNICIPAL_ROLES.includes(role)) {
-      // Municipal → polígono da cidade via tbrugz
       const uf = candidate.state_uf?.toUpperCase();
       const stateCode = uf ? UF_TO_IBGE[uf] : null;
       const cityName = candidate.city;
@@ -113,7 +379,6 @@ function MapCore({ candidate, onCityClick, stateBoundsRef, focusCityRef }: {
         .catch(() => {});
 
     } else if (STATE_ROLES.includes(role)) {
-      // Estadual → polígono do estado + divisões de municípios
       const ufLower = candidate.state_uf?.toLowerCase();
       const ufUpper = candidate.state_uf?.toUpperCase();
       const stateCode = ufUpper ? UF_TO_IBGE[ufUpper] : null;
@@ -125,7 +390,6 @@ function MapCore({ candidate, onCityClick, stateBoundsRef, focusCityRef }: {
       ]).then(([stateRes, munData]) => {
         if (cancelled) return;
 
-        // Divisões dos municípios (camada base)
         let citiesLayerLocal: L.GeoJSON;
         citiesLayerLocal = L.geoJSON(munData as GeoJSON.GeoJsonObject, {
           style: { color: '#1D3557', weight: 0.8, fillOpacity: 0.04, fillColor: '#1D3557' },
@@ -135,7 +399,6 @@ function MapCore({ candidate, onCityClick, stateBoundsRef, focusCityRef }: {
             (lyr as L.Path).on('click', () => {
               const bounds = (lyr as L.Polygon).getBounds();
               if (!bounds.isValid()) return;
-              // Destaca cidade clicada, reseta as demais
               citiesLayerLocal.eachLayer((l) => citiesLayerLocal.resetStyle(l as L.Layer));
               (lyr as L.Path).setStyle({ color: '#1D3557', weight: 2, fillColor: '#1D3557', fillOpacity: 0.18 });
               map.flyToBounds(bounds, { padding: [40, 40], duration: 1 });
@@ -143,10 +406,9 @@ function MapCore({ candidate, onCityClick, stateBoundsRef, focusCityRef }: {
             });
           },
         });
-        citiesLayerLocal.addTo(map);
+        if (showCitiesRef.current) citiesLayerLocal.addTo(map);
         citiesLayerRef.current = citiesLayerLocal;
 
-        // Expõe função de foco por nome para o handle externo
         focusCityRef.current = (name: string) => {
           const normTarget = normalizeName(name);
           citiesLayerLocal.eachLayer((lyr) => {
@@ -161,17 +423,20 @@ function MapCore({ candidate, onCityClick, stateBoundsRef, focusCityRef }: {
           });
         };
 
-        // Contorno do estado por cima
+        const stateLabel = candidate.state_uf?.toUpperCase() ?? '';
         const stateLayer = L.geoJSON(stateRes.data.geometry as GeoJSON.GeoJsonObject, {
-          style: { color: '#1D3557', weight: 2.5, fill: false },
+          style: { color: '#1D3557', weight: 2.5, fillColor: '#1D3557', fillOpacity: 0.04 },
+          onEachFeature: (_f, lyr) => {
+            if (stateLabel) (lyr as L.Path).bindTooltip(stateLabel, { permanent: false, sticky: true, direction: 'top' });
+          },
         });
-        stateLayer.addTo(map);
+        if (!showCitiesRef.current) stateLayer.addTo(map);
         polygonLayerRef.current = stateLayer;
 
         const bounds = stateLayer.getBounds();
         if (bounds.isValid()) {
           stateBoundsRef.current = bounds;
-          map.flyToBounds(bounds, { paddingTopLeft: [0, 20], paddingBottomRight: [20, 20], maxZoom: 8, duration: 1 });
+          map.flyToBounds(bounds, { padding: [20, 20], duration: 1 });
         }
       }).catch(() => {});
     }
@@ -188,11 +453,26 @@ function MapController({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null
   return null;
 }
 
-export const BrazilMap = forwardRef<BrazilMapHandle, { candidate: Candidate | null; onCityClick?: (name: string) => void }>(
-  ({ candidate, onCityClick }, ref) => {
+export const BrazilMap = forwardRef<BrazilMapHandle, {
+  candidate: Candidate | null;
+  showCities?: boolean;
+  selectedCityName?: string | null;
+  onCityClick?: (name: string) => void;
+  showZones?: boolean;
+  zones?: Zone[];
+  selectedZoneId?: number | null;
+  onZoneClick?: (id: number) => void;
+  votingLocations?: VotingLocation[];
+  selectedVotingLocationId?: number | null;
+  onVotingLocationClick?: (id: number) => void;
+  pessoasMarkers?: AddressMarker[];
+  atendimentosMarkers?: AddressMarker[];
+}>(
+  ({ candidate, showCities = false, selectedCityName, onCityClick, showZones, zones, selectedZoneId, onZoneClick, votingLocations, selectedVotingLocationId, onVotingLocationClick, pessoasMarkers, atendimentosMarkers }, ref) => {
     const mapRef         = useRef<L.Map | null>(null);
     const stateBoundsRef = useRef<L.LatLngBounds | null>(null);
     const focusCityRef   = useRef<((name: string) => void) | null>(null);
+    const focusZoneRef   = useRef<(() => void) | null>(null);
 
     useImperativeHandle(ref, () => ({
       zoomIn:    () => mapRef.current?.zoomIn(),
@@ -203,10 +483,12 @@ export const BrazilMap = forwardRef<BrazilMapHandle, { candidate: Candidate | nu
       },
       fitState: () => {
         if (stateBoundsRef.current && mapRef.current) {
-          mapRef.current.flyToBounds(stateBoundsRef.current, { paddingTopLeft: [0, 20], paddingBottomRight: [20, 20], maxZoom: 8, duration: 1 });
+          mapRef.current.flyToBounds(stateBoundsRef.current, { padding: [20, 20], duration: 1 });
         }
       },
-      focusCity: (name: string) => focusCityRef.current?.(name),
+      focusCity:      (name: string) => focusCityRef.current?.(name),
+      focusZone:      () => focusZoneRef.current?.(),
+      invalidateSize: () => mapRef.current?.invalidateSize(),
     }));
 
     return (
@@ -222,7 +504,24 @@ export const BrazilMap = forwardRef<BrazilMapHandle, { candidate: Candidate | nu
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
         />
-        <MapCore candidate={candidate} onCityClick={onCityClick} stateBoundsRef={stateBoundsRef} focusCityRef={focusCityRef} />
+        <MapCore
+          candidate={candidate}
+          showCities={showCities}
+          selectedCityName={selectedCityName}
+          onCityClick={onCityClick}
+          showZones={showZones}
+          zones={zones}
+          selectedZoneId={selectedZoneId}
+          onZoneClick={onZoneClick}
+          votingLocations={votingLocations}
+          selectedVotingLocationId={selectedVotingLocationId}
+          onVotingLocationClick={onVotingLocationClick}
+          pessoasMarkers={pessoasMarkers}
+          atendimentosMarkers={atendimentosMarkers}
+          stateBoundsRef={stateBoundsRef}
+          focusCityRef={focusCityRef}
+          focusZoneRef={focusZoneRef}
+        />
         <MapController mapRef={mapRef} />
       </MapContainer>
     );

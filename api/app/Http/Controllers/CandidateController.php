@@ -257,11 +257,44 @@ class CandidateController extends Controller
         ", array_merge([$candidacy->party_id, $candidacy->year], $candidateBindings, [$scopeVal, $candidacy->year]));
 
         if (empty($rows)) {
-            return response()->json([
-                'rounds'        => [],
-                'default_round' => null,
-                'stats'         => (object) [],
-            ]);
+            // Candidato sem votos no escopo — busca totais da cidade/zona/VL mesmo assim
+            $scopeRows = DB::connection('pgsql_maps')->select("
+                SELECT v.round,
+                    SUM(CASE WHEN v.vote_type = 'candidate' THEN v.qty_votes ELSE 0 END) AS total_valid,
+                    SUM(CASE WHEN v.vote_type = 'blank'     THEN v.qty_votes ELSE 0 END) AS qty_blank,
+                    SUM(CASE WHEN v.vote_type = 'null'      THEN v.qty_votes ELSE 0 END) AS qty_null,
+                    SUM(CASE WHEN v.vote_type = 'legend'    THEN v.qty_votes ELSE 0 END) AS qty_legend,
+                    SUM(CASE WHEN v.vote_type IN ('candidate','blank','null') THEN v.qty_votes ELSE 0 END) AS qty_total
+                FROM maps.votes v
+                WHERE {$scopeCol} = ? AND v.year = ?
+                GROUP BY v.round
+                ORDER BY v.round
+            ", [$scopeVal, $candidacy->year]);
+
+            if (empty($scopeRows)) {
+                return response()->json(['rounds' => [], 'default_round' => null, 'stats' => (object) []]);
+            }
+
+            $stats  = [];
+            $rounds = [];
+            foreach ($scopeRows as $row) {
+                $round    = (int) $row->round;
+                $rounds[] = $round;
+                $stats[(string) $round] = [
+                    'qty_votes'       => 0,
+                    'percentage'      => 0.0,
+                    'total_valid'     => (int) $row->total_valid,
+                    'qty_blank'       => (int) $row->qty_blank,
+                    'qty_null'        => (int) $row->qty_null,
+                    'qty_legend'      => (int) $row->qty_legend,
+                    'qty_party_total' => 0,
+                    'qty_total'       => (int) $row->qty_total,
+                    'status'          => $candidacy->status,
+                ];
+            }
+            $result = ['rounds' => $rounds, 'default_round' => max($rounds), 'stats' => $stats];
+            Cache::forever($cacheKey, $result);
+            return response()->json($result);
         }
 
         $stats  = [];

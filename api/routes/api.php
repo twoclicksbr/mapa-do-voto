@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\AddressMapController;
 use App\Http\Controllers\CandidateController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\Map\MapStatsController;
@@ -55,6 +56,7 @@ Route::middleware('tenant')->get('/auth/tenant', [AuthController::class, 'tenant
 Route::middleware('tenant')->post('/auth/login', [AuthController::class, 'login']);
 
 Route::middleware(['tenant', 'auth:sanctum'])->group(function () {
+    Route::get('/addresses/map', [AddressMapController::class, 'index']);
     Route::get('/candidates/search', [CandidateController::class, 'search']);
     Route::get('/map-candidates/search', [CandidateController::class, 'searchPersons']);
     Route::get('/map-candidates/{id}/candidacies', [CandidateController::class, 'candidaciesByPerson']);
