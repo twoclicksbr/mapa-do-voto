@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { ChevronDown, Search, Plus, Minus, Check, Crosshair, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, Wallet, X, CircleStar, MonitorCloud, LandPlot, PanelLeft, PanelRight, Globe, Grid3x2, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, Plus, Minus, Check, Crosshair, MapPin, MapPinned, Building, Building2, Settings, Users, ShieldCheck, BookmarkCheck, Home, NotepadText, ReplaceAll, FileText, Phone, Landmark, CreditCard, DollarSign, LayoutList, LayoutDashboard, BanknoteArrowDown, BanknoteArrowUp, ScrollText, CalendarDays, Wallet, X, CircleStar, MonitorCloud, LandPlot, PanelLeft, PanelRight, Grid3x2, type LucideIcon } from "lucide-react";
 import { useActiveCandidate } from "@/components/map/active-candidate-context";
 import { MapaDoVotoMap } from "@/components/map/mapa-do-voto-map";
 import { MapaDoVotoSidebarContent } from "@/components/mapa-do-voto/sidebar";
@@ -293,6 +293,7 @@ export function HomePage() {
   const [mapNovoZoneSearch, setMapNovoZoneSearch] = useState('');
   const [mapNovoZoneOpen, setMapNovoZoneOpen] = useState(false);
   const [mapNovoSelectedZone, setMapNovoSelectedZone] = useState<{ id: number; zone_number: number; qty_votes: number } | null>(null);
+  const [mapNovoPendingCity, setMapNovoPendingCity] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loggedIn) {
@@ -353,6 +354,14 @@ export function HomePage() {
   }, [mapNovoShowCities, mapNovoCandidate]);
 
   useEffect(() => {
+    if (!mapNovoPendingCity || mapNovoCities.length === 0) return;
+    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+    const found = mapNovoCities.find((c) => norm(c.name) === norm(mapNovoPendingCity));
+    if (found) setMapNovoSelectedCity(found);
+    setMapNovoPendingCity(null);
+  }, [mapNovoCities, mapNovoPendingCity]);
+
+  useEffect(() => {
     const isMunicipal = ['PREFEITO','PREFEITA','VEREADOR','VEREADORA','VICE-PREFEITO','VICE-PREFEITA'].includes((mapNovoCandidate?.role ?? '').toUpperCase());
     const cityId = mapNovoSelectedCity?.id ?? (isMunicipal ? mapNovoCandidate?.city_id : null);
     if (!mapNovoShowVotingLocations || !cityId) { setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); return; }
@@ -399,6 +408,13 @@ export function HomePage() {
       if (mapped.length <= 10) { setMapNovoCandidates(mapped); setMapNovoInitialCandidates(mapped); }
     }).finally(() => setMapNovoLoading(false));
   }, [mapNovoProfileOpen]);
+
+  useEffect(() => {
+    if (activeTab !== 'map-novo') return;
+    const t = setTimeout(() => brazilMapRef.current?.fitBrazil(), 100);
+    return () => clearTimeout(t);
+  }, [activeTab]);
+
   const { isSplit } = useActiveCandidate();
   const tenantName = getTenantName();
   const isMaster = tenantName.toLowerCase() === 'master';
@@ -2420,7 +2436,7 @@ export function HomePage() {
                           </PopoverTrigger>
                           {mapNovoSelectedCity && (
                             <button
-                              onClick={() => { setMapNovoSelectedCity(null); setMapNovoShowZones(false); setMapNovoZones([]); setMapNovoSelectedZone(null); setMapNovoZoneSearch(''); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); }}
+                              onClick={() => { setMapNovoSelectedCity(null); setMapNovoShowZones(false); setMapNovoZones([]); setMapNovoSelectedZone(null); setMapNovoZoneSearch(''); setMapNovoShowVotingLocations(false); setMapNovoVotingLocations([]); setMapNovoSelectedVotingLocation(null); setMapNovoVotingLocationSearch(''); brazilMapRef.current?.fitState(); }}
                               className="size-7 shrink-0 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
                             >
                               <X className="size-3.5 text-muted-foreground" />
@@ -2454,7 +2470,7 @@ export function HomePage() {
                               ) : filtered.map(c => (
                                 <div
                                   key={c.id}
-                                  onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedCity(c); setMapNovoCitySearch(''); setMapNovoCityOpen(false); }}
+                                  onMouseDown={(e) => { e.preventDefault(); setMapNovoSelectedCity(c); setMapNovoCitySearch(''); setMapNovoCityOpen(false); brazilMapRef.current?.focusCity(c.name); }}
                                   className={`flex items-center justify-between px-3 py-1.5 cursor-pointer border-b border-border last:border-0 hover:bg-muted ${mapNovoSelectedCity?.id === c.id ? 'bg-muted' : ''}`}
                                 >
                                   <span className="text-xs font-medium truncate">{c.name}</span>
@@ -2957,7 +2973,14 @@ export function HomePage() {
               )}
             </div>
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border">
-              <BrazilMap ref={brazilMapRef} />
+              <BrazilMap
+                ref={brazilMapRef}
+                candidate={mapNovoCandidate}
+                onCityClick={(name) => {
+                  setMapNovoShowCities(true);
+                  setMapNovoPendingCity(name);
+                }}
+              />
             </div>
           </div>
         </TabsContent>
